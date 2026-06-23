@@ -1,10 +1,12 @@
 import { exec, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
+import { TextDecoder, promisify } from "node:util";
 import type { CommandExecutor, CommandResult } from "./types.js";
 
 const execAsync = promisify(exec);
+const utf8Decoder = new TextDecoder("utf-8");
+const windowsDecoder = new TextDecoder("gb18030");
 
 export const defaultCommandExecutor: CommandExecutor = async (command, cwd) => {
   const started = Date.now();
@@ -58,7 +60,7 @@ export async function runDetachedCommand(
       };
 
       const append = (current: string, chunk: Buffer): string =>
-        `${current}${chunk.toString("utf-8")}`.slice(-1024 * 1024);
+        `${current}${decodeCommandOutput(chunk)}`.slice(-1024 * 1024);
 
       child.stdout?.on("data", (chunk: Buffer) => {
         stdout = append(stdout, chunk);
@@ -88,6 +90,10 @@ export async function runDetachedCommand(
       durationMs: Date.now() - started,
     };
   }
+}
+
+export function decodeCommandOutput(chunk: Buffer, platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? windowsDecoder.decode(chunk) : utf8Decoder.decode(chunk);
 }
 
 export class CommandLogger {
