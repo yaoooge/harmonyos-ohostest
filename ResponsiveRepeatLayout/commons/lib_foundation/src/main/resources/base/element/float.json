@@ -1,0 +1,52 @@
+{
+  "float": [
+    {
+      "name": "border_radius_xs",
+      "value": "4vp"
+    },
+    {
+      "name": "border_radius_s",
+      "value": "8vp"
+    },
+    {
+      "name": "border_radius_m",
+      "value": "12vp"
+    },
+    {
+      "name": "border_radius_l",
+      "value": "16vp"
+    },
+    {
+      "name": "border_radius_xl",
+      "value": "32vp"
+    },
+    {
+      "name": "border_radius_capsule",
+      "value": "999vp"
+    },
+    {
+      "name": "space_xs",
+      "value": "4vp"
+    },
+    {
+      "name": "space_s",
+      "value": "8vp"
+    },
+    {
+      "name": "space_m",
+      "value": "12vp"
+    },
+    {
+      "name": "space_l",
+      "value": "16vp"
+    },
+    {
+      "name": "space_xl",
+      "value": "24vp"
+    },
+    {
+      "name": "nav_header_height",
+      "value": "56vp"
+    }
+  ]
+}

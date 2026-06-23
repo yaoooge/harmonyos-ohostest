@@ -1,0 +1,16 @@
+.DS_Store
+
+# Node / TypeScript tool artifacts
+**/node_modules/
+**/dist/
+npm-debug.log*
+
+# HarmonyOS / DevEco generated artifacts
+**/build/
+**/.hvigor/
+**/oh_modules/
+**/.ohostest-runs/
+**/.idea/
+
+# Local/editor noise
+*.log
