@@ -27,21 +27,67 @@ export const defaultCommandExecutor: CommandExecutor = async (command, cwd) => {
   }
 };
 
-export async function runDetachedCommand(command: string, cwd: string): Promise<CommandResult> {
+export async function runDetachedCommand(
+  command: string,
+  cwd: string,
+  startupTimeoutMs = 10000,
+): Promise<CommandResult> {
   const started = Date.now();
-  const child = spawn(command, {
-    cwd,
-    detached: true,
-    shell: true,
-    stdio: "ignore",
-  });
-  child.unref();
-  return {
-    stdout: "",
-    stderr: "",
-    exitCode: 0,
-    durationMs: Date.now() - started,
-  };
+  try {
+    const child = spawn(command, {
+      cwd,
+      detached: true,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    return await new Promise<CommandResult>((resolve) => {
+      const finish = (result: Omit<CommandResult, "durationMs">): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeout);
+        resolve({
+          ...result,
+          durationMs: Date.now() - started,
+        });
+      };
+
+      const append = (current: string, chunk: Buffer): string =>
+        `${current}${chunk.toString("utf-8")}`.slice(-1024 * 1024);
+
+      child.stdout?.on("data", (chunk: Buffer) => {
+        stdout = append(stdout, chunk);
+      });
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderr = append(stderr, chunk);
+      });
+      child.on("error", (error) => {
+        finish({ stdout, stderr: stderr || error.message, exitCode: 1 });
+      });
+      child.on("close", (code) => {
+        finish({ stdout, stderr, exitCode: code ?? 0 });
+      });
+
+      const timeout = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+        finish({ stdout, stderr, exitCode: 0 });
+      }, startupTimeoutMs);
+    });
+  } catch (error) {
+    return {
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      exitCode: 1,
+      durationMs: Date.now() - started,
+    };
+  }
 }
 
 export class CommandLogger {
