@@ -74,7 +74,6 @@ export struct ProductCategory {
         }, (item: CategoryItem, index: number) => index + JSON.stringify(item));
       }
       .width('30%')
-      .constraintSize({ maxWidth: 240 })
       .height('100%')
       .borderWidth({ right: 1 })
       .borderColor($r('sys.color.comp_divider'))
@@ -167,10 +166,7 @@ export struct ProductCategory {
   productListBuilder() {
     Scroll() {
       GridRow({
-        columns: {
-          xs: 2,
-          md: 4,
-        },
+        columns: 2,
         gutter: { x: 12, y: 12 },
       }) {
         if (this.isLoading) {

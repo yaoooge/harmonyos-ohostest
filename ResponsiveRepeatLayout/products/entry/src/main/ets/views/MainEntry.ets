@@ -1,5 +1,5 @@
 import { UtilLog } from '@hw-agconnect/util-log';
-import { BreakpointSystem, MotionUtil } from 'lib_foundation';
+import { MotionUtil } from 'lib_foundation';
 import { TAB_LIST } from '../commons/Constants';
 import { TabListItem } from '../commons/Types';
 import { MainEntryVM } from '../viewmodels/MainEntryVM';
@@ -21,7 +21,7 @@ struct MainEntry {
   build() {
     NavDestination() {
       Tabs({
-        barPosition: BreakpointSystem.isTablet ? BarPosition.Start : BarPosition.End,
+        barPosition: BarPosition.End,
         index: this.vm.curIndex,
         controller: this.controller,
       }) {
@@ -38,21 +38,19 @@ struct MainEntry {
       .height($r('app.string.size_percent_full'))
       .animationDuration(0)
       .divider({ strokeWidth: '1px' })
-      .barMode(BreakpointSystem.isTablet ? BarMode.Scrollable : BarMode.Fixed)
-      .vertical(BreakpointSystem.isTablet)
-      .barWidth(BreakpointSystem.isTablet ? 96 : '100%')
+      .barMode(BarMode.Fixed)
+      .vertical(false)
+      .barWidth('100%')
       .id('main-tabs')
       .onChange((index: number) => {
         this.vm.curIndex = index;
       })
       .expandSafeArea([SafeAreaType.SYSTEM],
         [SafeAreaEdge.BOTTOM, SafeAreaEdge.TOP, SafeAreaEdge.START, SafeAreaEdge.END])
-      .barOverlap(!BreakpointSystem.isTablet)
+      .barOverlap(true)
     }
     .hideTitleBar(true)
-    .backgroundColor(BreakpointSystem.isTablet ?
-      $r('app.color.background_color_grey') :
-      $r('app.color.background_color_transparent'))
+    .backgroundColor($r('app.color.background_color_transparent'))
     .onBackPressed(() => {
       let nowTime = Date.now();
       if (nowTime - this.vm.firstBackTime < 1500) {
@@ -90,7 +88,7 @@ struct MainEntry {
         .margin({ top: $r('app.float.space_xs') });
     }
     .width($r('app.string.size_percent_full'))
-    .height(BreakpointSystem.isTablet ? 100 : undefined)
+    .height(undefined)
     .id('main-tab-' + index)
   }
 }

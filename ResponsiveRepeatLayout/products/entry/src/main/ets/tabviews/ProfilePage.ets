@@ -1,7 +1,4 @@
-import { LengthMetrics } from '@kit.ArkUI';
-import {
-  iData, BreakpointSystem, BreakpointTypeEnum,
-} from 'lib_foundation';
+import { iData } from 'lib_foundation';
 import { ContainerColumn, NavTitleBar } from 'lib_widget';
 import { MainMenuItem, SubMenuItem } from '../commons/Types';
 import { ProfileUtil } from '../utils/ProfileUtil';
@@ -22,28 +19,9 @@ export struct ProfilePage {
 
       Scroll() {
         Column({ space: 12 }) {
-          if (BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG) {
-            Flex({ space: { main: LengthMetrics.vp(16) } }) {
-              Column() {
-                buildUserInfoArea()
-              }
-              .tabletContainerStyle(iData.global.isLogin)
-              .id('profile-user-area')
-
-              Column() {
-                buildCheckInArea()
-                buildMainMenuArea()
-              }
-              .height(iData.global.isLogin ? 128 : 78)
-              .justifyContent(FlexAlign.SpaceBetween)
-              .id('profile-menu-area')
-            }
-            .id('profile-lg-split')
-          } else {
-            buildUserInfoArea()
-            buildCheckInArea()
-            buildMainMenuArea()
-          }
+          buildUserInfoArea()
+          buildCheckInArea()
+          buildMainMenuArea()
 
           buildOrderInfoArea()
           buildSubMenuArea()
@@ -196,9 +174,7 @@ function buildMainMenuArea() {
     }, (item: MainMenuItem) => item.label)
   }
   .containerStyle()
-  .justifyContent(BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.SM ?
-    FlexAlign.SpaceBetween :
-    FlexAlign.SpaceAround)
+  .justifyContent(FlexAlign.SpaceBetween)
 }
 
 @Builder
@@ -232,9 +208,7 @@ function buildOrderInfoArea() {
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
-    .justifyContent(BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.SM ?
-      FlexAlign.SpaceBetween :
-      FlexAlign.SpaceAround);
+    .justifyContent(FlexAlign.SpaceBetween);
   }
   .containerStyle();
 }
@@ -269,7 +243,7 @@ function buildSubMenuArea() {
     strokeWidth: 1,
     startMargin: 32,
   })
-  .lanes(BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG ? 2 : 1, 16)
+  .lanes(1, 16)
   .id('profile-sub-menu-list')
 }
 
@@ -323,12 +297,4 @@ function commonIconStyle() {
   .height(16)
   .width(16)
   .fillColor($r('app.color.font_color_level2'));
-}
-
-@Extend(Column)
-function tabletContainerStyle(isLogin: boolean) {
-  .backgroundColor($r('app.color.background_color_primary'))
-  .borderRadius(16)
-  .height(isLogin ? 128 : 78)
-  .justifyContent(FlexAlign.Center)
 }

@@ -109,9 +109,7 @@ export struct HomePage {
           .fontColor($r('app.color.font_color_level1'))
           .fontWeight(FontWeight.Bold)
         Blank()
-        if (this.vm.isTablet) {
-          this.buildSearchBar()
-        } else if (this.searchAreaHeight === 0) {
+        if (this.searchAreaHeight === 0) {
           CommonSymbol({
             src: $r('sys.symbol.magnifyingglass'),
           })
@@ -126,8 +124,7 @@ export struct HomePage {
       .height($r('app.float.nav_header_height'))
       .width('100%')
     }
-    .backgroundColor(this.vm.isTablet ? $r('app.color.background_color_transparent') :
-      $r('app.color.background_color_primary'))
+    .backgroundColor($r('app.color.background_color_primary'))
     .expandSafeArea()
     .padding({
       left: $r('app.float.space_l'),
@@ -135,19 +132,17 @@ export struct HomePage {
     })
     .width('100%')
 
-    if (!this.vm.isTablet) {
-      Column() {
-        this.buildSearchBar()
-      }
-      .width('100%')
-      .height(this.searchAreaHeight)
-      .justifyContent(FlexAlign.Center)
-      // 容器整体透明度
-      .opacity(this.searchAreaHeight / this.MAX_SEARCH_HEIGHT)
-      .visibility(this.searchAreaHeight <= 0 ? Visibility.None : Visibility.Visible)
-      .backgroundColor($r('app.color.background_color_primary'))
-      .clip(true)
+    Column() {
+      this.buildSearchBar()
     }
+    .width('100%')
+    .height(this.searchAreaHeight)
+    .justifyContent(FlexAlign.Center)
+    // 容器整体透明度
+    .opacity(this.searchAreaHeight / this.MAX_SEARCH_HEIGHT)
+    .visibility(this.searchAreaHeight <= 0 ? Visibility.None : Visibility.Visible)
+    .backgroundColor($r('app.color.background_color_primary'))
+    .clip(true)
   }
 
   @Builder
@@ -198,10 +193,9 @@ export struct HomePage {
           this.vm.jumpToScanPage()
         })
     }
-    .width(this.vm.isTablet ? 400 : $r('app.string.size_percent_full'))
+    .width($r('app.string.size_percent_full'))
     .height(56)
-    .backgroundColor(this.vm.isTablet ? $r('app.color.background_color_grey') :
-      $r('app.color.background_color_primary'))
+    .backgroundColor($r('app.color.background_color_primary'))
     .alignItems(VerticalAlign.Center)
     .padding({
       left: $r('app.float.space_l'),

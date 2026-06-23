@@ -1,4 +1,3 @@
-import { BreakpointSystem } from 'lib_foundation';
 import { CartPrice, DiscountItem } from 'lib_network';
 import { CommonConfirmDialog } from 'lib_widget';
 import { PopupSheet } from './PopupSheet';
@@ -73,7 +72,7 @@ export struct CartControlPanel {
       .borderWidth(this.isChildRoute ? { top: 0.1 } : {})
       .borderColor('#30000000')
       .backgroundColor($r('app.color.background_color_primary'))
-      .margin({ bottom: (this.isChildRoute || BreakpointSystem.isTablet) ? 0 : 56 })
+      .margin({ bottom: this.isChildRoute ? 0 : 56 })
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
       .justifyContent(FlexAlign.SpaceBetween)
       .padding({ left: 16, right: 16 })

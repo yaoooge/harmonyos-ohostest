@@ -1,8 +1,3 @@
-import {
-  BreakpointStorage,
-  BreakpointSystem,
-  BreakpointTypeEnum,
-} from 'lib_foundation';
 import { CategoryItem } from 'lib_network';
 import { ProductWaterFlow } from './ProductWaterFlow';
 import { LengthMetrics } from '@kit.ArkUI';
@@ -23,17 +18,10 @@ export struct HomePageContent {
   scroller: Scroller = new Scroller();
   @Event
   handleClickCategory: (id: string) => void;
-  @Local curBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint
 
   @Computed
   get bannerAspectRatio() {
-    if (this.curBreakpoint.value === BreakpointTypeEnum.SM) {
-      return 4 / 3
-    }
-    if (this.curBreakpoint.value === BreakpointTypeEnum.MD) {
-      return 2.5
-    }
-    return 5
+    return 2.5
   }
 
   build() {
@@ -102,7 +90,7 @@ export struct HomePageContent {
         }
         .constraintSize({ minWidth: '100%' })
         .padding($r('app.float.space_l'))
-        .justifyContent(BreakpointSystem.isTablet ? FlexAlign.SpaceBetween : FlexAlign.Start)
+        .justifyContent(FlexAlign.Start)
       }
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
