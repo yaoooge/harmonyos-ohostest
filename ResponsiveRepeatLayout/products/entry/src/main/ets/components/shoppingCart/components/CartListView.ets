@@ -1,3 +1,4 @@
+import { BreakpointStorage, BreakpointSystem, BreakpointTypeEnum } from 'lib_foundation';
 import { PriceType } from 'lib_network';
 import { ProductModel } from '../commons/Model';
 import { CartCard } from './CartCard';
@@ -21,6 +22,8 @@ export struct CartListView {
   @Event onSpecClick: (productId: string, skuCode: string, count: number, priceType: PriceType,
     slotId?: string) => void = () => {
   };
+  @Local curBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint
+
   build() {
     List({ space: 12 }) {
       ForEach(this.listData, (card: ProductModel, index: number) => {
@@ -55,7 +58,7 @@ export struct CartListView {
     }
     .width('100%')
     .height('auto')
-    .lanes(1)
+    .lanes(this.curBreakpoint.value === BreakpointTypeEnum.LG ? 2 : 1)
     .edgeEffect(EdgeEffect.None)
     .margin({ top: 10 })
     .padding({ left: 8, right: 8 })

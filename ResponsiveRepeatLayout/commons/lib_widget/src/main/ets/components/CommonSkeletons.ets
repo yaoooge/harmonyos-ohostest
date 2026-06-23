@@ -1,4 +1,5 @@
 import { SkeletonTheme, UISkeleton, SkeletonType } from '@hw-agconnect/ui-skeleton';
+import { BreakpointSystem, BreakpointTypeEnum } from 'lib_foundation';
 
 @ComponentV2
 export struct ProductListSkeleton {
@@ -11,12 +12,17 @@ export struct ProductListSkeleton {
 
   @Computed
   get horizontalCardNum() {
+    if (BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG) {
+      return 4
+    } else if (BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.MD) {
+      return 3
+    }
     return 2
   }
 
   @Computed
   get verticalCardNum() {
-    return 1
+    return BreakpointSystem.isTablet ? 2 : 1
   }
 
   getCardList(): boolean[] {

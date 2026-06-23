@@ -2,6 +2,14 @@ export { iData, GlobalStateMgr } from './src/main/ets/utils/IData';
 
 export { routerUtil as routerStack } from './src/main/ets/utils/RouterUtil';
 
+export {
+  BreakpointTypeEnum,
+  BreakpointSystem,
+  BreakpointType,
+  BreakpointModel,
+  BreakpointStorage,
+} from './src/main/ets/utils/BreakpointSystem';
+
 export { LoadingStatus } from './src/main/ets/constants/EnumType';
 
 export { WindowUtil } from './src/main/ets/utils/WindowUtil';

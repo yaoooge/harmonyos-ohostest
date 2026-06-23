@@ -2,6 +2,8 @@ import {
   LoadingStatus,
   GlobalStateMgr,
   iData,
+  BreakpointSystem,
+  BreakpointTypeEnum,
 } from 'lib_foundation';
 import { CategoryItem } from 'lib_network';
 import { PreloadUtil } from '../utils/PreloadUtil';
@@ -24,6 +26,11 @@ export class HomePageVM {
   searchList: string[] = [];
   @Trace
   currentSearchStr: string = '';
+
+  @Computed
+  get isTablet() {
+    return BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG;
+  }
 
   public onRefreshStateChange(state: RefreshStatus): void {
     this.refreshStatus = state;

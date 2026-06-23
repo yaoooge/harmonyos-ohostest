@@ -1,6 +1,6 @@
 import { util } from '@kit.ArkTS';
 import { motion } from '@kit.MultimodalAwarenessKit';
-import { MotionUtil, WindowUtil } from 'lib_foundation';
+import { BreakpointSystem, BreakpointTypeEnum, MotionUtil, WindowUtil } from 'lib_foundation';
 import { FilterSelectionItem, ProductApis, ProductCardItem } from 'lib_network';
 import { SortTypeMap } from '../commons/Enums';
 
@@ -67,9 +67,16 @@ export class ProductWaterFlowVM {
   @Computed
   get columnTemplate() {
     if (this.isGrid) {
-      return '1fr';
+      return BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG ? '1fr 1fr' : '1fr';
     }
-    return '1fr 1fr';
+    const bp = BreakpointSystem.currentBreakpoint.value;
+    if (bp === BreakpointTypeEnum.SM) {
+      return '1fr 1fr';
+    }
+    if (bp === BreakpointTypeEnum.MD) {
+      return '1fr 1fr 1fr';
+    }
+    return '1fr 1fr 1fr 1fr';
   }
 
   async refreshList() {
