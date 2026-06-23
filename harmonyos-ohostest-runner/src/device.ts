@@ -76,6 +76,17 @@ export async function ensureTargetReady(ctx: DeviceCommandContext): Promise<void
   throw new Error("hdc_not_connected");
 }
 
+export async function waitForTargetDisconnected(ctx: DeviceCommandContext): Promise<boolean> {
+  for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
+    const result = await ctx.runCommand(`${shellQuote(ctx.config.paths.hdc)} list targets`);
+    if (!isTargetConnected(result.stdout, ctx.device.target)) {
+      return true;
+    }
+    await sleep(1000);
+  }
+  return false;
+}
+
 export async function writeDeviceLog(input: {
   outDir: string;
   deviceId: string;

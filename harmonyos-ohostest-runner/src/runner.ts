@@ -8,6 +8,7 @@ import {
   installHaps,
   prepareDevice,
   verifyFileExists,
+  waitForTargetDisconnected,
   writeDeviceLog,
 } from "./device.js";
 import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "./ohostest.js";
@@ -226,6 +227,13 @@ async function runDevice(input: {
   } finally {
     if (input.device.startEmulator && !input.keepEmulators) {
       await input.runDetached(buildStopEmulatorCommand(input.config, input.device));
+      await waitForTargetDisconnected({
+        config: input.config,
+        device: input.device,
+        cwd: input.config.project,
+        outDir: input.outDir,
+        runCommand: input.runCommand,
+      });
     }
   }
 }
