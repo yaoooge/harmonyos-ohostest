@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAaTestCommand, parseAaTestOutput } from "../src/ohostest.js";
+import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "../src/ohostest.js";
 
 test("buildAaTestCommand emits full module command without class filter", () => {
   const command = buildAaTestCommand({
@@ -58,4 +58,12 @@ test("parseAaTestOutput marks missing summary as unparseable", () => {
     ok: false,
     blockedReason: "test_output_unparseable",
   });
+});
+
+test("shellQuote uses Windows-compatible double quotes for paths with spaces", () => {
+  assert.equal(
+    shellQuote("D:\\Software\\Deveco Studio\\emulator\\deployed", "win32"),
+    '"D:\\Software\\Deveco Studio\\emulator\\deployed"',
+  );
+  assert.equal(shellQuote("Mate 80 Pro", "win32"), '"Mate 80 Pro"');
 });

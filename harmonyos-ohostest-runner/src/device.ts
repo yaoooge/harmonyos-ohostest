@@ -11,30 +11,38 @@ export interface DeviceCommandContext {
   runCommand: (command: string) => Promise<CommandResult>;
 }
 
-export function buildStartEmulatorCommand(config: MatrixConfig, device: DeviceConfig): string {
+export function buildStartEmulatorCommand(
+  config: MatrixConfig,
+  device: DeviceConfig,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (!device.profile) {
     throw new Error(`device ${device.id} has no emulator profile.`);
   }
   return [
-    shellQuote(config.paths.emulatorBin),
+    shellQuote(config.paths.emulatorBin, platform),
     "-start",
-    shellQuote(device.profile),
+    shellQuote(device.profile, platform),
     "-instancePath",
-    shellQuote(config.paths.emulatorDeployedDir),
+    shellQuote(config.paths.emulatorDeployedDir, platform),
     ...(device.hdcPort !== undefined ? ["-hdcport", String(device.hdcPort)] : []),
   ].join(" ");
 }
 
-export function buildStopEmulatorCommand(config: MatrixConfig, device: DeviceConfig): string {
+export function buildStopEmulatorCommand(
+  config: MatrixConfig,
+  device: DeviceConfig,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (!device.profile) {
     throw new Error(`device ${device.id} has no emulator profile.`);
   }
   return [
-    shellQuote(config.paths.emulatorBin),
+    shellQuote(config.paths.emulatorBin, platform),
     "-stop",
-    shellQuote(device.profile),
+    shellQuote(device.profile, platform),
     "-instancePath",
-    shellQuote(config.paths.emulatorDeployedDir),
+    shellQuote(config.paths.emulatorDeployedDir, platform),
   ].join(" ");
 }
 
