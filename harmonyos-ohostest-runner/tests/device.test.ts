@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildStartEmulatorCommand } from "../src/device.js";
+import { buildStartEmulatorCommand, ensureTargetReady } from "../src/device.js";
 import type { DeviceConfig, MatrixConfig } from "../src/types.js";
 
 function makeConfig(): MatrixConfig {
@@ -46,4 +46,41 @@ test("buildStartEmulatorCommand quotes Windows profile and instance path with do
     command,
     '"D:\\Software\\Deveco Studio\\tools\\emulator\\Emulator.exe" -start "Mate 80 Pro" -instancePath "D:\\Software\\Deveco Studio\\emulator\\deployed" -hdcport 15001',
   );
+});
+
+test("ensureTargetReady waits up to 120 polling attempts for slow Windows emulator startup", async () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void) => {
+    callback();
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  try {
+    let attempts = 0;
+    const config = makeConfig();
+    const device: DeviceConfig = {
+      id: "phone",
+      target: "127.0.0.1:15001",
+      startEmulator: true,
+    };
+
+    await ensureTargetReady({
+      config,
+      device,
+      cwd: config.project,
+      outDir: "out",
+      runCommand: async () => {
+        attempts += 1;
+        return {
+          stdout: attempts === 120 ? "127.0.0.1:15001\tConnected\n" : "[Empty]\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+        };
+      },
+    });
+
+    assert.equal(attempts, 120);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
 });

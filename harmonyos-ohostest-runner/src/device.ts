@@ -3,6 +3,8 @@ import path from "node:path";
 import type { CommandExecutor, CommandResult, DeviceConfig, MatrixConfig } from "./types.js";
 import { shellQuote } from "./ohostest.js";
 
+const targetReadyMaxAttempts = 120;
+
 export interface DeviceCommandContext {
   config: MatrixConfig;
   device: DeviceConfig;
@@ -64,7 +66,7 @@ export async function installHaps(ctx: DeviceCommandContext): Promise<void> {
 }
 
 export async function ensureTargetReady(ctx: DeviceCommandContext): Promise<void> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
     const result = await ctx.runCommand(`${shellQuote(ctx.config.paths.hdc)} list targets`);
     if (isTargetConnected(result.stdout, ctx.device.target)) {
       return;
