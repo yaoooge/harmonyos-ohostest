@@ -1,4 +1,4 @@
-export type MatrixStatus = "passed" | "failed" | "blocked" | "partial";
+export type MatrixStatus = "completed" | "failed";
 
 export type DeviceRunStatus = "passed" | "failed" | "blocked";
 
@@ -16,6 +16,7 @@ export interface RawMatrixConfig {
   testModule?: string;
   testRunner?: string;
   testClass?: string;
+  testFolders?: Record<string, unknown>;
   timeoutMs?: number;
   build?: {
     mode?: string;
@@ -41,6 +42,7 @@ export interface RawDeviceConfig {
   target?: string;
   hdcPort?: number;
   startEmulator?: boolean;
+  testFolders?: unknown;
 }
 
 export interface MatrixConfig {
@@ -51,6 +53,7 @@ export interface MatrixConfig {
   testModule: string;
   testRunner: string;
   testClass?: string;
+  testFolders: Record<string, string>;
   timeoutMs: number;
   build: {
     mode: string;
@@ -76,6 +79,7 @@ export interface DeviceConfig {
   target: string;
   hdcPort?: number;
   startEmulator: boolean;
+  testClasses?: string[];
 }
 
 export interface CommandResult {
@@ -95,6 +99,7 @@ export interface ParsedAaTestOutput {
   passes?: number;
   ignored?: number;
   reportCode?: number;
+  testCases?: TestCaseRunResult[];
   blockedReason?: BlockedReason;
 }
 
@@ -104,6 +109,30 @@ export interface BuildResult {
   testHap: string;
   durationMs?: number;
   blockedReason?: string;
+}
+
+export type SuiteRunStatus = "passed" | "failed" | "blocked";
+
+export type TestCaseRunStatus = "passed" | "failed" | "ignored" | "running";
+
+export interface TestCaseRunResult {
+  name: string;
+  status: TestCaseRunStatus;
+  statusCode: number;
+}
+
+export interface SuiteRunResult {
+  suiteClass: string;
+  status: SuiteRunStatus;
+  testsRun: number;
+  failures: number;
+  errors: number;
+  passes: number;
+  ignored: number;
+  reportCode: number | null;
+  ok: boolean;
+  testCases: TestCaseRunResult[];
+  outputFile?: string;
 }
 
 export interface DeviceRunResult {
@@ -117,6 +146,7 @@ export interface DeviceRunResult {
   passes: number;
   ignored: number;
   reportCode?: number;
+  suiteResults: SuiteRunResult[];
   durationMs: number;
   log: string;
   blockedReason?: BlockedReason;

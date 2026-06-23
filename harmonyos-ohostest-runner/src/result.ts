@@ -2,18 +2,12 @@ import type { DeviceRunResult, MatrixStatus } from "./types.js";
 
 export function deriveMatrixStatus(devices: DeviceRunResult[]): MatrixStatus {
   if (devices.length === 0) {
-    return "blocked";
-  }
-  if (devices.some((device) => device.status === "failed")) {
     return "failed";
   }
-  if (devices.every((device) => device.status === "passed")) {
-    return "passed";
+  if (devices.some((device) => device.status === "blocked")) {
+    return "failed";
   }
-  if (devices.some((device) => device.status === "passed")) {
-    return "partial";
-  }
-  return "blocked";
+  return "completed";
 }
 
 export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunResult[]): string {
@@ -22,9 +16,9 @@ export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunRe
       "|",
       device.id,
       "|",
-      device.target,
-      "|",
       device.status,
+      "|",
+      String(device.suiteResults.length),
       "|",
       String(device.testsRun),
       "|",
@@ -39,14 +33,75 @@ export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunRe
     ].join(" "),
   );
 
+  const suiteSections = devices.flatMap((device) => {
+    if (device.suiteResults.length === 0) {
+      return [];
+    }
+    const suiteRows = device.suiteResults.map((suite) =>
+      [
+        "|",
+        suite.suiteClass,
+        "|",
+        suite.status,
+        "|",
+        String(suite.testsRun),
+        "|",
+        String(suite.failures),
+        "|",
+        String(suite.errors),
+        "|",
+        String(suite.passes),
+        "|",
+        String(suite.ignored),
+        "|",
+        String(suite.reportCode ?? ""),
+        "|",
+      ].join(" "),
+    );
+    const caseSections = device.suiteResults.flatMap((suite) => {
+      if (suite.testCases.length === 0) {
+        return [];
+      }
+      const caseRows = suite.testCases.map((testCase) =>
+        [
+          "|",
+          testCase.name,
+          "|",
+          testCase.status,
+          "|",
+          String(testCase.statusCode),
+          "|",
+        ].join(" "),
+      );
+      return [
+        `#### ${suite.suiteClass}`,
+        "",
+        "| Test Case | Status | Code |",
+        "| --- | --- | ---: |",
+        ...caseRows,
+        "",
+      ];
+    });
+    return [
+      `### ${device.id}`,
+      "",
+      "| Suite | Status | Tests | Failures | Errors | Passes | Ignored | Report |",
+      "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+      ...suiteRows,
+      "",
+      ...caseSections,
+    ];
+  });
+
   return [
     "# ohosTest Matrix Summary",
     "",
     `Status: ${status}`,
     "",
-    "| Device | Target | Status | Tests | Failure | Error | Pass | Ignore |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    "| Device | Status | Suites | Tests | Failures | Errors | Passes | Ignored |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...rows,
     "",
+    ...suiteSections,
   ].join("\n");
 }

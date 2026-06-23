@@ -1,4 +1,4 @@
-import type { ParsedAaTestOutput } from "./types.js";
+import type { ParsedAaTestOutput, TestCaseRunResult } from "./types.js";
 
 export interface BuildAaTestCommandInput {
   hdc: string;
@@ -55,8 +55,45 @@ export function parseAaTestOutput(output: string): ParsedAaTestOutput {
     errors,
     passes,
     ignored,
+    testCases: parseTestCases(output),
     ...(reportCode !== undefined ? { reportCode } : {}),
   };
+}
+
+function parseTestCases(output: string): TestCaseRunResult[] {
+  const cases = new Map<string, TestCaseRunResult>();
+  let currentTest: string | undefined;
+  for (const line of output.split(/\r?\n/)) {
+    const testMatch = /^OHOS_REPORT_STATUS:\s+test=(.+)$/.exec(line);
+    if (testMatch) {
+      currentTest = testMatch[1];
+      continue;
+    }
+    const codeMatch = /^OHOS_REPORT_STATUS_CODE:\s*(-?\d+)$/.exec(line);
+    if (codeMatch && currentTest) {
+      const statusCode = Number(codeMatch[1]);
+      cases.set(currentTest, {
+        name: currentTest,
+        status: statusFromStatusCode(statusCode),
+        statusCode,
+      });
+      currentTest = undefined;
+    }
+  }
+  return [...cases.values()];
+}
+
+function statusFromStatusCode(statusCode: number): TestCaseRunResult["status"] {
+  if (statusCode === 0) {
+    return "passed";
+  }
+  if (statusCode === -3) {
+    return "ignored";
+  }
+  if (statusCode === 1) {
+    return "running";
+  }
+  return "failed";
 }
 
 export function shellQuote(value: string, platform: NodeJS.Platform = process.platform): string {

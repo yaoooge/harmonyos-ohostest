@@ -14,3 +14,4 @@ npm-debug.log*
 
 # Local/editor noise
 *.log
+.codegraph/

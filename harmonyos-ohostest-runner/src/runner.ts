@@ -20,6 +20,7 @@ import type {
   MatrixConfig,
   MatrixResult,
   RunMatrixInput,
+  SuiteRunResult,
 } from "./types.js";
 
 export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixResult> {
@@ -183,25 +184,43 @@ async function runDevice(input: {
       runCommand: input.runCommand,
     });
 
-    const testCommand = buildAaTestCommand({
-      hdc: input.config.paths.hdc,
-      target: input.device.target,
-      bundleName: input.config.bundleName,
-      testModule: input.config.testModule,
-      testRunner: input.config.testRunner,
-      timeoutMs: input.config.timeoutMs,
-      ...(input.config.testClass ? { testClass: input.config.testClass } : {}),
-    });
-    const testResult = await input.runCommand(testCommand);
-    logLines.push("aaTestStdout:", testResult.stdout.trimEnd(), "aaTestStderr:", testResult.stderr.trimEnd());
-    if (testResult.exitCode !== 0) {
-      return blockedDevice(input, started, logLines, "test_command_failed");
+    const suiteClasses = input.config.testClass
+      ? [input.config.testClass]
+      : input.device.testClasses && input.device.testClasses.length > 0
+        ? input.device.testClasses
+        : [];
+    const suiteResults: SuiteRunResult[] = [];
+
+    if (suiteClasses.length > 0) {
+      for (const suiteClass of suiteClasses) {
+        suiteResults.push(await runSuite({ ...input, suiteClass, logLines }));
+      }
+    } else {
+      const testResult = await input.runCommand(buildTestCommand(input.config, input.device));
+      logLines.push("aaTestStdout:", testResult.stdout.trimEnd(), "aaTestStderr:", testResult.stderr.trimEnd());
+      if (testResult.exitCode !== 0) {
+        return blockedDevice(input, started, logLines, "test_command_failed");
+      }
+      const parsed = parseAaTestOutput(`${testResult.stdout}\n${testResult.stderr}`);
+      if (!parsed.ok && parsed.blockedReason) {
+        return blockedDevice(input, started, logLines, parsed.blockedReason);
+      }
+      suiteResults.push({
+        suiteClass: "ALL",
+        status: parsed.ok ? "passed" : "failed",
+        testsRun: parsed.testsRun ?? 0,
+        failures: parsed.failures ?? 0,
+        errors: parsed.errors ?? 0,
+        passes: parsed.passes ?? 0,
+        ignored: parsed.ignored ?? 0,
+        reportCode: parsed.reportCode ?? null,
+        ok: parsed.ok,
+        testCases: parsed.testCases ?? [],
+      });
     }
-    const parsed = parseAaTestOutput(`${testResult.stdout}\n${testResult.stderr}`);
-    if (!parsed.ok && parsed.blockedReason) {
-      return blockedDevice(input, started, logLines, parsed.blockedReason);
-    }
-    const status = parsed.ok ? "passed" : "failed";
+
+    const status = suiteResults.some((suite) => suite.status !== "passed") ? "failed" : "passed";
+    const aggregate = aggregateSuites(suiteResults);
     const log = await writeDeviceLog({
       outDir: input.outDir,
       deviceId: input.device.id,
@@ -212,12 +231,12 @@ async function runDevice(input: {
       ...(input.device.profile ? { profile: input.device.profile } : {}),
       target: input.device.target,
       status,
-      testsRun: parsed.testsRun ?? 0,
-      failures: parsed.failures ?? 0,
-      errors: parsed.errors ?? 0,
-      passes: parsed.passes ?? 0,
-      ignored: parsed.ignored ?? 0,
-      ...(parsed.reportCode !== undefined ? { reportCode: parsed.reportCode } : {}),
+      testsRun: aggregate.testsRun,
+      failures: aggregate.failures,
+      errors: aggregate.errors,
+      passes: aggregate.passes,
+      ignored: aggregate.ignored,
+      suiteResults,
       durationMs: Date.now() - started,
       log,
     };
@@ -262,10 +281,102 @@ async function blockedDevice(
     errors: 0,
     passes: 0,
     ignored: 0,
+    suiteResults: [],
     durationMs: Date.now() - started,
     log,
     blockedReason,
   };
+}
+
+async function runSuite(input: {
+  config: MatrixConfig;
+  device: MatrixConfig["devices"][number];
+  suiteClass: string;
+  logLines: string[];
+  runCommand: (command: string) => Promise<CommandResult>;
+}): Promise<SuiteRunResult> {
+  input.logLines.push(`suiteClass: ${input.suiteClass}`);
+  const testResult = await input.runCommand(buildTestCommand(input.config, input.device, input.suiteClass));
+  input.logLines.push(
+    `aaTestClass: ${input.suiteClass}`,
+    "aaTestStdout:",
+    testResult.stdout.trimEnd(),
+    "aaTestStderr:",
+    testResult.stderr.trimEnd(),
+  );
+  if (testResult.exitCode !== 0) {
+    return {
+      suiteClass: input.suiteClass,
+      status: "failed",
+      testsRun: 0,
+      failures: 0,
+      errors: 1,
+      passes: 0,
+      ignored: 0,
+      reportCode: null,
+      ok: false,
+      testCases: [],
+    };
+  }
+  const parsed = parseAaTestOutput(`${testResult.stdout}\n${testResult.stderr}`);
+  if (!parsed.ok && parsed.blockedReason) {
+    return {
+      suiteClass: input.suiteClass,
+      status: "blocked",
+      testsRun: 0,
+      failures: 0,
+      errors: 1,
+      passes: 0,
+      ignored: 0,
+      reportCode: null,
+      ok: false,
+      testCases: [],
+    };
+  }
+  return {
+    suiteClass: input.suiteClass,
+    status: parsed.ok ? "passed" : "failed",
+    testsRun: parsed.testsRun ?? 0,
+    failures: parsed.failures ?? 0,
+    errors: parsed.errors ?? 0,
+    passes: parsed.passes ?? 0,
+    ignored: parsed.ignored ?? 0,
+    reportCode: parsed.reportCode ?? null,
+    ok: parsed.ok,
+    testCases: parsed.testCases ?? [],
+  };
+}
+
+function buildTestCommand(
+  config: MatrixConfig,
+  device: MatrixConfig["devices"][number],
+  testClass?: string,
+): string {
+  return buildAaTestCommand({
+    hdc: config.paths.hdc,
+    target: device.target,
+    bundleName: config.bundleName,
+    testModule: config.testModule,
+    testRunner: config.testRunner,
+    timeoutMs: config.timeoutMs,
+    ...(testClass ? { testClass } : {}),
+  });
+}
+
+function aggregateSuites(suiteResults: SuiteRunResult[]): Pick<
+  SuiteRunResult,
+  "testsRun" | "failures" | "errors" | "passes" | "ignored"
+> {
+  return suiteResults.reduce(
+    (aggregate, suite) => ({
+      testsRun: aggregate.testsRun + suite.testsRun,
+      failures: aggregate.failures + suite.failures,
+      errors: aggregate.errors + suite.errors,
+      passes: aggregate.passes + suite.passes,
+      ignored: aggregate.ignored + suite.ignored,
+    }),
+    { testsRun: 0, failures: 0, errors: 0, passes: 0, ignored: 0 },
+  );
 }
 
 function buildCommands(config: MatrixConfig): string[] {

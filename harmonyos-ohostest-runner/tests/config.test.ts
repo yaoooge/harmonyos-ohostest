@@ -79,6 +79,70 @@ test("loadMatrixConfig infers project information and reads machine devices", as
   assert.equal(config.devices[0]?.startEmulator, false);
 });
 
+test("loadMatrixConfig resolves device testFolders through top-level suite mapping", async (t) => {
+  const project = await makeTempProject(t);
+  const machineConfigPath = path.join(project, "folders.json");
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
+      testFolders: {
+        common: "CommonPassToPassTest",
+        sm: "SmPassToPassTest",
+        md: "MdFailToPassTest",
+      },
+      devices: [
+        {
+          id: "foldable",
+          target: "127.0.0.1:15002",
+          testFolders: ["common", "sm", "md", "sm"],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+
+  const config = await loadMatrixConfig({ project, machineConfigPath });
+
+  assert.deepEqual(config.testFolders, {
+    common: "CommonPassToPassTest",
+    sm: "SmPassToPassTest",
+    md: "MdFailToPassTest",
+  });
+  assert.deepEqual(config.devices[0]?.testClasses, [
+    "CommonPassToPassTest",
+    "SmPassToPassTest",
+    "MdFailToPassTest",
+  ]);
+});
+
+test("loadMatrixConfig rejects unknown folders and invalid suite class mappings", async (t) => {
+  const project = await makeTempProject(t);
+  const machineConfigPath = path.join(project, "bad-folders.json");
+
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
+      testFolders: { common: "CommonPassToPassTest" },
+      devices: [{ id: "phone", target: "127.0.0.1:15001", testFolders: ["missing"] }],
+    }),
+    "utf-8",
+  );
+  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /unknown test folder "missing"/);
+
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
+      testFolders: { common: "" },
+      devices: [{ id: "phone", target: "127.0.0.1:15001", testFolders: ["common"] }],
+    }),
+    "utf-8",
+  );
+  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /testFolders\.common/);
+});
+
 test("loadMatrixConfig rejects missing hvigorw, empty devices, and invalid target from machine config", async (t) => {
   const project = await makeTempProject(t);
   const machineConfigPath = path.join(project, "bad.json");

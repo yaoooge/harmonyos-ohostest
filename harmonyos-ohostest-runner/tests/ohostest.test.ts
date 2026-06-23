@@ -47,8 +47,43 @@ test("parseAaTestOutput extracts summary and report code", () => {
     errors: 0,
     passes: 25,
     ignored: 0,
+    testCases: [],
     reportCode: 0,
   });
+});
+
+test("parseAaTestOutput extracts each test case status from OHOS status records", () => {
+  const parsed = parseAaTestOutput(
+    [
+      "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
+      "OHOS_REPORT_STATUS_CODE: 1",
+      "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
+      "OHOS_REPORT_STATUS_CODE: -2",
+      "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: test=should_pass_common_quality",
+      "OHOS_REPORT_STATUS_CODE: 1",
+      "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: test=should_pass_common_quality",
+      "OHOS_REPORT_STATUS_CODE: 0",
+      "OHOS_REPORT_RESULT: stream=Tests run: 2, Failure: 1, Error: 0, Pass: 1, Ignore: 0",
+      "OHOS_REPORT_CODE: -1",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(parsed.testCases, [
+    {
+      name: "should_fail_on_md_layout",
+      status: "failed",
+      statusCode: -2,
+    },
+    {
+      name: "should_pass_common_quality",
+      status: "passed",
+      statusCode: 0,
+    },
+  ]);
 });
 
 test("parseAaTestOutput marks missing summary as unparseable", () => {

@@ -26,6 +26,7 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     throw new Error("config.paths.hvigorw is required.");
   }
 
+  const testFolders = readTestFolders(raw.testFolders);
   const devices = raw.devices.map((device, index) => {
     if (!device.id || device.id.trim().length === 0) {
       throw new Error(`config.devices[${index}].id is required.`);
@@ -33,12 +34,14 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     if (!device.target || !isValidTarget(device.target)) {
       throw new Error(`config.devices[${index}].target is invalid.`);
     }
+    const testClasses = readDeviceTestClasses(device.testFolders, testFolders, index);
     return {
       id: device.id,
       ...(device.profile ? { profile: device.profile } : {}),
       target: device.target,
       ...(device.hdcPort !== undefined ? { hdcPort: readHdcPort(device.hdcPort, index) } : {}),
       startEmulator: device.startEmulator ?? false,
+      ...(testClasses.length > 0 ? { testClasses } : {}),
     };
   });
 
@@ -50,6 +53,7 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
     ...(input.testClass ?? raw.testClass ? { testClass: input.testClass ?? raw.testClass } : {}),
+    testFolders,
     timeoutMs: raw.timeoutMs ?? 120000,
     build: {
       mode: raw.build?.mode ?? "project",
@@ -71,6 +75,49 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     },
     devices,
   };
+}
+
+function readTestFolders(value: Record<string, unknown> | undefined): Record<string, string> {
+  if (value === undefined) {
+    return {};
+  }
+  const folders: Record<string, string> = {};
+  for (const [folder, suiteClass] of Object.entries(value)) {
+    if (typeof suiteClass !== "string" || suiteClass.trim().length === 0) {
+      throw new Error(`config.testFolders.${folder} must be a non-empty suite class string.`);
+    }
+    folders[folder] = suiteClass;
+  }
+  return folders;
+}
+
+function readDeviceTestClasses(
+  value: unknown,
+  testFolders: Record<string, string>,
+  deviceIndex: number,
+): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`config.devices[${deviceIndex}].testFolders must be an array.`);
+  }
+  const classes: string[] = [];
+  const seen = new Set<string>();
+  for (const folder of value) {
+    if (typeof folder !== "string" || folder.trim().length === 0) {
+      throw new Error(`config.devices[${deviceIndex}].testFolders must contain folder names.`);
+    }
+    const suiteClass = testFolders[folder];
+    if (!suiteClass) {
+      throw new Error(`config.devices[${deviceIndex}] references unknown test folder "${folder}".`);
+    }
+    if (!seen.has(suiteClass)) {
+      classes.push(suiteClass);
+      seen.add(suiteClass);
+    }
+  }
+  return classes;
 }
 
 interface ProjectInfo {

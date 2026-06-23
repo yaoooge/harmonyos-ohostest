@@ -11,6 +11,7 @@ function makeConfig(): MatrixConfig {
     bundleName: "zhsc.1.xxxxxx",
     testModule: "entry_test",
     testRunner: "OpenHarmonyTestRunner",
+    testFolders: {},
     timeoutMs: 120000,
     build: {
       mode: "project",
