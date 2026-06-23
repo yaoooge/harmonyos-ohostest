@@ -51,7 +51,12 @@ async function makeMachineConfig(project: string): Promise<string> {
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
-      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
       devices: [{ id: "phone", target: "127.0.0.1:15001", profile: "Mate 80 Pro", hdcPort: 15001 }],
     }),
     "utf-8",
@@ -130,17 +135,17 @@ test("runOhosTestMatrix uses configured hvigorw path when project wrapper is abs
   assert.match(commands.join("\n"), /(?:^|\n)\/fake\/hvigorw --mode project -p product=default assembleApp/);
 });
 
-test("runOhosTestMatrix runs configured test folders as separate suite classes and aggregates results", async (t) => {
+test("runOhosTestMatrix runs configured test suites separately and aggregates results", async (t) => {
   const project = await makeProject(t);
-  const machineConfigPath = path.join(project, "folders.json");
+  const machineConfigPath = path.join(project, "suites.json");
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
-      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
-      testFolders: {
-        common: "CommonPassToPassTest",
-        sm: "SmPassToPassTest",
-        md: "MdFailToPassTest",
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
       },
       devices: [
         {
@@ -148,7 +153,7 @@ test("runOhosTestMatrix runs configured test folders as separate suite classes a
           target: "127.0.0.1:15002",
           profile: "Mate X7",
           hdcPort: 15002,
-          testFolders: ["common", "sm", "md"],
+          testSuites: ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"],
         },
       ],
     }),
@@ -222,15 +227,25 @@ test("runOhosTestMatrix runs configured test folders as separate suite classes a
   );
 });
 
-test("runOhosTestMatrix lets CLI testClass override device testFolders", async (t) => {
+test("runOhosTestMatrix lets CLI testClass override device testSuites", async (t) => {
   const project = await makeProject(t);
-  const machineConfigPath = path.join(project, "folders.json");
+  const machineConfigPath = path.join(project, "suites.json");
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
-      paths: { hdc: "/fake/hdc", hvigorw: "/fake/hvigorw" },
-      testFolders: { common: "CommonPassToPassTest", sm: "SmPassToPassTest" },
-      devices: [{ id: "phone", target: "127.0.0.1:15001", testFolders: ["common", "sm"] }],
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: [
+        {
+          id: "phone",
+          target: "127.0.0.1:15001",
+          testSuites: ["CommonPassToPassTest", "SmPassToPassTest"],
+        },
+      ],
     }),
     "utf-8",
   );

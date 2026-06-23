@@ -16,7 +16,6 @@ export interface RawMatrixConfig {
   testModule?: string;
   testRunner?: string;
   testClass?: string;
-  testFolders?: Record<string, unknown>;
   timeoutMs?: number;
   build?: {
     mode?: string;
@@ -42,7 +41,7 @@ export interface RawDeviceConfig {
   target?: string;
   hdcPort?: number;
   startEmulator?: boolean;
-  testFolders?: unknown;
+  testSuites?: unknown;
 }
 
 export interface MatrixConfig {
@@ -53,7 +52,6 @@ export interface MatrixConfig {
   testModule: string;
   testRunner: string;
   testClass?: string;
-  testFolders: Record<string, string>;
   timeoutMs: number;
   build: {
     mode: string;

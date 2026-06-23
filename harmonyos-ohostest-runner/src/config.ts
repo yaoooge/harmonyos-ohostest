@@ -8,11 +8,6 @@ export interface LoadMatrixConfigInput {
   testClass?: string;
 }
 
-const defaultHdc =
-  "/Users/guoyutong/command-line-tools/sdk/default/openharmony/toolchains/hdc";
-const defaultEmulatorBin = "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator";
-const defaultEmulatorDeployedDir = "/Users/guoyutong/.Huawei/Emulator/deployed";
-
 export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<MatrixConfig> {
   const project = path.resolve(input.project);
   const machineConfigPath = path.resolve(input.machineConfigPath ?? defaultMachineConfigPath());
@@ -22,11 +17,11 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
   if (!raw.devices || raw.devices.length === 0) {
     throw new Error("config.devices must contain at least one device.");
   }
-  if (!raw.paths?.hvigorw || raw.paths.hvigorw.trim().length === 0) {
-    throw new Error("config.paths.hvigorw is required.");
+  if (hasOwn(raw, "testFolders")) {
+    throw new Error("config.testFolders has been removed. Put suite class names in config.devices[].testSuites.");
   }
+  const paths = readToolPaths(raw.paths);
 
-  const testFolders = readTestFolders(raw.testFolders);
   const devices = raw.devices.map((device, index) => {
     if (!device.id || device.id.trim().length === 0) {
       throw new Error(`config.devices[${index}].id is required.`);
@@ -34,7 +29,10 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     if (!device.target || !isValidTarget(device.target)) {
       throw new Error(`config.devices[${index}].target is invalid.`);
     }
-    const testClasses = readDeviceTestClasses(device.testFolders, testFolders, index);
+    if (hasOwn(device, "testFolders")) {
+      throw new Error(`config.devices[${index}].testFolders has been renamed to testSuites.`);
+    }
+    const testClasses = readDeviceTestSuites(device.testSuites, index);
     return {
       id: device.id,
       ...(device.profile ? { profile: device.profile } : {}),
@@ -53,7 +51,6 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
     ...(input.testClass ?? raw.testClass ? { testClass: input.testClass ?? raw.testClass } : {}),
-    testFolders,
     timeoutMs: raw.timeoutMs ?? 120000,
     build: {
       mode: raw.build?.mode ?? "project",
@@ -61,10 +58,10 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
       testTask: raw.build?.testTask ?? "ohosTest@PackageHap",
     },
     paths: {
-      hvigorw: raw.paths.hvigorw,
-      hdc: raw.paths?.hdc ?? defaultHdc,
-      emulatorBin: raw.paths?.emulatorBin ?? defaultEmulatorBin,
-      emulatorDeployedDir: raw.paths?.emulatorDeployedDir ?? defaultEmulatorDeployedDir,
+      hvigorw: paths.hvigorw,
+      hdc: paths.hdc,
+      emulatorBin: paths.emulatorBin,
+      emulatorDeployedDir: paths.emulatorDeployedDir,
     },
     artifacts: {
       appHap: resolveProjectPath(
@@ -77,47 +74,50 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
   };
 }
 
-function readTestFolders(value: Record<string, unknown> | undefined): Record<string, string> {
-  if (value === undefined) {
-    return {};
-  }
-  const folders: Record<string, string> = {};
-  for (const [folder, suiteClass] of Object.entries(value)) {
-    if (typeof suiteClass !== "string" || suiteClass.trim().length === 0) {
-      throw new Error(`config.testFolders.${folder} must be a non-empty suite class string.`);
-    }
-    folders[folder] = suiteClass;
-  }
-  return folders;
+function readToolPaths(rawPaths: RawMatrixConfig["paths"]): MatrixConfig["paths"] {
+  return {
+    hvigorw: readRequiredConfigString(rawPaths?.hvigorw, "config.paths.hvigorw"),
+    hdc: readRequiredConfigString(rawPaths?.hdc, "config.paths.hdc"),
+    emulatorBin: readRequiredConfigString(rawPaths?.emulatorBin, "config.paths.emulatorBin"),
+    emulatorDeployedDir: readRequiredConfigString(
+      rawPaths?.emulatorDeployedDir,
+      "config.paths.emulatorDeployedDir",
+    ),
+  };
 }
 
-function readDeviceTestClasses(
-  value: unknown,
-  testFolders: Record<string, string>,
-  deviceIndex: number,
-): string[] {
+function readRequiredConfigString(value: string | undefined, configKey: string): string {
+  const resolved = value?.trim() ?? "";
+  if (resolved.length === 0) {
+    throw new Error(`${configKey} is required.`);
+  }
+  return resolved;
+}
+
+function readDeviceTestSuites(value: unknown, deviceIndex: number): string[] {
   if (value === undefined) {
     return [];
   }
   if (!Array.isArray(value)) {
-    throw new Error(`config.devices[${deviceIndex}].testFolders must be an array.`);
+    throw new Error(`config.devices[${deviceIndex}].testSuites must be an array.`);
   }
   const classes: string[] = [];
   const seen = new Set<string>();
-  for (const folder of value) {
-    if (typeof folder !== "string" || folder.trim().length === 0) {
-      throw new Error(`config.devices[${deviceIndex}].testFolders must contain folder names.`);
+  for (const suiteClass of value) {
+    if (typeof suiteClass !== "string" || suiteClass.trim().length === 0) {
+      throw new Error(`config.devices[${deviceIndex}].testSuites must contain non-empty suite class strings.`);
     }
-    const suiteClass = testFolders[folder];
-    if (!suiteClass) {
-      throw new Error(`config.devices[${deviceIndex}] references unknown test folder "${folder}".`);
-    }
-    if (!seen.has(suiteClass)) {
-      classes.push(suiteClass);
-      seen.add(suiteClass);
+    const trimmedSuiteClass = suiteClass.trim();
+    if (!seen.has(trimmedSuiteClass)) {
+      classes.push(trimmedSuiteClass);
+      seen.add(trimmedSuiteClass);
     }
   }
   return classes;
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 interface ProjectInfo {

@@ -1,15 +1,9 @@
 {
   "paths": {
-    "hvigorw": "/Users/guoyutong/command-line-tools/bin/hvigorw",
-    "hdc": "/Users/guoyutong/command-line-tools/sdk/default/openharmony/toolchains/hdc",
-    "emulatorBin": "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator",
+    "hvigorw": "hvigorw",
+    "hdc": "hdc",
+    "emulatorBin": "Emulator",
     "emulatorDeployedDir": "/Users/guoyutong/.Huawei/Emulator/deployed"
-  },
-  "testFolders": {
-    "common": "CommonPassToPassTest",
-    "sm": "SmPassToPassTest",
-    "md": "MdFailToPassTest",
-    "lg": "LgFailToPassTest"
   },
   "devices": [
     {
@@ -18,7 +12,7 @@
       "target": "127.0.0.1:15001",
       "hdcPort": 15001,
       "startEmulator": true,
-      "testFolders": ["common", "sm"]
+      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest"]
     },
     {
       "id": "foldable",
@@ -26,7 +20,7 @@
       "target": "127.0.0.1:15002",
       "hdcPort": 15002,
       "startEmulator": true,
-      "testFolders": ["common", "sm", "md"]
+      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"]
     },
     {
       "id": "tablet",
@@ -34,7 +28,7 @@
       "target": "127.0.0.1:15003",
       "hdcPort": 15003,
       "startEmulator": true,
-      "testFolders": ["common", "md", "lg"]
+      "testSuites": ["CommonPassToPassTest", "MdFailToPassTest", "LgFailToPassTest"]
     }
   ]
 }
