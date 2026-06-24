@@ -12,6 +12,11 @@ npm-debug.log*
 **/.ohostest-runs/
 **/.idea/
 
+# ResponsiveRepeatLayout is managed as its own git repository/worktrees.
+/ResponsiveRepeatLayout
+/ResponsiveRepeatLayout-answer
+/ResponsiveRepeatLayout-swe
+
 # Local/editor noise
 *.log
 .codegraph/

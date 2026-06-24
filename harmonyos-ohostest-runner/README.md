@@ -9,8 +9,15 @@
 ```bash
 npm install
 npm run ohostest:matrix -- \
-  --project /path/to/ResponsiveRepeatLayout
+  --project /path/to/ResponsiveRepeatLayout-answer
 ```
+
+当前推荐把 `ResponsiveRepeatLayout` 作为独立 Git 仓库管理，并使用两个 worktree 隔离题目分支和标准答案主干：
+
+- `ResponsiveRepeatLayout-answer`：`main`，包含标准答案的完整多端适配工程。
+- `ResponsiveRepeatLayout-swe`：`swe-bench-strip-multidevice-adaptation`，剔除多端适配代码的 SWE-bench 题目分支。
+
+需要验证标准答案时，将 `--project` 指向 `ResponsiveRepeatLayout-answer`；需要验证题目分支或采集 fail-to-pass 行为时，将 `--project` 指向 `ResponsiveRepeatLayout-swe`。
 
 常用参数：
 
@@ -64,7 +71,7 @@ npm run ohostest:matrix -- \
       "target": "127.0.0.1:15002",
       "hdcPort": 15002,
       "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"]
+      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdPassToPassTest", "MdFailToPassTest"]
     },
     {
       "id": "tablet",
@@ -72,7 +79,7 @@ npm run ohostest:matrix -- \
       "target": "127.0.0.1:15003",
       "hdcPort": 15003,
       "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "MdFailToPassTest", "LgFailToPassTest"]
+      "testSuites": ["CommonPassToPassTest", "MdPassToPassTest", "MdFailToPassTest", "LgFailToPassTest"]
     }
   ]
 }
