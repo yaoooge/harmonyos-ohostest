@@ -1,5 +1,5 @@
 import { CartProductInfo } from 'lib_network';
-import { ShoppingCart } from '../components/shoppingCart/views/ShoppingCart';
+import { ShoppingCart } from '../components/ShoppingCart';
 import { ProductWaterFlow } from '../components/ProductWaterFlow';
 import { UnavailableAction } from '../utils/UnavailableAction';
 

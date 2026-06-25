@@ -1,5 +1,3 @@
-export { CommonConfirmDialog } from './src/main/ets/components/CommonConfirmDialog';
-
 export { ContainerColumn } from './src/main/ets/components/ContainerColumn';
 
 export { NavTitleBar } from './src/main/ets/components/NavTitleBar';

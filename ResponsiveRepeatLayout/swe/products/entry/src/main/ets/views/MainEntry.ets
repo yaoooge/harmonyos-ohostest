@@ -1,5 +1,4 @@
 import { UtilLog } from '@hw-agconnect/util-log';
-import { MotionUtil } from 'lib_foundation';
 import { TAB_LIST } from '../commons/Constants';
 import { TabListItem } from '../commons/Types';
 import { MainEntryVM } from '../viewmodels/MainEntryVM';
@@ -13,10 +12,6 @@ export function MainEntryBuilder() {
 struct MainEntry {
   vm: MainEntryVM = new MainEntryVM();
   private controller: TabsController = new TabsController();
-
-  aboutToAppear(): void {
-    this.vm.initData();
-  }
 
   build() {
     NavDestination() {
@@ -65,12 +60,6 @@ struct MainEntry {
         }
         return true;
       }
-    })
-    .onShown(() => {
-      MotionUtil.registerHoldingHandEvent()
-    })
-    .onHidden(() => {
-      MotionUtil.unregisterHoldingHandEvent()
     })
   }
 

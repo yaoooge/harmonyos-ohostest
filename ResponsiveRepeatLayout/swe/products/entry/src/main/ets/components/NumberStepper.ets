@@ -1,4 +1,4 @@
-import { calcAdd, calcSub } from '../../commons/utils';
+import { calcAdd, calcSub } from '../utils/CartUtil';
 
 type StepperBtnType = 'increase' | 'decrease';
 

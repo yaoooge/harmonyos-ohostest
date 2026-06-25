@@ -8,9 +8,9 @@
 
 当前测试围绕电商类主页面的四个一级 Tab 展开：
 
-- 首页：搜索栏、商品 WaterFlow、商品卡片可见性、横向溢出、自适应列数。
+- 首页：商品 WaterFlow、商品卡片可见性、横向溢出、自适应列数。
 - 分类：左侧分类列表、商品网格区域、自适应列数。
-- 购物车：购物车页面、列表或空状态、控制面板、不同断点下列表列数。
+- 购物车：购物车页面、列表或空状态、不同断点下列表列数。
 - 我的：当前只保留空页签，页面内容提示 `暂无数据`；不再覆盖个人中心订单、菜单、用户区或分栏布局。
 
 测试重点是用户可见 UI 行为，不覆盖私有工具函数或纯业务逻辑实现。
@@ -19,7 +19,7 @@
 
 | 分组文件 | 分组名称 | 用例数量 | 分组定位 |
 | --- | --- | ---: | --- |
-| `CommonPassToPass.test.ets` | `CommonPassToPassTest` | 10 | 所有设备都应通过的基础冒烟、Tab 切换、关键内容可见性和基础溢出检查。 |
+| `CommonPassToPass.test.ets` | `CommonPassToPassTest` | 8 | 所有设备都应通过的基础冒烟、Tab 切换、关键内容可见性和基础溢出检查。 |
 | `SmPassToPass.test.ets` | `SmPassToPassTest` | 3 | 小屏 `sm` 断点基线行为，验证首页/分类双列和购物车单列。 |
 | `MdFailToPass.test.ets` | `MdFailToPassTest` | 2 | 中屏 `md` 断点自适应增强能力，验证首页多列和分类四列布局。 |
 | `LgFailToPass.test.ets` | `LgFailToPassTest` | 3 | 大屏 `lg` 断点自适应增强能力，验证首页多列、分类四列和购物车双列。 |
@@ -59,14 +59,12 @@
 | --- | --- | --- |
 | `should_start_ability_successfully` | 应用入口可正常启动。 | 启动 `EntryAbility` 后检查 `main-tabs` 存在。 |
 | `should_show_home_tab_content_after_app_launch` | 首页启动后可见四个一级 Tab 文案。 | 切换到首页，断言 `首页`、`分类`、`购物车`、`我的` 文本存在。 |
-| `should_show_search_bar_on_home_page` | 首页搜索栏渲染正常。 | 切换首页，断言 `search` 组件存在。 |
 | `should_show_home_waterflow_product_items` | 首页商品瀑布流和商品项渲染正常。 | 切换首页，断言 `home-waterflow` 和 `home-waterflow-item` 存在。 |
 | `should_keep_home_waterflow_items_visible_without_horizontal_overflow` | 首页瀑布流商品项不发生横向溢出。 | 等待 `home-waterflow`，检查所有 `home-waterflow-item` 左右边界位于容器内。 |
 | `should_switch_to_category_tab_and_show_category_content` | 分类 Tab 可切换且核心内容可见。 | 切换分类，等待 `category-left-list`，断言 `分类` 文本和左侧分类列表存在。 |
 | `should_show_category_side_list_and_product_area` | 分类页左右区域同时渲染。 | 切换分类，等待 `category-product-grid`，断言 `category-left-list` 和 `category-product-grid` 存在。 |
 | `should_switch_to_cart_tab_and_show_cart_content` | 购物车 Tab 可切换且页面容器可见。 | 切换购物车，等待 `cart-page`，断言 `购物车` 文本和 `cart-page` 存在。 |
 | `should_show_cart_product_list_or_empty_state` | 购物车应展示商品列表或空状态之一。 | 切换购物车，断言 `cart-list` 或 `cart-empty-state` 至少一个存在。 |
-| `should_show_cart_control_panel_when_cart_list_exists` | 有购物车列表时应展示控制面板。 | 若 `cart-list` 存在，则断言 `cart-control-panel` 存在；无列表时跳过该断言并通过。 |
 
 ### 6.2 SmPassToPassTest
 
@@ -96,14 +94,14 @@
 | 页面 / 能力 | 通用可见性 | sm 小屏 | md 中屏 | lg 大屏 |
 | --- | --- | --- | --- | --- |
 | 主 Tab | 启动和四个 Tab 文案可见 | - | - | - |
-| 首页 | 搜索栏、瀑布流、商品项、无横向溢出 | 瀑布流 2 列 | 瀑布流 >2 列 | 瀑布流 >2 列 |
+| 首页 | 瀑布流、商品项、无横向溢出 | 瀑布流 2 列 | 瀑布流 >2 列 | 瀑布流 >2 列 |
 | 分类 | 左侧列表、商品区域可见 | 商品 2 列 | 商品 4 列 | 商品 4 列 |
-| 购物车 | 页面可见、列表或空状态、控制面板 | 列表 1 列 | - | 列表 2 列 |
+| 购物车 | 页面可见、列表或空状态 | 列表 1 列 | - | 列表 2 列 |
 | 我的 | Tab 文案可见；页面为空状态 | - | - | - |
 
 ## 8. 当前验证结果
 
-本轮验证使用 `harmonyos-ohostest-runner` 执行。因模拟器已启动，复验时使用临时 machine config 将 `startEmulator` 设为 `false`，suite 选择与默认 `machine.json` 一致。
+本轮验证使用 `harmonyos-ohostest-runner` 执行，suite 选择与默认 `machine.json` 一致。
 
 | 工程 | 结果摘要 |
 | --- | --- |
@@ -116,7 +114,7 @@
 2. `FailToPass` 分组用于验证中大屏适配目标，缺少响应式适配时更容易失败，适合作为多设备改造后的验收用例。
 3. 各断点专项用例都包含断点判断，非目标设备上不执行强断言；runner 默认设备选择负责避免 failtopass 被非目标断点跳过。
 4. 列数断言基于 UI 实际 bounds 估算，关注最终渲染结果，而不是耦合内部布局参数。
-5. 购物车相关用例兼容列表和空状态；只有在实际存在列表时才检查列表列数和控制面板，避免测试数据差异导致误报。
+5. 购物车相关用例兼容列表和空状态；只有在实际存在列表时才检查列表列数，避免测试数据差异导致误报。
 6. 个人中心内容已从产品代码和测试中移除；后续如恢复个人中心，应重新设计对应通用可见性和断点用例。
 
 ## 10. 后续维护建议

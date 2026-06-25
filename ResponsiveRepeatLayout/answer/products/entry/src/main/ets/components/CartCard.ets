@@ -1,6 +1,6 @@
 import { WindowUtil } from 'lib_foundation';
 import { ProductModel } from '../commons/Model';
-import { NumberStepper } from './basic/NumberStepper';
+import { NumberStepper } from './NumberStepper';
 
 @ComponentV2
 export struct CartCard {

@@ -1,6 +1,5 @@
 import { iData, WindowUtil } from 'lib_foundation';
 import { CartItemKey, CartPrice, ShoppingCartApis } from 'lib_network';
-import { LoadingStatus } from '../commons/Constants';
 import { ProductModel } from '../commons/Model';
 
 @ObservedV2
@@ -11,8 +10,6 @@ export class CartPageVM {
   @Trace isMember: boolean = false;
   /* 是否是编辑态 */
   @Trace isEdit: boolean = false;
-  // 页面加载loading
-  @Trace loading: LoadingStatus = LoadingStatus.OFF;
   // 下拉刷新
   @Trace isRefreshing: boolean = false;
   // 跟手滑动系数
@@ -39,7 +36,6 @@ export class CartPageVM {
     if(this.cartVersion === iData.global.cartVersion){
       return;
     }
-    this.loading = LoadingStatus.LOADING;
 
     ShoppingCartApis.getCartList()
       .then((resp) => {
@@ -102,10 +98,6 @@ export class CartPageVM {
         // 异常处理
         console.error('Get cart list failed:', err);
       })
-      .finally(() => {
-        this.loading = LoadingStatus.SUCCESS;
-      });
-
   }
 
   // 下拉刷新

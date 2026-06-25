@@ -1,25 +1,19 @@
 import {
-  LoadingStatus,
   GlobalStateMgr,
   iData,
   BreakpointSystem,
   BreakpointTypeEnum,
 } from 'lib_foundation';
-import { CategoryItem } from 'lib_network';
-import { PreloadUtil } from '../utils/PreloadUtil';
+import { CategoryItem, HomeApis } from 'lib_network';
 import { UnavailableAction } from '../utils/UnavailableAction';
 
 @ObservedV2
 export class HomePageVM {
   public readonly global: GlobalStateMgr = iData.global;
   @Trace
-  public loadingStatus: LoadingStatus = LoadingStatus.LOADING;
-  @Trace
   public refreshStatus: RefreshStatus = RefreshStatus.Inactive;
   @Trace
   public isRefreshing: boolean = false;
-  @Trace
-  bannerList: string[] = [];
   @Trace
   categoryList: CategoryItem[] = [];
   @Trace
@@ -40,18 +34,14 @@ export class HomePageVM {
   }
 
   public async loadHomePage(): Promise<void> {
-    this.loadingStatus = LoadingStatus.LOADING;
     try {
-      const res = await PreloadUtil.getPreloadData();
+      const res = await HomeApis.getHomeConfig();
       if (res?.code === 0) {
         this.categoryList = res.categoryList;
         this.searchList = res.searchList;
-        this.bannerList = res.bannerList;
         this.currentSearchStr = res.searchList[0];
       }
-      this.loadingStatus = LoadingStatus.SUCCESS;
     } catch (e) {
-      this.loadingStatus = LoadingStatus.FAIL;
     }
     this.isRefreshing = false;
   }

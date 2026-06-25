@@ -1,6 +1,5 @@
 import { util } from '@kit.ArkTS';
-import { motion } from '@kit.MultimodalAwarenessKit';
-import { BreakpointSystem, BreakpointTypeEnum, MotionUtil, WindowUtil } from 'lib_foundation';
+import { BreakpointSystem, BreakpointTypeEnum, WindowUtil } from 'lib_foundation';
 import { FilterSelectionItem, ProductApis, ProductCardItem } from 'lib_network';
 import { SortTypeMap } from '../commons/Enums';
 
@@ -51,13 +50,6 @@ export class ProductWaterFlowVM {
 
   @Computed
   get backButtonPosition(): Edges {
-    if (canIUse('SystemCapability.MultimodalAwareness.Motion') &&
-      MotionUtil.holdingHand === motion.HoldingHandStatus.LEFT_HAND_HELD) {
-      return {
-        left: 16,
-        bottom: 56,
-      };
-    }
     return {
       right: 16,
       bottom: 56,

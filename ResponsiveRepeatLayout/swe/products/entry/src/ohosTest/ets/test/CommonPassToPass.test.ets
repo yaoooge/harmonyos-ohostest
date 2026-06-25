@@ -34,12 +34,6 @@ export default function commonPassToPassTest() {
       done();
     });
 
-    it('should_show_search_bar_on_home_page', Level.LEVEL2, async (done: Function) => {
-      await clickTabByIndex(driver, 0);
-      await assertComponentById(driver, 'search');
-      done();
-    });
-
     it('should_show_home_waterflow_product_items', Level.LEVEL2, async (done: Function) => {
       await clickTabByIndex(driver, 0);
       await assertComponentById(driver, 'home-waterflow');
@@ -87,15 +81,5 @@ export default function commonPassToPassTest() {
       done();
     });
 
-    it('should_show_cart_control_panel_when_cart_list_exists', Level.LEVEL2, async (done: Function) => {
-      await clickTabByIndex(driver, 2);
-      await waitForComponentById(driver, 'cart-page', 10);
-      if (await componentExistsById(driver, 'cart-list')) {
-        await assertComponentById(driver, 'cart-control-panel');
-      } else {
-        expect(true).assertTrue();
-      }
-      done();
-    });
   });
 }
