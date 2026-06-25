@@ -5,8 +5,8 @@
 - 挪移布局、缩进布局分别是独立鸿蒙工程，不放入 `ResponsiveRepeatLayout`。
 - 每个布局工程采用和当前题库一致的双工程形态：
   - `answer/`：包含正确多设备适配实现，所有测试最终应通过。
-  - `swe/`：剥离或缺失目标适配能力，`CommonPassToPass`、`SmPassToPass` 应通过，`MdFailToPass`、`LgFailToPass` 用于暴露待修复问题。
-- 用例文件命名参考 `ResponsiveRepeatLayout`，按 common 和断点拆分为 `CommonPassToPass.test.ets`、`SmPassToPass.test.ets`、`MdFailToPass.test.ets`、`LgFailToPass.test.ets`。
+  - `swe/`：剥离或缺失目标适配能力，所有 `*PassToPass` suite 应通过，所有实际配置的 `*FailToPass` suite 在目标设备上应失败。
+- 用例文件命名参考 `ResponsiveRepeatLayout`，按 common 和断点拆分为 `CommonPassToPass.test.ets`、`SmPassToPass.test.ets`、`MdPassToPass.test.ets`、`LgPassToPass.test.ets`、`MdFailToPass.test.ets`、`LgFailToPass.test.ets`。其中 `MdPassToPass` / `LgPassToPass` 用于中大屏不退化能力，`FailToPass` 只放 SWE 下确定失败的目标适配断言。
 - 测试只验证用户可见 UI 布局表现，不测试私有断点工具函数。
 - 每个工程独立维护 `products/entry/src/ohosTest/ets/test`，独立编译、安装和运行。
 
@@ -141,10 +141,10 @@ ResponsiveRepeatLayout/
 ### 对新工程的复用结论
 
 - 目录结构继续采用 `<LayoutName>/{answer,swe}/products/entry`。
-- 用例文件继续采用 `CommonPassToPass`、`SmPassToPass`、`MdFailToPass`、`LgFailToPass` 单层命名。
+- 用例文件继续采用 `CommonPassToPass`、`SmPassToPass`、`MdPassToPass`、`LgPassToPass`、`MdFailToPass`、`LgFailToPass` 单层命名，按工程实际断点目标裁剪。
 - `TestHelper.ets` 保留共享 Driver、断点判断、bounds 断言和溢出断言模式。
 - runner 继续按 phone/foldable/tablet 选择 suite，避免断点跳过造成误判。
-- 新工程的 fail-to-pass 应各自聚焦目标布局：`DisplacementLayout` 聚焦挪移，`IndentLayout` 聚焦缩进，不复用重复布局断言。
+- 新工程的 fail-to-pass 应各自聚焦目标布局：`DisplacementLayout` 聚焦大屏挪移，`IndentLayout` 聚焦中大屏缩进，不把“无横向溢出”“内容可见”等 SWE 可能已满足的断言放入 fail-to-pass。
 
 ## 工程一：DisplacementLayout
 
@@ -205,7 +205,8 @@ products/entry/src/ohosTest/ets/test/
 ├── CommonPassToPass.test.ets
 ├── List.test.ets
 ├── LgFailToPass.test.ets
-├── MdFailToPass.test.ets
+├── LgPassToPass.test.ets
+├── MdPassToPass.test.ets
 ├── SmPassToPass.test.ets
 ├── TestHelper.ets
 ```
@@ -216,18 +217,19 @@ products/entry/src/ohosTest/ets/test/
 | --- | --- | ---: | --- |
 | `CommonPassToPass.test.ets` | `CommonPassToPassTest` | 4 | 所有设备都应通过的基础冒烟、图文内容可见性、列表页可见性和 Tab 切换。 |
 | `SmPassToPass.test.ets` | `SmPassToPassTest` | 3 | 小屏 `sm` 断点基线行为，验证底部横向 Tab、图文上下排列和无横向溢出。 |
-| `MdFailToPass.test.ets` | `MdFailToPassTest` | 3 | 中屏 `md` 断点稳定性，验证挪移布局在未进入大屏侧边形态前仍可读、可用且不溢出。 |
-| `LgFailToPass.test.ets` | `LgFailToPassTest` | 5 | 大屏 `lg` 断点挪移增强能力，验证 Tab 侧移、图文左右排列、主次顺序、侧边栏宽度和无横向溢出。 |
+| `MdPassToPass.test.ets` | `MdPassToPassTest` | 3 | 中屏 `md` 断点不退化能力，验证未进入大屏挪移形态前仍可读、可用且不溢出。 |
+| `LgPassToPass.test.ets` | `LgPassToPassTest` | 2 | 大屏基础不退化能力，验证大屏内容可见和列表页可用，SWE 也应通过。 |
+| `LgFailToPass.test.ets` | `LgFailToPassTest` | 4 | 大屏 `lg` 断点挪移增强能力，验证 Tab 侧移、图文左右排列、主次顺序和内容区随侧栏让位。 |
 
 ### Runner 选择
 
 | 设备 | Suite |
 | --- | --- |
 | phone | `CommonPassToPassTest`、`SmPassToPassTest` |
-| foldable | `CommonPassToPassTest`、`SmPassToPassTest`、`MdFailToPassTest` |
-| tablet | `CommonPassToPassTest`、`LgFailToPassTest` |
+| foldable | `CommonPassToPassTest`、`SmPassToPassTest`、`MdPassToPassTest` |
+| tablet | `CommonPassToPassTest`、`LgPassToPassTest`、`LgFailToPassTest` |
 
-对于 `answer` 工程，上述 suite 在对应设备上应全部通过。对于 `swe` 工程，phone 的 pass-to-pass suite 应通过，tablet 的 `LgFailToPassTest` 应失败；`MdFailToPassTest` 可根据中屏缺陷设计决定是否作为 fail-to-pass 强判。
+对于 `answer` 工程，上述 suite 在对应设备上应全部通过。对于 `swe` 工程，所有 pass-to-pass suite 应通过，tablet 的 `LgFailToPassTest` 应全部失败。挪移布局当前不配置 `MdFailToPassTest`，因为 md 断点没有被设计为必须发生挪移的目标断点。
 
 ### 用例明细
 
@@ -248,7 +250,7 @@ products/entry/src/ohosTest/ets/test/
 | `should_stack_illustration_above_text_on_small_breakpoint` | 小屏图文上下排列。 | 当前断点为 `sm` 时，比较 `illustration-panel` 与 `text-panel` bounds，断言图片区域在文本区域上方。 |
 | `should_keep_displacement_content_visible_without_horizontal_overflow_on_small_breakpoint` | 小屏挪移内容不横向溢出。 | 当前断点为 `sm` 时，断言 `illustration-panel`、`text-panel` 左右边界位于 `illustration-text-container` 内。 |
 
-#### MdFailToPassTest
+#### MdPassToPassTest
 
 | 用例名 | 测试点 | 主要步骤与断言 |
 | --- | --- | --- |
@@ -256,7 +258,14 @@ products/entry/src/ohosTest/ets/test/
 | `should_keep_illustration_and_text_readable_on_medium_breakpoint` | 中屏图文区域可读，不出现遮挡。 | 当前断点为 `md` 时，断言图文区域均可见，且两个区域 bounds 不互相覆盖。 |
 | `should_keep_displacement_content_visible_without_horizontal_overflow_on_medium_breakpoint` | 中屏内容不横向溢出。 | 当前断点为 `md` 时，断言图文关键区域左右边界位于容器内。 |
 
-说明：挪移布局主要求在 `lg` 断点发生侧边导航和左右图文挪移；`md` 断点不强制侧边化，主要验证中屏不退化、不溢出。
+说明：挪移布局主要求在 `lg` 断点发生侧边导航和左右图文挪移；`md` 断点不强制侧边化，因此这些用例属于 pass-to-pass，不应放入 fail-to-pass。
+
+#### LgPassToPassTest
+
+| 用例名 | 测试点 | 主要步骤与断言 |
+| --- | --- | --- |
+| `should_keep_large_breakpoint_displacement_content_visible` | 大屏基础内容不退化。 | 当前断点为 `lg` 时，断言图文容器、图片区、文本区仍可见。 |
+| `should_keep_article_list_available_on_large_breakpoint` | 大屏列表 Tab 仍可切换并显示内容。 | 当前断点为 `lg` 时，切换到列表 Tab，断言 `article-list-panel` 和至少一个列表项存在。 |
 
 #### LgFailToPassTest
 
@@ -265,8 +274,7 @@ products/entry/src/ohosTest/ets/test/
 | `should_move_tab_bar_to_side_on_large_breakpoint` | 大屏 Tab 从底部挪移到左侧。 | 当前断点为 `lg` 时，比较前两个 tab 的 bounds，断言 `left` 近似相等且第二个 tab 在第一个下方。 |
 | `should_place_illustration_and_text_side_by_side_on_large_breakpoint` | 大屏图文由上下排列挪移为左右排列。 | 当前断点为 `lg` 时，比较 `illustration-panel` 与 `text-panel` bounds，断言二者左右排列。 |
 | `should_keep_illustration_left_of_text_on_large_breakpoint` | 大屏图文主次顺序稳定。 | 当前断点为 `lg` 时，断言 `illustration-panel.right <= text-panel.left + tolerance`。 |
-| `should_keep_side_tab_bar_width_bounded_on_large_breakpoint` | 大屏侧边导航宽度受控。 | 当前断点为 `lg` 时，断言侧边 tab 宽度不超过窗口宽度的 20%，或接近设计值 `96vp`。 |
-| `should_keep_displacement_content_visible_without_horizontal_overflow_on_large_breakpoint` | 大屏挪移后内容不横向溢出。 | 当前断点为 `lg` 时，断言图文区域左右边界位于容器内。 |
+| `should_shift_content_right_of_side_tab_bar_on_large_breakpoint` | 大屏内容区为侧边导航让位。 | 当前断点为 `lg` 时，断言 `illustration-text-container.left` 大于侧边首个 tab 的 `right` 附近阈值；底部横向 Tabs 的 SWE 会因内容未让位而失败。 |
 
 ### 覆盖矩阵
 
@@ -275,7 +283,7 @@ products/entry/src/ohosTest/ets/test/
 | 应用启动 | 入口和主 Tabs 可见 | - | - | - |
 | Tab 导航 | 图文/列表 Tab 可切换 | 底部横向 | 底部横向可用 | 左侧纵向 |
 | 图文组合 | 图文容器、图片区、文本区可见 | 上图下文 | 可读且不遮挡 | 左图右文 |
-| 溢出保护 | - | 图文不横向溢出 | 图文不横向溢出 | 图文不横向溢出 |
+| 溢出保护 | - | 图文不横向溢出 | 图文不横向溢出 | 大屏基础内容可见 |
 
 ## 工程二：IndentLayout
 
@@ -326,9 +334,9 @@ Index
 
 ### swe 缺陷设计
 
-- 内容容器固定 `width('100%')`，没有 `GridCol offset`。
-- 或只设置 `span`，不设置 `offset`，导致内容靠左而非居中。
-- 或没有最大宽度约束，`lg/xl` 阅读行过长。
+- 内容容器固定 `width('100%')`，没有 `GridCol span + offset` 缩进能力，导致 `md/lg` 内容仍铺满父容器。
+- 没有最大宽度约束，`lg/xl` 阅读行过长。
+- 上述缺陷应让 `MdFailToPassTest` 和 `LgFailToPassTest` 中每条用例都失败，避免出现“只缺 offset 但宽度断言通过”的不确定 SWE 形态。
 
 ### 测试目录
 
@@ -337,7 +345,9 @@ products/entry/src/ohosTest/ets/test/
 ├── CommonPassToPass.test.ets
 ├── List.test.ets
 ├── LgFailToPass.test.ets
+├── LgPassToPass.test.ets
 ├── MdFailToPass.test.ets
+├── MdPassToPass.test.ets
 ├── SmPassToPass.test.ets
 ├── TestHelper.ets
 ```
@@ -348,18 +358,20 @@ products/entry/src/ohosTest/ets/test/
 | --- | --- | ---: | --- |
 | `CommonPassToPass.test.ets` | `CommonPassToPassTest` | 4 | 所有设备都应通过的基础冒烟、阅读内容可见性、表单内容可见性和页面滚动能力。 |
 | `SmPassToPass.test.ets` | `SmPassToPassTest` | 4 | 小屏 `sm` 断点基线行为，验证内容近全宽、阅读卡片和表单不横向溢出。 |
-| `MdFailToPass.test.ets` | `MdFailToPassTest` | 3 | 中屏 `md` 断点缩进增强能力，验证单列内容居中、宽度收窄和卡片不溢出。 |
-| `LgFailToPass.test.ets` | `LgFailToPassTest` | 4 | 大屏 `lg` 断点缩进增强能力，验证居中留白、更大 gutter、内容宽度上限和无横向溢出。 |
+| `MdPassToPass.test.ets` | `MdPassToPassTest` | 2 | 中屏 `md` 断点不退化能力，验证内容可见和卡片不横向溢出，SWE 也应通过。 |
+| `MdFailToPass.test.ets` | `MdFailToPassTest` | 2 | 中屏 `md` 断点缩进增强能力，验证单列内容居中和宽度收窄，SWE 应全部失败。 |
+| `LgPassToPass.test.ets` | `LgPassToPassTest` | 2 | 大屏 `lg` 断点不退化能力，验证内容可见和卡片不横向溢出，SWE 也应通过。 |
+| `LgFailToPass.test.ets` | `LgFailToPassTest` | 3 | 大屏 `lg` 断点缩进增强能力，验证居中留白、更大 gutter 和内容宽度上限，SWE 应全部失败。 |
 
 ### Runner 选择
 
 | 设备 | Suite |
 | --- | --- |
 | phone | `CommonPassToPassTest`、`SmPassToPassTest` |
-| foldable | `CommonPassToPassTest`、`SmPassToPassTest`、`MdFailToPassTest` |
-| tablet | `CommonPassToPassTest`、`LgFailToPassTest` |
+| foldable | `CommonPassToPassTest`、`SmPassToPassTest`、`MdPassToPassTest`、`MdFailToPassTest` |
+| tablet | `CommonPassToPassTest`、`LgPassToPassTest`、`LgFailToPassTest` |
 
-对于 `answer` 工程，上述 suite 在对应设备上应全部通过。对于 `swe` 工程，phone 的 pass-to-pass suite 应通过，foldable 的 `MdFailToPassTest` 和 tablet 的 `LgFailToPassTest` 应失败。
+对于 `answer` 工程，上述 suite 在对应设备上应全部通过。对于 `swe` 工程，所有 pass-to-pass suite 应通过，foldable 的 `MdFailToPassTest` 和 tablet 的 `LgFailToPassTest` 应全部失败。
 
 ### 用例明细
 
@@ -381,22 +393,34 @@ products/entry/src/ohosTest/ets/test/
 | `should_keep_reading_cards_visible_without_horizontal_overflow_on_small_breakpoint` | 小屏阅读卡片不横向溢出。 | 当前断点为 `sm` 时，断言 `reading-card-0`、`reading-card-1` 左右边界位于 `indent-content` 内。 |
 | `should_keep_form_fields_visible_without_horizontal_overflow_on_small_breakpoint` | 小屏表单区域不横向溢出。 | 当前断点为 `sm` 时，断言 `settings-form` 及关键表单行左右边界位于 `indent-content` 内。 |
 
+#### MdPassToPassTest
+
+| 用例名 | 测试点 | 主要步骤与断言 |
+| --- | --- | --- |
+| `should_show_reading_content_on_medium_breakpoint` | 中屏阅读内容不退化。 | 当前断点为 `md` 时，断言标题、阅读卡片和表单内容可见。 |
+| `should_keep_reading_cards_visible_without_horizontal_overflow_on_medium_breakpoint` | 中屏卡片不横向溢出。 | 当前断点为 `md` 时，断言阅读卡片左右边界位于 `indent-content` 内。 |
+
 #### MdFailToPassTest
 
 | 用例名 | 测试点 | 主要步骤与断言 |
 | --- | --- | --- |
-| `should_center_single_column_content_on_medium_breakpoint` | 中屏单列内容水平居中。 | 当前断点为 `md` 时，比较 `indent-content` 到 `indent-grid` 左右 gutter，断言差值小于等于 `8px`。 |
-| `should_reduce_single_column_width_on_medium_breakpoint` | 中屏内容宽度相对小屏收窄。 | 当前断点为 `md` 时，计算 `indent-content.width / indent-grid.width`，断言小于等于 0.82。 |
-| `should_keep_indented_reading_cards_without_horizontal_overflow_on_medium_breakpoint` | 中屏缩进后卡片不横向溢出。 | 当前断点为 `md` 时，断言阅读卡片左右边界位于 `indent-content` 内。 |
+| `should_center_single_column_content_on_medium_breakpoint` | 中屏单列内容水平居中并形成有效留白。 | 当前断点为 `md` 时，比较 `indent-content` 到 `indent-grid` 左右 gutter，断言左右 gutter 均大于 `indent-grid.width * 0.08`，且差值小于等于 `8px`；全宽或靠左的 SWE 会失败。 |
+| `should_reduce_single_column_width_on_medium_breakpoint` | 中屏内容宽度收窄形成缩进。 | 当前断点为 `md` 时，计算 `indent-content.width / indent-grid.width`，断言小于等于 0.82；固定 `width('100%')` 的 SWE 会失败。 |
+
+#### LgPassToPassTest
+
+| 用例名 | 测试点 | 主要步骤与断言 |
+| --- | --- | --- |
+| `should_show_reading_content_on_large_breakpoint` | 大屏阅读内容不退化。 | 当前断点为 `lg` 时，断言标题、阅读卡片和表单内容可见。 |
+| `should_keep_reading_cards_visible_without_horizontal_overflow_on_large_breakpoint` | 大屏卡片不横向溢出。 | 当前断点为 `lg` 时，断言阅读卡片左右边界位于 `indent-content` 内。 |
 
 #### LgFailToPassTest
 
 | 用例名 | 测试点 | 主要步骤与断言 |
 | --- | --- | --- |
-| `should_center_single_column_content_on_large_breakpoint` | 大屏单列内容水平居中。 | 当前断点为 `lg` 时，比较 `indent-content` 到 `indent-grid` 左右 gutter，断言差值小于等于 `8px`。 |
-| `should_keep_larger_side_gutters_on_large_breakpoint` | 大屏两侧留白更明显。 | 当前断点为 `lg` 时，计算 `indent-content.width / indent-grid.width`，断言小于等于 0.72。 |
-| `should_keep_single_column_content_width_bounded_on_large_breakpoint` | 大屏内容宽度有上限。 | 当前断点为 `lg` 时，断言 `indent-content` 宽度不超过设计上限或满足相对宽度上限。 |
-| `should_keep_indented_reading_cards_without_horizontal_overflow_on_large_breakpoint` | 大屏缩进后阅读卡片不横向溢出。 | 当前断点为 `lg` 时，断言阅读卡片左右边界位于 `indent-content` 内。 |
+| `should_center_single_column_content_on_large_breakpoint` | 大屏单列内容水平居中并形成有效留白。 | 当前断点为 `lg` 时，比较 `indent-content` 到 `indent-grid` 左右 gutter，断言左右 gutter 均大于 `indent-grid.width * 0.12`，且差值小于等于 `8px`；靠左或全宽的 SWE 会失败。 |
+| `should_keep_larger_side_gutters_on_large_breakpoint` | 大屏两侧留白更明显。 | 当前断点为 `lg` 时，计算 `indent-content.width / indent-grid.width`，断言小于等于 0.72；固定全宽的 SWE 会失败。 |
+| `should_keep_single_column_content_width_bounded_on_large_breakpoint` | 大屏内容宽度有上限。 | 当前断点为 `lg` 时，断言 `indent-content` 宽度不超过设计上限或满足相对宽度上限；缺少 `constraintSize` 或等效上限的 SWE 会失败。 |
 
 ### 覆盖矩阵
 
@@ -406,7 +430,7 @@ products/entry/src/ohosTest/ets/test/
 | 阅读内容 | 标题和阅读卡片可见 | 接近全宽 | 居中收窄 | 居中且留白更大 |
 | 表单内容 | 表单区域可见 | 表单不横向溢出 | - | - |
 | 缩进能力 | - | 全宽基线 | `span + offset` 居中缩进 | 居中缩进并限制最大宽度 |
-| 溢出保护 | - | 卡片和表单不溢出 | 卡片不溢出 | 卡片不溢出 |
+| 溢出保护 | - | 卡片和表单不溢出 | pass-to-pass 验证卡片不溢出 | pass-to-pass 验证卡片不溢出 |
 
 ## 共享 TestHelper 能力
 
@@ -433,23 +457,29 @@ products/entry/src/ohosTest/ets/test/
 ```typescript
 import commonPassToPassTest from './CommonPassToPass.test';
 import smPassToPassTest from './SmPassToPass.test';
+import mdPassToPassTest from './MdPassToPass.test';
 import mdFailToPassTest from './MdFailToPass.test';
+import lgPassToPassTest from './LgPassToPass.test';
 import lgFailToPassTest from './LgFailToPass.test';
 
 export default function testsuite() {
   commonPassToPassTest();
   smPassToPassTest();
+  mdPassToPassTest();
   mdFailToPassTest();
+  lgPassToPassTest();
   lgFailToPassTest();
 }
 ```
+
+说明：`DisplacementLayout` 不创建 `MdFailToPass.test.ets` 时，对应聚合入口不导入 `mdFailToPassTest()`；上方示例表示包含全部分组的 `IndentLayout` 聚合形态。
 
 ## 设备矩阵
 
 | 工程 | Common | Phone / sm | Foldable / md | Tablet / lg |
 | --- | --- | --- | --- | --- |
-| DisplacementLayout | 基础启动、可见性、切换 | `SmPassToPass` 必跑 | `MdFailToPass` 验证中屏不退化 | `LgFailToPass` 必跑 |
-| IndentLayout | 基础启动、可见性、滚动 | `SmPassToPass` 必跑 | `MdFailToPass` 必跑 | `LgFailToPass` 必跑 |
+| DisplacementLayout | 基础启动、可见性、切换 | `SmPassToPass` 必跑 | `MdPassToPass` 验证中屏不退化 | `LgPassToPass` 必跑；`LgFailToPass` 必须在 SWE 下失败 |
+| IndentLayout | 基础启动、可见性、滚动 | `SmPassToPass` 必跑 | `MdPassToPass` 必跑；`MdFailToPass` 必须在 SWE 下失败 | `LgPassToPass` 必跑；`LgFailToPass` 必须在 SWE 下失败 |
 
 ## Checklist
 
@@ -459,6 +489,7 @@ export default function testsuite() {
 - [x] 已按 `ResponsiveRepeatLayout` 风格为两个工程分别列出 common、sm、md、lg 测试文件。
 - [x] 已为两个工程分别列出全部 `it(...)` 用例。
 - [x] 已参考 `ResponsiveRepeatLayout/docs/TestDesign.md` 补充两个工程的测试用例设计表。
+- [x] 已将中大屏不退化断言拆入 `MdPassToPass` / `LgPassToPass`，并确保 `FailToPass` 只保留 SWE 下应失败的断言。
 - [ ] 用户确认独立工程结构和用例矩阵。
 - [ ] 创建 `DisplacementLayout/{answer,swe}` 工程。
 - [ ] 创建 `IndentLayout/{answer,swe}` 工程。
