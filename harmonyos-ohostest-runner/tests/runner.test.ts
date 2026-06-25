@@ -135,6 +135,79 @@ test("runOhosTestMatrix uses configured hvigorw path when project wrapper is abs
   assert.match(commands.join("\n"), /(?:^|\n)\/fake\/hvigorw --mode project -p product=default assembleApp/);
 });
 
+test("runOhosTestMatrix waits five seconds after stopping one emulator before starting the next", async (t) => {
+  const project = await makeProject(t);
+  const fakeEmulator = path.join(project, "FakeEmulator.sh");
+  await fs.writeFile(fakeEmulator, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  const machineConfigPath = path.join(project, "serial-emulators.json");
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: fakeEmulator,
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: [
+        {
+          id: "phone",
+          target: "127.0.0.1:15001",
+          profile: "Mate 80 Pro",
+          hdcPort: 15001,
+          startEmulator: true,
+        },
+        {
+          id: "tablet",
+          target: "127.0.0.1:15003",
+          profile: "MatePad Pro 13",
+          hdcPort: 15003,
+          startEmulator: true,
+        },
+      ],
+    }),
+    "utf-8",
+  );
+  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
+  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
+  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
+  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+
+  let aaTestCount = 0;
+  let returnedDisconnectedAfterFirstStop = false;
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, "result.json"),
+    commandExecutor: async (command) => {
+      if (command.includes("aa test")) {
+        aaTestCount += 1;
+      }
+      let listTargetsOutput = "";
+      if (command.includes("list targets")) {
+        if (aaTestCount === 0) {
+          listTargetsOutput = "127.0.0.1:15001\tConnected\n";
+        } else if (!returnedDisconnectedAfterFirstStop) {
+          returnedDisconnectedAfterFirstStop = true;
+        } else if (aaTestCount < 2) {
+          listTargetsOutput = "127.0.0.1:15003\tConnected\n";
+        }
+      }
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : listTargetsOutput,
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.devices.length, 2);
+  assert.ok(result.durationMs >= 5000);
+});
+
 test("runOhosTestMatrix runs configured test suites separately and aggregates results", async (t) => {
   const project = await makeProject(t);
   const machineConfigPath = path.join(project, "suites.json");

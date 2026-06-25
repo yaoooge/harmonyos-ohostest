@@ -23,6 +23,8 @@ import type {
   SuiteRunResult,
 } from "./types.js";
 
+const emulatorRestartCooldownMs = 5000;
+
 export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixResult> {
   const startedTime = Date.now();
   const startedAt = new Date(startedTime).toISOString();
@@ -66,7 +68,8 @@ export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixRe
 
   const devices: DeviceRunResult[] = [];
   if (build.status === "passed") {
-    for (const device of selectedDevices) {
+    for (let index = 0; index < selectedDevices.length; index += 1) {
+      const device = selectedDevices[index];
       devices.push(
         await runDevice({
           config,
@@ -77,6 +80,9 @@ export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixRe
           runDetached,
         }),
       );
+      if (shouldWaitBeforeNextEmulatorStart(selectedDevices, index, input.keepEmulators ?? false)) {
+        await sleep(emulatorRestartCooldownMs);
+      }
     }
   }
 
@@ -102,6 +108,24 @@ export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixRe
   };
   await fs.writeFile(out, `${JSON.stringify(result, null, 2)}\n`, "utf-8");
   return result;
+}
+
+function shouldWaitBeforeNextEmulatorStart(
+  devices: MatrixConfig["devices"],
+  currentIndex: number,
+  keepEmulators: boolean,
+): boolean {
+  return (
+    !keepEmulators &&
+    devices[currentIndex]?.startEmulator === true &&
+    devices.slice(currentIndex + 1).some((device) => device.startEmulator)
+  );
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 async function runBuild(input: {
