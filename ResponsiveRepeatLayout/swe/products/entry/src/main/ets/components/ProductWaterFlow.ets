@@ -1,5 +1,5 @@
 import { FilterSelectionItem, ProductCardItem } from 'lib_network';
-import { buildCommonEmptyStatus, ProductListSkeleton } from 'lib_widget';
+import { buildCommonEmptyStatus } from 'lib_widget';
 import { GridProductCardView, ListProductCardView } from './ProductFlowCards';
 import { ProductWaterFlowVM } from '../viewmodels/ProductWaterFlowVM';
 import { SortTypeMap } from '../commons/Enums';
@@ -51,64 +51,58 @@ export struct ProductWaterFlow {
 
   build() {
     Column() {
-      if (this.vm.isLoading && !this.vm.dataList.length) {
-        ProductListSkeleton({
-          isVertical: this.isGrid,
-        })
+      if (!this.vm.dataList.length) {
+        buildCommonEmptyStatus()
       } else {
-        if (!this.vm.dataList.length) {
-          buildCommonEmptyStatus()
-        } else {
-          WaterFlow({
-            scroller: this.vm.scroller,
-            footer: this.buildWaterFlowFoot(),
-          }) {
-            Repeat(this.vm.dataList)
-              .each((ri: RepeatItem<ProductCardItem>) => {
-                FlowItem() {
-                  if (!this.isGrid) {
-                    GridProductCardView({ product: ri.item });
-                  } else {
-                    ListProductCardView({ product: ri.item });
-                  }
+        WaterFlow({
+          scroller: this.vm.scroller,
+          footer: this.buildWaterFlowFoot(),
+        }) {
+          Repeat(this.vm.dataList)
+            .each((ri: RepeatItem<ProductCardItem>) => {
+              FlowItem() {
+                if (!this.isGrid) {
+                  GridProductCardView({ product: ri.item });
+                } else {
+                  ListProductCardView({ product: ri.item });
                 }
-                .id(this.testId + '-item')
-                .onClick(() => {
-                  if (this.openSwiper) {
-                    this.vm.jumpToSwiperPage(this.testId + '-item')
-                  } else {
-                    this.handleProductClick?.(ri.item.productId);
-                  }
-                });
-              })
+              }
+              .id(this.testId + '-item')
+              .onClick(() => {
+                if (this.openSwiper) {
+                  this.vm.jumpToSwiperPage(this.testId + '-item')
+                } else {
+                  this.handleProductClick?.(ri.item.productId);
+                }
+              });
+            })
+        }
+        .cachedCount(4)
+        .columnsTemplate(this.vm.columnTemplate)
+        .columnsGap(12)
+        .rowsGap(12)
+        .edgeEffect(this.vm.edgeEffect)
+        .onReachEnd(() => {
+          this.vm.getDataList();
+        })
+        .onScrollStop(() => {
+          this.vm.scrollHeight = this.vm.scroller.currentOffset().yOffset;
+          if (this.vm.scrollHeight === 0 && this.vm.startBack) {
+            this.handleBack?.();
+            this.vm.startBack = false;
           }
-          .cachedCount(4)
-          .columnsTemplate(this.vm.columnTemplate)
-          .columnsGap(12)
-          .rowsGap(12)
-          .edgeEffect(this.vm.edgeEffect)
-          .onReachEnd(() => {
-            this.vm.getDataList();
-          })
-          .onScrollStop(() => {
-            this.vm.scrollHeight = this.vm.scroller.currentOffset().yOffset;
-            if (this.vm.scrollHeight === 0 && this.vm.startBack) {
-              this.handleBack?.();
-              this.vm.startBack = false;
-            }
-          })
-          .layoutWeight(1)
-          .nestedScroll({
-            scrollForward: NestedScrollMode.PARENT_FIRST,
-            scrollBackward: NestedScrollMode.SELF_FIRST,
-          })
-          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
-          .animation({ duration: 300, curve: Curve.Smooth })
-          .id(this.testId)
+        })
+        .layoutWeight(1)
+        .nestedScroll({
+          scrollForward: NestedScrollMode.PARENT_FIRST,
+          scrollBackward: NestedScrollMode.SELF_FIRST,
+        })
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+        .animation({ duration: 300, curve: Curve.Smooth })
+        .id(this.testId)
 
-          if (this.vm.showButton) {
-            this.buildBackTopButton();
-          }
+        if (this.vm.showButton) {
+          this.buildBackTopButton();
         }
       }
     }

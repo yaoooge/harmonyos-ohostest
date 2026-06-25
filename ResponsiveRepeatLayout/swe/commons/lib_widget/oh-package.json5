@@ -6,7 +6,6 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "@hw-agconnect/ui-skeleton": "^1.0.0",
     "@hw-agconnect/ui-dialog": "^1.0.0",
     "lib_foundation": "file:../lib_foundation"
   }

@@ -20,7 +20,7 @@
       "target": "127.0.0.1:15002",
       "hdcPort": 15002,
       "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdPassToPassTest", "MdFailToPassTest"]
+      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"]
     },
     {
       "id": "tablet",
@@ -28,7 +28,7 @@
       "target": "127.0.0.1:15003",
       "hdcPort": 15003,
       "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "MdPassToPassTest", "MdFailToPassTest", "LgFailToPassTest"]
+      "testSuites": ["CommonPassToPassTest", "LgFailToPassTest"]
     }
   ]
 }

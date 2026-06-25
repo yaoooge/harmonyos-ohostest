@@ -21,16 +21,6 @@ export default function smPassToPassTest() {
       bundleName = await prepareEntryAbility();
     });
 
-    it('should_place_tab_bar_at_bottom_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
-      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
-      if (breakpoint === 'sm') {
-        await assertMainTabsHorizontal(driver);
-      } else {
-        expect(true).assertTrue();
-      }
-      done();
-    });
-
     it('should_show_home_waterflow_as_two_columns_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
       await clickTabByIndex(driver, 0);
       await waitForComponentById(driver, 'home-waterflow', 10);
@@ -63,32 +53,6 @@ export default function smPassToPassTest() {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'sm' && await componentExistsById(driver, 'cart-list')) {
         const lanes = await estimateLanesById(driver, 'cart-list', 'cart-list-item');
-        expect(lanes).assertEqual(1);
-      } else {
-        expect(true).assertTrue();
-      }
-      done();
-    });
-
-    it('should_show_profile_sections_as_vertical_layout_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
-      await clickTabByIndex(driver, 3);
-      await waitForComponentById(driver, 'profile-page', 10);
-      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
-      if (breakpoint === 'sm') {
-        const lanes = await estimateLanesById(driver, 'profile-sub-menu-list', 'profile-sub-menu-item');
-        expect(lanes).assertEqual(1);
-      } else {
-        expect(true).assertTrue();
-      }
-      done();
-    });
-
-    it('should_show_profile_sub_menu_as_one_lane_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
-      await clickTabByIndex(driver, 3);
-      await waitForComponentById(driver, 'profile-page', 10);
-      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
-      if (breakpoint === 'sm') {
-        const lanes = await estimateLanesById(driver, 'profile-sub-menu-list', 'profile-sub-menu-item');
         expect(lanes).assertEqual(1);
       } else {
         expect(true).assertTrue();

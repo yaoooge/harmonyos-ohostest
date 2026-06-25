@@ -8,6 +8,4 @@ export { CommonLoading } from './src/main/ets/components/CommonLoading';
 
 export { CommonSymbol } from './src/main/ets/components/CommonSymbol';
 
-export { ProductListSkeleton } from './src/main/ets/components/CommonSkeletons';
-
 export { buildCommonEmptyStatus } from './src/main/ets/components/CommonEmptyStatus';
