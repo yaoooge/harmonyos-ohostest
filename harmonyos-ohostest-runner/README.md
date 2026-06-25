@@ -44,9 +44,9 @@ npm run ohostest:matrix -- \
 ```json
 {
   "paths": {
-    "hvigorw": "hvigorw",
-    "hdc": "hdc",
-    "emulatorBin": "Emulator",
+    "hvigorw": "/path/to/hvigorw",
+    "hdc": "/path/to/hdc",
+    "emulatorBin": "/path/to/Emulator",
     "emulatorDeployedDir": "/path/to/.Huawei/Emulator/deployed"
   },
   "devices": [
@@ -94,29 +94,6 @@ npm run ohostest:matrix -- \
 如果设备未配置 `testSuites`，且命令行未传 `--test-class`，运行器会执行完整测试模块。
 
 如果命令行传入 `--test-class <className>`，只运行该 suite class，并忽略设备上的 `testSuites` 配置。
-
-
-
-**环境变量配置示例**：
-
-MacOS：
-
- `~/.zshrc` 中把对应命令目录加入 `PATH`：
-
-```bash
-export COMMANDLINE_TOOL_DIR="/path/to/command-line-tools"
-export PATH="$COMMANDLINE_TOOL_DIR/bin:$PATH"
-export PATH="$COMMANDLINE_TOOL_DIR/sdk/default/openharmony/toolchains:$PATH"
-
-export HARMONYOS_EMULATOR="/path/to/DevEco-Studio.app/Contents/tools/emulator"
-export PATH="$HARMONYOS_EMULATOR:$PATH"
-```
-
-修改后重新打开终端，或执行 `source ~/.zshrc` 让 PATH 生效。
-
-Windows：
-
-搜索“编辑系统环境变量” - 选择环境变量，点击用户变量或系统变量的`Path`变量，点击编辑，添加对应路径
 
 
 
