@@ -42,6 +42,110 @@ IndentLayout/
     └── products/entry/
 ```
 
+## 已实现基线：ResponsiveRepeatLayout
+
+`ResponsiveRepeatLayout` 已作为重复布局原子工程完成，可作为后续 `DisplacementLayout`、`IndentLayout` 的工程结构、测试命名和 runner 选择参考。
+
+### 工程形态
+
+```text
+ResponsiveRepeatLayout/
+├── answer/
+│   ├── AppScope/
+│   ├── build-profile.json5
+│   ├── commons/
+│   └── products/entry/
+└── swe/
+    ├── AppScope/
+    ├── build-profile.json5
+    ├── commons/
+    └── products/entry/
+```
+
+- `answer/` 保留完整响应式重复布局实现，并已通过多设备 ohosTest 验证。
+- `swe/` 保留小屏基线能力，剥离中大屏重复布局增强能力，用于 fail-to-pass 测试暴露缺陷。
+- 入口模块为 `products/entry`，测试模块为 `entry_test`，Ability 为 `EntryAbility`。
+- 测试目录采用单层文件命名：`CommonPassToPass.test.ets`、`SmPassToPass.test.ets`、`MdFailToPass.test.ets`、`LgFailToPass.test.ets`、`List.test.ets`、`TestHelper.ets`。
+
+### 应用范围
+
+当前 `ResponsiveRepeatLayout` 围绕电商类主页面四个一级 Tab 收敛为原子工程：
+
+| 页面 | 保留内容 | 重复布局能力 |
+| --- | --- | --- |
+| 首页 | 商品 `WaterFlow`、商品卡片、基础分类入口 | `WaterFlow.columnsTemplate` 随断点从小屏双列扩展到中大屏多列。 |
+| 分类 | 左侧分类列表、商品网格区域 | `GridRow` 在小屏双列、中大屏四列之间切换。 |
+| 购物车 | 购物车页面、商品列表或空状态、推荐商品区 | `List.lanes` 在小屏单列、大屏双列之间切换。 |
+| 我的 | 空页签和 `暂无数据` 提示 | 不再覆盖个人中心订单、菜单、用户区或分栏布局。 |
+
+### 响应式实现点
+
+- `views/Index.ets` 注册 `BreakpointSystem`，入口页面负责断点系统初始化。
+- `views/MainEntry.ets` 使用主 `Tabs` 承载四个一级页面；大屏侧边 Tabs 逻辑在工程中存在，但本工程测试重点仍是重复布局。
+- `components/ProductWaterFlow.ets` 和 `viewmodels/ProductWaterFlowVM.ets` 通过 `columnsTemplate` 实现首页商品流列数变化。
+- `components/ProductCategory.ets` 通过 `GridRow` 实现分类商品区小屏双列、中大屏四列。
+- `components/CartListView.ets` 通过 `List.lanes` 实现购物车小屏单列、大屏双列。
+- 各可测容器和条目保留稳定 id，例如 `main-tabs`、`main-tab-*`、`home-waterflow`、`home-waterflow-item`、`category-product-grid`、`category-product-item`、`cart-list`、`cart-list-item`。
+
+### 测试分组
+
+| 分组文件 | 分组名称 | 用例数量 | 分组定位 |
+| --- | --- | ---: | --- |
+| `CommonPassToPass.test.ets` | `CommonPassToPassTest` | 8 | 所有设备都应通过的基础冒烟、Tab 切换、关键内容可见性和基础溢出检查。 |
+| `SmPassToPass.test.ets` | `SmPassToPassTest` | 3 | 小屏 `sm` 断点基线行为，验证首页/分类双列和购物车单列。 |
+| `MdFailToPass.test.ets` | `MdFailToPassTest` | 2 | 中屏 `md` 断点重复布局增强能力，验证首页多列和分类四列。 |
+| `LgFailToPass.test.ets` | `LgFailToPassTest` | 3 | 大屏 `lg` 断点重复布局增强能力，验证首页多列、分类四列和购物车双列。 |
+
+`List.test.ets` 按顺序注册 `CommonPassToPassTest`、`SmPassToPassTest`、`MdFailToPassTest`、`LgFailToPassTest`。后续两个新工程应沿用这个聚合入口风格。
+
+### Runner 选择
+
+| 设备 | Suite |
+| --- | --- |
+| phone | `CommonPassToPassTest`、`SmPassToPassTest` |
+| foldable | `CommonPassToPassTest`、`SmPassToPassTest`、`MdFailToPassTest` |
+| tablet | `CommonPassToPassTest`、`LgFailToPassTest` |
+
+该选择避免在非目标断点上运行 fail-to-pass 后因断点跳过而误判通过。对于 `answer` 工程，上述 suite 应全部通过；对于 `swe` 工程，pass-to-pass suite 应通过，运行到的 fail-to-pass suite 应失败。
+
+### 公共测试方法
+
+`ResponsiveRepeatLayout` 的 `TestHelper.ets` 已沉淀出后续工程应复用的测试模式：
+
+- 共享单个 `Driver`，只启动一次 `EntryAbility`。
+- 通过窗口宽度换算 vp，并按 `<600vp`、`600-839vp`、`>=840vp` 判断为 `sm`、`md`、`lg`。
+- 通过稳定 id 切换主 Tab：`main-tab-0` 至 `main-tab-3`。
+- 使用 `estimateLanesById()` 根据容器和首个子项 bounds 估算列数。
+- 使用 `assertNoHorizontalOverflow()` 验证条目左右边界不超出容器。
+- 断点专项用例先判断当前设备断点，非目标断点显式通过，runner 负责只在目标设备选择对应 suite。
+
+### 用例覆盖矩阵
+
+| 页面 / 能力 | 通用可见性 | sm 小屏 | md 中屏 | lg 大屏 |
+| --- | --- | --- | --- | --- |
+| 主 Tab | 启动和四个 Tab 文案可见 | - | - | - |
+| 首页 | 瀑布流、商品项、无横向溢出 | 瀑布流 2 列 | 瀑布流 >2 列 | 瀑布流 >2 列 |
+| 分类 | 左侧列表、商品区域可见 | 商品 2 列 | 商品 4 列 | 商品 4 列 |
+| 购物车 | 页面可见、列表或空状态 | 列表 1 列 | - | 列表 2 列 |
+| 我的 | Tab 文案可见；页面为空状态 | - | - | - |
+
+### 验证结果
+
+`ResponsiveRepeatLayout` 已完成构建和多设备 ohosTest 验证：
+
+| 工程 | 结果摘要 |
+| --- | --- |
+| `answer` | phone、foldable、tablet 全部通过；`CommonPassToPassTest`、`SmPassToPassTest`、`MdFailToPassTest`、`LgFailToPassTest` 在对应设备上均为 failure=0、error=0。 |
+| `swe` | phone 的 pass-to-pass 全部通过；foldable 的 `MdFailToPassTest` 2 个用例全部失败；tablet 的 `LgFailToPassTest` 3 个用例全部失败。 |
+
+### 对新工程的复用结论
+
+- 目录结构继续采用 `<LayoutName>/{answer,swe}/products/entry`。
+- 用例文件继续采用 `CommonPassToPass`、`SmPassToPass`、`MdFailToPass`、`LgFailToPass` 单层命名。
+- `TestHelper.ets` 保留共享 Driver、断点判断、bounds 断言和溢出断言模式。
+- runner 继续按 phone/foldable/tablet 选择 suite，避免断点跳过造成误判。
+- 新工程的 fail-to-pass 应各自聚焦目标布局：`DisplacementLayout` 聚焦挪移，`IndentLayout` 聚焦缩进，不复用重复布局断言。
+
 ## 工程一：DisplacementLayout
 
 ### 目标
