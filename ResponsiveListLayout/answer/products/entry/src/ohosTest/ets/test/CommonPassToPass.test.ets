@@ -30,12 +30,12 @@ export default function commonPassToPassTest() {
 
     it('should_show_list_items', Level.LEVEL2, async (done: Function) => {
       await assertComponentById(driver, 'order-list');
-      await assertComponentById(driver, 'order-list-item');
+      await assertComponentById(driver, 'order-list-item0');
       done();
     });
 
     it('should_keep_list_items_without_horizontal_overflow', Level.LEVEL2, async (done: Function) => {
-      await assertNoHorizontalOverflow(driver, 'order-list', 'order-list-item');
+      await assertNoHorizontalOverflow(driver, 'order-list', 'order-list-item0');
       done();
     });
   });

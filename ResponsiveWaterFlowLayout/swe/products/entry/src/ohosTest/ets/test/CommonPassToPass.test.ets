@@ -30,12 +30,12 @@ export default function commonPassToPassTest() {
 
     it('should_show_waterflow_items', Level.LEVEL2, async (done: Function) => {
       await assertComponentById(driver, 'product-waterflow');
-      await assertComponentById(driver, 'product-waterflow-item');
+      await assertComponentById(driver, 'product-waterflow-item0');
       done();
     });
 
     it('should_keep_waterflow_items_without_horizontal_overflow', Level.LEVEL2, async (done: Function) => {
-      await assertNoHorizontalOverflow(driver, 'product-waterflow', 'product-waterflow-item');
+      await assertNoHorizontalOverflow(driver, 'product-waterflow', 'product-waterflow-item0');
       done();
     });
   });

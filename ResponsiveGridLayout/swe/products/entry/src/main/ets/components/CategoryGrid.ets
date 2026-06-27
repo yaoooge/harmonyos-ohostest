@@ -5,7 +5,7 @@ import { GridCard } from '../model/Types';
 export struct CategoryGrid {
   build() {
     Grid() {
-      ForEach(GRID_CARDS, (item: GridCard) => {
+      ForEach(GRID_CARDS, (item: GridCard, index: number) => {
         GridItem() {
           Column() {
             Column()
@@ -30,7 +30,7 @@ export struct CategoryGrid {
           .borderRadius(8)
           .backgroundColor(Color.White)
         }
-        .id('category-grid-item')
+        .id('category-grid-item' + index)
       }, (item: GridCard) => item.title)
     }
     .columnsTemplate('repeat(2, 1fr)')

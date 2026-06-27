@@ -5,7 +5,7 @@ import { ProductCard } from '../model/Types';
 export struct ProductWaterFlow {
   build() {
     WaterFlow({ layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW }) {
-      ForEach(PRODUCT_CARDS, (item: ProductCard) => {
+      ForEach(PRODUCT_CARDS, (item: ProductCard, index: number) => {
         FlowItem() {
           Column() {
             Column()
@@ -41,7 +41,7 @@ export struct ProductWaterFlow {
           .padding(10)
           .borderRadius(8)
           .backgroundColor(Color.White)
-          .id('product-waterflow-item')
+          .id('product-waterflow-item' + index)
         }
       }, (item: ProductCard) => item.title)
     }

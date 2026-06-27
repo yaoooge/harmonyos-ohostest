@@ -5,7 +5,7 @@ import { ListCard } from '../model/Types';
 export struct OrderList {
   build() {
     List({ space: 8 }) {
-      ForEach(LIST_CARDS, (item: ListCard) => {
+      ForEach(LIST_CARDS, (item: ListCard, index: number) => {
         ListItem() {
           Row() {
             Column()
@@ -48,7 +48,7 @@ export struct OrderList {
           .borderRadius(8)
           .backgroundColor(Color.White)
         }
-        .id('order-list-item')
+        .id('order-list-item' + index)
       }, (item: ListCard) => item.title)
     }
     .lanes(1)

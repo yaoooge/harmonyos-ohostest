@@ -15,7 +15,7 @@ export default function smPassToPassTest() {
     it('should_show_grid_as_two_columns_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'sm') {
-        const lanes = await estimateLanesById(driver, 'category-grid', 'category-grid-item');
+        const lanes = await estimateLanesById(driver, 'category-grid', 'category-grid-item0');
         expect(lanes).assertEqual(2);
       } else {
         expect(true).assertTrue();

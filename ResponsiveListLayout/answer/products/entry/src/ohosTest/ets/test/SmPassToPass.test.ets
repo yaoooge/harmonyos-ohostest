@@ -15,7 +15,7 @@ export default function smPassToPassTest() {
     it('should_show_list_as_one_lane_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'sm') {
-        const lanes = await estimateLanesById(driver, 'order-list', 'order-list-item');
+        const lanes = await estimateLanesById(driver, 'order-list', 'order-list-item0');
         expect(lanes).assertEqual(1);
       } else {
         expect(true).assertTrue();
