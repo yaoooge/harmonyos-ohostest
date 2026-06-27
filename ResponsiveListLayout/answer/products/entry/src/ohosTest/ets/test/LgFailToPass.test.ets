@@ -15,7 +15,7 @@ export default function lgFailToPassTest() {
     it('should_show_list_as_three_lanes_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'lg') {
-        const lanes = await estimateLanesById(driver, 'adaptive-list', 'adaptive-list-item');
+        const lanes = await estimateLanesById(driver, 'order-list', 'order-list-item');
         expect(lanes).assertEqual(3);
       } else {
         expect(true).assertTrue();

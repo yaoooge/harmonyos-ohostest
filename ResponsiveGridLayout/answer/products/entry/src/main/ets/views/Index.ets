@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
-import { AdaptiveGrid } from '../components/AdaptiveGrid';
+import { CategoryGrid } from '../components/CategoryGrid';
 import { BreakpointSystem } from '../utils/BreakpointSystem';
 
 @Entry
@@ -23,7 +23,7 @@ struct Index {
         subtitle: '等宽网格随窗口宽度切换列数',
         testId: 'grid-header',
       })
-      AdaptiveGrid()
+      CategoryGrid()
     }
     .width('100%')
     .height('100%')

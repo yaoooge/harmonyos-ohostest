@@ -3,13 +3,13 @@ import { GridCard } from '../model/Types';
 import { BreakpointModel, BreakpointStorage, BreakpointSystem } from '../utils/BreakpointSystem';
 
 @ComponentV2
-export struct AdaptiveGrid {
+export struct CategoryGrid {
   @Local
   currentBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint;
 
   @Computed
   get columns(): number {
-    return 2;
+    return new BreakpointModel<number>(2, 3, 4).getValue(this.currentBreakpoint.value);
   }
 
   @Computed
@@ -44,7 +44,7 @@ export struct AdaptiveGrid {
           .borderRadius(8)
           .backgroundColor(Color.White)
         }
-        .id('adaptive-grid-item')
+        .id('category-grid-item')
       }, (item: GridCard) => item.title)
     }
     .columnsTemplate(`repeat(${this.columns}, 1fr)`)
@@ -54,6 +54,6 @@ export struct AdaptiveGrid {
     .layoutWeight(1)
     .padding({ left: 16, right: 16, bottom: 16 })
     .scrollBar(BarState.Off)
-    .id('adaptive-grid')
+    .id('category-grid')
   }
 }

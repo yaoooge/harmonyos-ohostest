@@ -29,13 +29,13 @@ export default function commonPassToPassTest() {
     });
 
     it('should_show_list_items', Level.LEVEL2, async (done: Function) => {
-      await assertComponentById(driver, 'adaptive-list');
-      await assertComponentById(driver, 'adaptive-list-item');
+      await assertComponentById(driver, 'order-list');
+      await assertComponentById(driver, 'order-list-item');
       done();
     });
 
     it('should_keep_list_items_without_horizontal_overflow', Level.LEVEL2, async (done: Function) => {
-      await assertNoHorizontalOverflow(driver, 'adaptive-list', 'adaptive-list-item');
+      await assertNoHorizontalOverflow(driver, 'order-list', 'order-list-item');
       done();
     });
   });

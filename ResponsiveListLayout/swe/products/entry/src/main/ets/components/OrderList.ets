@@ -1,24 +1,10 @@
 import { LIST_CARDS } from '../model/DemoData';
 import { ListCard } from '../model/Types';
-import { BreakpointModel, BreakpointStorage, BreakpointSystem } from '../utils/BreakpointSystem';
 
 @ComponentV2
-export struct AdaptiveList {
-  @Local
-  currentBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint;
-
-  @Computed
-  get lanes(): number {
-    return new BreakpointModel<number>(1, 2, 3).getValue(this.currentBreakpoint.value);
-  }
-
-  @Computed
-  get space(): number {
-    return new BreakpointModel<number>(8, 12, 16).getValue(this.currentBreakpoint.value);
-  }
-
+export struct OrderList {
   build() {
-    List({ space: this.space }) {
+    List({ space: 8 }) {
       ForEach(LIST_CARDS, (item: ListCard) => {
         ListItem() {
           Row() {
@@ -62,14 +48,14 @@ export struct AdaptiveList {
           .borderRadius(8)
           .backgroundColor(Color.White)
         }
-        .id('adaptive-list-item')
+        .id('order-list-item')
       }, (item: ListCard) => item.title)
     }
-    .lanes(this.lanes, 12)
+    .lanes(1)
     .width('100%')
     .layoutWeight(1)
     .padding({ left: 16, right: 16, bottom: 16 })
     .scrollBar(BarState.Off)
-    .id('adaptive-list')
+    .id('order-list')
   }
 }

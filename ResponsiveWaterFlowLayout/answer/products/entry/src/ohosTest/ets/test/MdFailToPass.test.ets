@@ -15,7 +15,7 @@ export default function mdFailToPassTest() {
     it('should_show_waterflow_as_three_columns_on_medium_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'md') {
-        const lanes = await estimateLanesById(driver, 'adaptive-waterflow', 'adaptive-waterflow-item');
+        const lanes = await estimateLanesById(driver, 'product-waterflow', 'product-waterflow-item');
         expect(lanes).assertEqual(3);
       } else {
         expect(true).assertTrue();

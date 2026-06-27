@@ -15,7 +15,7 @@ export default function lgFailToPassTest() {
     it('should_show_grid_as_four_columns_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'lg') {
-        const lanes = await estimateLanesById(driver, 'adaptive-grid', 'adaptive-grid-item');
+        const lanes = await estimateLanesById(driver, 'category-grid', 'category-grid-item');
         expect(lanes).assertEqual(4);
       } else {
         expect(true).assertTrue();

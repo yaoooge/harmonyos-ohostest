@@ -3,13 +3,13 @@ import { ListCard } from '../model/Types';
 import { BreakpointModel, BreakpointStorage, BreakpointSystem } from '../utils/BreakpointSystem';
 
 @ComponentV2
-export struct AdaptiveList {
+export struct OrderList {
   @Local
   currentBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint;
 
   @Computed
   get lanes(): number {
-    return 1;
+    return new BreakpointModel<number>(1, 2, 3).getValue(this.currentBreakpoint.value);
   }
 
   @Computed
@@ -62,7 +62,7 @@ export struct AdaptiveList {
           .borderRadius(8)
           .backgroundColor(Color.White)
         }
-        .id('adaptive-list-item')
+        .id('order-list-item')
       }, (item: ListCard) => item.title)
     }
     .lanes(this.lanes, 12)
@@ -70,6 +70,6 @@ export struct AdaptiveList {
     .layoutWeight(1)
     .padding({ left: 16, right: 16, bottom: 16 })
     .scrollBar(BarState.Off)
-    .id('adaptive-list')
+    .id('order-list')
   }
 }

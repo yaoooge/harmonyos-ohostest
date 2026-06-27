@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
-import { AdaptiveWaterFlow } from '../components/AdaptiveWaterFlow';
+import { ProductWaterFlow } from '../components/ProductWaterFlow';
 import { BreakpointSystem } from '../utils/BreakpointSystem';
 
 @Entry
@@ -23,7 +23,7 @@ struct Index {
         subtitle: '不同高度商品卡片随窗口宽度切换列数',
         testId: 'waterflow-header',
       })
-      AdaptiveWaterFlow()
+      ProductWaterFlow()
     }
     .width('100%')
     .height('100%')

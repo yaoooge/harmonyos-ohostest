@@ -15,7 +15,7 @@ export default function mdFailToPassTest() {
     it('should_show_list_as_two_lanes_on_medium_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'md') {
-        const lanes = await estimateLanesById(driver, 'adaptive-list', 'adaptive-list-item');
+        const lanes = await estimateLanesById(driver, 'order-list', 'order-list-item');
         expect(lanes).assertEqual(2);
       } else {
         expect(true).assertTrue();

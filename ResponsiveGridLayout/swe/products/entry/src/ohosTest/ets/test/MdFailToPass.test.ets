@@ -15,7 +15,7 @@ export default function mdFailToPassTest() {
     it('should_show_grid_as_three_columns_on_medium_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'md') {
-        const lanes = await estimateLanesById(driver, 'adaptive-grid', 'adaptive-grid-item');
+        const lanes = await estimateLanesById(driver, 'category-grid', 'category-grid-item');
         expect(lanes).assertEqual(3);
       } else {
         expect(true).assertTrue();

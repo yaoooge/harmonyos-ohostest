@@ -1,9 +1,9 @@
-import { GRID_CARDS } from '../model/DemoData';
-import { GridCard } from '../model/Types';
+import { PRODUCT_CARDS } from '../model/DemoData';
+import { ProductCard } from '../model/Types';
 import { BreakpointModel, BreakpointStorage, BreakpointSystem } from '../utils/BreakpointSystem';
 
 @ComponentV2
-export struct AdaptiveGrid {
+export struct ProductWaterFlow {
   @Local
   currentBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint;
 
@@ -18,34 +18,46 @@ export struct AdaptiveGrid {
   }
 
   build() {
-    Grid() {
-      ForEach(GRID_CARDS, (item: GridCard) => {
-        GridItem() {
+    WaterFlow({ layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW }) {
+      ForEach(PRODUCT_CARDS, (item: ProductCard) => {
+        FlowItem() {
           Column() {
             Column()
               .width('100%')
-              .aspectRatio(1)
+              .aspectRatio(item.ratio)
               .borderRadius(8)
               .backgroundColor(item.color)
             Text(item.title)
-              .fontSize(15)
+              .fontSize(14)
               .fontWeight(FontWeight.Medium)
               .fontColor('#1D252F')
               .margin({ top: 8 })
-              .maxLines(1)
+              .maxLines(2)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
-            Text(item.desc)
-              .fontSize(12)
-              .fontColor('#697386')
-              .margin({ top: 4 })
+            Row() {
+              Text(item.price)
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#B3261E')
+              Text(item.tag)
+                .fontSize(11)
+                .fontColor('#3F5F47')
+                .backgroundColor('#E8F3E7')
+                .borderRadius(4)
+                .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+            }
+            .width('100%')
+            .justifyContent(FlexAlign.SpaceBetween)
+            .alignItems(VerticalAlign.Center)
+            .margin({ top: 8 })
           }
           .alignItems(HorizontalAlign.Start)
           .padding(10)
           .borderRadius(8)
           .backgroundColor(Color.White)
+          .id('product-waterflow-item')
         }
-        .id('adaptive-grid-item')
-      }, (item: GridCard) => item.title)
+      }, (item: ProductCard) => item.title)
     }
     .columnsTemplate(`repeat(${this.columns}, 1fr)`)
     .columnsGap(this.gap)
@@ -54,6 +66,6 @@ export struct AdaptiveGrid {
     .layoutWeight(1)
     .padding({ left: 16, right: 16, bottom: 16 })
     .scrollBar(BarState.Off)
-    .id('adaptive-grid')
+    .id('product-waterflow')
   }
 }

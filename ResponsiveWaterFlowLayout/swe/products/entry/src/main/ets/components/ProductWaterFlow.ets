@@ -1,22 +1,8 @@
 import { PRODUCT_CARDS } from '../model/DemoData';
 import { ProductCard } from '../model/Types';
-import { BreakpointModel, BreakpointStorage, BreakpointSystem } from '../utils/BreakpointSystem';
 
 @ComponentV2
-export struct AdaptiveWaterFlow {
-  @Local
-  currentBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint;
-
-  @Computed
-  get columns(): number {
-    return 2;
-  }
-
-  @Computed
-  get gap(): number {
-    return new BreakpointModel<number>(8, 12, 12).getValue(this.currentBreakpoint.value);
-  }
-
+export struct ProductWaterFlow {
   build() {
     WaterFlow({ layoutMode: WaterFlowLayoutMode.SLIDING_WINDOW }) {
       ForEach(PRODUCT_CARDS, (item: ProductCard) => {
@@ -55,17 +41,17 @@ export struct AdaptiveWaterFlow {
           .padding(10)
           .borderRadius(8)
           .backgroundColor(Color.White)
-          .id('adaptive-waterflow-item')
+          .id('product-waterflow-item')
         }
       }, (item: ProductCard) => item.title)
     }
-    .columnsTemplate(`repeat(${this.columns}, 1fr)`)
-    .columnsGap(this.gap)
-    .rowsGap(this.gap)
+    .columnsTemplate('repeat(2, 1fr)')
+    .columnsGap(8)
+    .rowsGap(8)
     .width('100%')
     .layoutWeight(1)
     .padding({ left: 16, right: 16, bottom: 16 })
     .scrollBar(BarState.Off)
-    .id('adaptive-waterflow')
+    .id('product-waterflow')
   }
 }

@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { PageHeader } from '../components/PageHeader';
-import { AdaptiveList } from '../components/AdaptiveList';
+import { OrderList } from '../components/OrderList';
 import { BreakpointSystem } from '../utils/BreakpointSystem';
 
 @Entry
@@ -23,7 +23,7 @@ struct Index {
         subtitle: '列表项随窗口宽度从单列扩展为多列',
         testId: 'list-header',
       })
-      AdaptiveList()
+      OrderList()
     }
     .width('100%')
     .height('100%')

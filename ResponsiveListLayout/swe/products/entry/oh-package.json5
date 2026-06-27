@@ -1,7 +1,7 @@
 {
   "name": "entry",
   "version": "1.0.0",
-  "description": "响应式布局-列表重复布局原子工程",
+  "description": "订单列表示例",
   "main": "",
   "dependencies": {}
 }
