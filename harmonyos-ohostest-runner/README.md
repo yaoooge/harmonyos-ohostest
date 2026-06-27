@@ -122,3 +122,219 @@ npm run ohostest:matrix -- \
 - `failed`：至少有设备未完成执行，例如模拟器启动失败、hdc 未连接、安装失败或测试输出无法解析
 
 具体用例是否通过，请查看 `summary.md` 中每个 suite 下的用例状态，或查看 `result.json` 的 `devices[].suiteResults[].testCases`。
+
+## 折叠屏/旋转控制（可选）
+
+runner 支持自动管理模拟器的折叠/旋转状态。`fold-server.py` 已内置在 `src/` 目录下，
+无需额外安装依赖（仅需 Python 3.6+）。
+
+折叠命令（`triggerFold`）仅折叠屏设备可用；旋转命令（`triggerRotation`）所有设备可用。
+
+### 配置步骤
+
+#### 1. 环境变量
+
+构建 HarmonyOS 工程需要设置以下环境变量（加到 `~/.zshrc` 或 `~/.bashrc`）：
+
+```bash
+export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
+export JAVA_HOME="/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home"
+```
+
+> Windows 路径类似，指向你的 DevEco Studio 安装目录。
+
+#### 2. machine.json 配置
+
+在 `machine.json` 中标记需要控制的设备：
+
+```json
+{
+  "paths": {
+    "hvigorw": "/path/to/hvigorw",
+    "hdc": "/path/to/hdc",
+    "emulatorBin": "/path/to/Emulator",
+    "emulatorDeployedDir": "/path/to/.Huawei/Emulator/deployed",
+    "foldServerScript": "src/fold-server.py"
+  },
+  "devices": [
+    {
+      "id": "foldable",
+      "profile": "Mate X7",
+      "target": "127.0.0.1:5555",
+      "startEmulator": false,
+      "foldControl": true,
+      "testSuites": ["CommonPassToPassTest", "FoldControlTest"]
+    },
+    {
+      "id": "phone",
+      "profile": "Pura 90",
+      "target": "127.0.0.1:15010",
+      "startEmulator": false,
+      "foldControl": true,
+      "testSuites": ["CommonPassToPassTest", "FoldControlTest"]
+    }
+  ]
+}
+```
+
+**关键字段说明：**
+
+| 字段 | 说明 |
+|------|------|
+| `paths.foldServerScript` | fold-server.py 路径，默认使用内置的 `src/fold-server.py` |
+| `devices[].profile` | 模拟器实例名，**必须与 `~/.Huawei/Emulator/deployed/` 下的目录名一致**（如 `Mate X7`、`Pura 90`） |
+| `devices[].target` | hdc 连接地址，必须与 `hdc list targets` 输出一致 |
+| `devices[].foldControl` | `true` 表示该设备启用折叠/旋转控制，runner 会自动启停 fold-server |
+| `devices[].testSuites` | 要执行的 suite class 列表，包含折叠测试时需加 `FoldControlTest` |
+
+#### 3. 部署 FoldTrigger.ets 到测试工程
+
+fold-server 控制模拟器的折叠/旋转，测试用例通过 `FoldTrigger.ets` 调用 fold-server。
+有两种部署方式：
+
+**方式 A：手动复制（最简单）**
+
+将 `src/FoldTrigger.ets` 复制到测试工程的 ohosTest 目录：
+
+```bash
+cp src/FoldTrigger.ets /path/to/your-project/<module>/src/ohosTest/ets/util/FoldTrigger.ets
+```
+
+- 默认端口 8765，单设备直接可用
+- 多设备场景需修改文件里的 `FOLD_SERVER_PORT`（第 2 台设备改为 8766，以此类推）
+
+**方式 B：使用部署脚本**
+
+```bash
+# 默认端口 8765，默认模块路径 entry
+npm run deploy:fold -- --project /path/to/your-project
+
+# 指定端口和模块路径（如 entry 在 products/entry 下）
+npm run deploy:fold -- --project /path/to/your-project --port 8765 --module products/entry
+```
+
+**方式 C：runner 自动部署**
+
+当设备配置了 `foldControl: true` 时，runner 在运行测试前会自动部署 `FoldTrigger.ets`
+并重建测试 HAP，无需手动操作。
+
+> **注意：** 自动部署需要在工程里注册测试文件。在 `<module>/src/ohosTest/ets/test/List.test.ets` 中导入并调用：
+> ```typescript
+> import foldTest from './FoldAbility.test';
+> export default function testsuite() {
+>   foldTest();
+> }
+> ```
+
+#### 4. 编写折叠/旋转测试用例
+
+在 `<module>/src/ohosTest/ets/test/` 下创建测试文件（如 `FoldAbility.test.ets`）：
+
+```typescript
+import { describe, beforeAll, afterAll, it, expect } from '@ohos/hypium';
+import { Driver } from '@kit.TestKit';
+import { triggerFold, triggerRotation, sleep } from '../util/FoldTrigger';
+
+export default function foldTest() {
+  describe('FoldControlTest', () => {
+    let driver: Driver | undefined;
+
+    beforeAll(async () => {
+      driver = Driver.create();
+    });
+
+    afterAll(async () => {
+      driver = undefined;
+    });
+
+    it('trigger_rotation_left', 0, async () => {
+      await triggerRotation('left', 2000);
+      expect(true).assertTrue();
+    });
+
+    it('trigger_rotation_right', 0, async () => {
+      await triggerRotation('right', 2000);
+      expect(true).assertTrue();
+    });
+
+    it('trigger_fold_open', 0, async () => {
+      await triggerFold('open', 3000);
+      expect(true).assertTrue();
+    });
+
+    it('trigger_fold_half_open', 0, async () => {
+      await triggerFold('half-open', 3000);
+      expect(true).assertTrue();
+    });
+
+    it('trigger_fold_close', 0, async () => {
+      await triggerFold('close', 3000);
+      expect(true).assertTrue();
+    });
+  });
+}
+```
+
+> 折叠命令在直板机上会失败（无折叠硬件），旋转命令所有设备可用。
+
+#### 5. 运行
+
+```bash
+npm run ohostest:matrix -- --project /path/to/your-project
+```
+
+### API 参考
+
+```typescript
+import { triggerFold, triggerRotation, triggerLandscapeHover, sleep } from '../util/FoldTrigger';
+
+// 旋转（所有设备可用）
+await triggerRotation('left', 2000);
+await triggerRotation('right', 2000);
+
+// 折叠（仅折叠屏设备）
+await triggerFold('open', 3000);       // 展开
+await triggerFold('close', 4000);      // 折叠
+await triggerFold('half-open', 3000);  // 半折悬停
+
+// 悬停态校正到横屏（折痕水平）
+await triggerLandscapeHover(driver);
+
+// 等待布局稳定
+await sleep(1000);
+```
+
+| 方法 | 参数 | 说明 | 适用设备 |
+|------|------|------|----------|
+| `triggerRotation` | `direction: 'left' \| 'right'`, `waitAfter?: number` | 旋转屏幕 | 所有设备 |
+| `triggerFold` | `state: 'open' \| 'close' \| 'half-open'`, `waitAfter?: number` | 切换折叠状态 | 仅折叠屏 |
+| `triggerLandscapeHover` | `driver: Driver` | 半折态校正到横屏 | 仅折叠屏 |
+| `sleep` | `ms: number` | 等待指定毫秒 | 所有设备 |
+
+### 工作原理
+
+```
+测试用例 → FoldTrigger.ets → HTTP → hdc rport → fold-server.py → Emulator 命令
+```
+
+runner 为每个 `foldControl: true` 的设备自动：
+
+1. 启动独立的 fold-server 实例（自动分配端口，起始 8766），传入 `--target` 支持多设备
+2. 等待 fold-server 健康检查通过
+3. 部署 `FoldTrigger.ets` 到目标工程（注入该设备对应端口）
+4. 重建测试 HAP 使新端口生效
+5. 安装 HAP 并执行测试套件
+6. 测试结束后停止 fold-server
+
+端口信息记录在 `result.json` 的 `devices[].foldServerPort` 和 `summary.md` 的设备详情中。
+
+### 多设备端口分配
+
+| 设备顺序 | 宿主机端口 | 设备内端口 |
+|----------|-----------|-----------|
+| 第 1 台 | 8766 | 8765 |
+| 第 2 台 | 8767 | 8766 |
+| 第 3 台 | 8768 | 8767 |
+
+每台设备拥有独立的 fold-server 进程和端口，互不干扰。
+

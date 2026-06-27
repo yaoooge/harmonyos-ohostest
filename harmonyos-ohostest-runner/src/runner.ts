@@ -13,6 +13,8 @@ import {
 } from "./device.js";
 import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "./ohostest.js";
 import { deriveMatrixStatus, renderSummaryMarkdown } from "./result.js";
+import { deployFoldTrigger, killFoldServer, startFoldServer } from "./fold.js";
+import type { FoldServerInstance } from "./fold.js";
 import type {
   BuildResult,
   CommandResult,
@@ -57,6 +59,11 @@ export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixRe
     const result = await runDetachedCommand(command, config.project);
     await logger.record(command, result);
     return result;
+  }
+
+  // Pre-deploy default FoldTrigger.ets so the global build succeeds
+  if (selectedDevices.some((d) => d.foldControl)) {
+    await deployFoldTrigger(config.project, 8765, config.moduleSrcPath);
   }
 
   const build = await runBuild({
@@ -183,6 +190,7 @@ async function runDevice(input: {
 }): Promise<DeviceRunResult> {
   const started = Date.now();
   const logLines: string[] = [`device: ${input.device.id}`, `target: ${input.device.target}`];
+  let foldServer: FoldServerInstance | undefined;
 
   try {
     if (input.device.startEmulator) {
@@ -200,6 +208,32 @@ async function runDevice(input: {
       outDir: input.outDir,
       runCommand: input.runCommand,
     });
+
+    // Start fold server if device needs fold control
+    if (input.device.foldControl && input.config.paths.foldServerScript) {
+      try {
+        foldServer = await startFoldServer(input.device, input.config.paths.foldServerScript);
+        logLines.push(`foldServerPort: ${foldServer.port}`);
+        const triggerPath = await deployFoldTrigger(
+          input.config.project,
+          foldServer.devicePort,
+          input.config.moduleSrcPath,
+        );
+        logLines.push(`deployedFoldTrigger: ${triggerPath}`);
+
+        // Rebuild test HAP with the new FoldTrigger.ets port
+        const testBuildCmd = buildTestHapCommand(input.config);
+        const buildResult = await input.runCommand(testBuildCmd);
+        logLines.push(`foldTestBuildExitCode: ${buildResult.exitCode}`);
+        if (buildResult.exitCode !== 0) {
+          logLines.push(`foldTestBuildStderr: ${buildResult.stderr.trimEnd()}`);
+        }
+      } catch (error) {
+        logLines.push(`foldServerError: ${error instanceof Error ? error.message : String(error)}`);
+        return blockedDevice(input, started, logLines, "fold_server_start_failed");
+      }
+    }
+
     await installHaps({
       config: input.config,
       device: input.device,
@@ -263,11 +297,16 @@ async function runDevice(input: {
       suiteResults,
       durationMs: Date.now() - started,
       log,
+      ...(foldServer ? { foldServerPort: foldServer.port } : {}),
     };
   } catch (error) {
     const reason = reasonFromError(error);
     return blockedDevice(input, started, [...logLines, String(error)], reason);
   } finally {
+    // Stop fold server if started
+    if (foldServer) {
+      killFoldServer(foldServer);
+    }
     if (input.device.startEmulator && !input.keepEmulators) {
       await input.runDetached(buildStopEmulatorCommand(input.config, input.device));
       await waitForTargetDisconnected({
@@ -412,6 +451,11 @@ function buildCommands(config: MatrixConfig): string[] {
     `${appBase} ${config.build.appTask} ${appSuffix}`,
     `${testBase} ${config.build.testTask} --no-daemon --stacktrace`,
   ];
+}
+
+function buildTestHapCommand(config: MatrixConfig): string {
+  const buildExecutable = shellQuote(config.paths.hvigorw);
+  return `${buildExecutable} --mode module -p module=${config.module}@ohosTest ${config.build.testTask} --no-daemon`;
 }
 
 function reasonFromError(error: unknown): DeviceRunResult["blockedReason"] {

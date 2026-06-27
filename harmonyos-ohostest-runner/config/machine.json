@@ -1,34 +1,49 @@
 {
   "paths": {
-    "hvigorw": "hvigorw",
-    "hdc": "/Users/guoyutong/command-line-tools/sdk/default/openharmony/toolchains/hdc",
+    "hvigorw": "/Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw",
+    "hdc": "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc",
     "emulatorBin": "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator",
-    "emulatorDeployedDir": "/Users/guoyutong/.Huawei/Emulator/deployed"
+    "emulatorDeployedDir": "/Users/zzz/.Huawei/Emulator/deployed",
+    "foldServerScript": "src/fold-server.py"
   },
   "devices": [
     {
       "id": "phone",
-      "profile": "Mate 80 Pro",
-      "target": "127.0.0.1:15001",
+      "profile": "Pura 90",
+      "target": "127.0.0.1:15010",
       "hdcPort": 15001,
-      "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest"]
+      "startEmulator": false,
+      "testSuites": [
+        "CommonPassToPassTest",
+        "SmPassToPassTest",
+        "FoldControlTest"
+      ],
+      "foldControl": true
     },
     {
       "id": "foldable",
       "profile": "Mate X7",
-      "target": "127.0.0.1:15002",
+      "target": "127.0.0.1:5555",
       "hdcPort": 15002,
-      "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"]
+      "startEmulator": false,
+      "foldControl": true,
+      "testSuites": [
+        "CommonPassToPassTest",
+        "SmPassToPassTest",
+        "MdFailToPassTest",
+        "FoldControlTest"
+      ]
     },
     {
       "id": "tablet",
       "profile": "MatePad Pro 13",
-      "target": "127.0.0.1:15003",
+      "target": "127.0.0.1:5555",
       "hdcPort": 15003,
-      "startEmulator": true,
-      "testSuites": ["CommonPassToPassTest", "LgFailToPassTest"]
+      "startEmulator": false,
+      "testSuites": [
+        "CommonPassToPassTest",
+        "LgFailToPassTest"
+      ]
     }
   ]
 }

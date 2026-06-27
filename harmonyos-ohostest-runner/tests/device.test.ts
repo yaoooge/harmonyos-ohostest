@@ -8,6 +8,7 @@ function makeConfig(): MatrixConfig {
     project: "D:\\Projects\\ResponsiveRepeatLayout",
     product: "default",
     module: "entry",
+    moduleSrcPath: "entry",
     bundleName: "zhsc.1.xxxxxx",
     testModule: "entry_test",
     testRunner: "OpenHarmonyTestRunner",

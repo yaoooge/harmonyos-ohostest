@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "ohostest:matrix": "node --import tsx scripts/runOhosTestMatrix.ts",
     "test": "node --import tsx --test tests/*.test.ts",
-    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"*.json\""
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"*.json\"",
+    "deploy:fold": "node --import tsx scripts/deployFoldTrigger.ts"
   },
   "dependencies": {},
   "devDependencies": {

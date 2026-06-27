@@ -39,14 +39,23 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
       target: device.target,
       ...(device.hdcPort !== undefined ? { hdcPort: readHdcPort(device.hdcPort, index) } : {}),
       startEmulator: device.startEmulator ?? false,
+      foldControl: device.foldControl ?? false,
       ...(testClasses.length > 0 ? { testClasses } : {}),
     };
   });
+
+  const hasFoldControl = devices.some((d) => d.foldControl);
+  if (hasFoldControl && !paths.foldServerScript) {
+    throw new Error(
+      "config.paths.foldServerScript is required when any device has foldControl: true.",
+    );
+  }
 
   return {
     project,
     product: raw.product ?? projectInfo.product,
     module: raw.module ?? projectInfo.moduleName,
+    moduleSrcPath: projectInfo.moduleSrcPath,
     bundleName: raw.bundleName ?? projectInfo.bundleName,
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
@@ -62,6 +71,7 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
       hdc: paths.hdc,
       emulatorBin: paths.emulatorBin,
       emulatorDeployedDir: paths.emulatorDeployedDir,
+      ...(paths.foldServerScript ? { foldServerScript: paths.foldServerScript } : {}),
     },
     artifacts: {
       appHap: resolveProjectPath(
@@ -83,6 +93,9 @@ function readToolPaths(rawPaths: RawMatrixConfig["paths"]): MatrixConfig["paths"
       rawPaths?.emulatorDeployedDir,
       "config.paths.emulatorDeployedDir",
     ),
+    ...(rawPaths?.foldServerScript?.trim()
+      ? { foldServerScript: rawPaths.foldServerScript.trim() }
+      : {}),
   };
 }
 
@@ -192,7 +205,8 @@ function stripLeadingDotSlash(value: string): string {
 function parseJson5ish(text: string): unknown {
   const withoutBlockComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
   const withoutLineComments = withoutBlockComments.replace(/(^|[^:])\/\/.*$/gm, "$1");
-  return JSON.parse(withoutLineComments);
+  const withoutTrailingCommas = withoutLineComments.replace(/,(\s*[}\]])/g, "$1");
+  return JSON.parse(withoutTrailingCommas);
 }
 
 function defaultMachineConfigPath(): string {

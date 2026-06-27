@@ -7,7 +7,8 @@ export type BlockedReason =
   | "hdc_not_connected"
   | "install_failed"
   | "test_command_failed"
-  | "test_output_unparseable";
+  | "test_output_unparseable"
+  | "fold_server_start_failed";
 
 export interface RawMatrixConfig {
   product?: string;
@@ -27,6 +28,7 @@ export interface RawMatrixConfig {
     hdc?: string;
     emulatorBin?: string;
     emulatorDeployedDir?: string;
+    foldServerScript?: string;
   };
   artifacts?: {
     appHap?: string;
@@ -41,6 +43,7 @@ export interface RawDeviceConfig {
   target?: string;
   hdcPort?: number;
   startEmulator?: boolean;
+  foldControl?: boolean;
   testSuites?: unknown;
 }
 
@@ -48,6 +51,7 @@ export interface MatrixConfig {
   project: string;
   product: string;
   module: string;
+  moduleSrcPath: string;
   bundleName: string;
   testModule: string;
   testRunner: string;
@@ -63,6 +67,7 @@ export interface MatrixConfig {
     hdc: string;
     emulatorBin: string;
     emulatorDeployedDir: string;
+    foldServerScript?: string;
   };
   artifacts: {
     appHap: string;
@@ -77,6 +82,7 @@ export interface DeviceConfig {
   target: string;
   hdcPort?: number;
   startEmulator: boolean;
+  foldControl?: boolean;
   testClasses?: string[];
 }
 
@@ -148,6 +154,7 @@ export interface DeviceRunResult {
   durationMs: number;
   log: string;
   blockedReason?: BlockedReason;
+  foldServerPort?: number;
 }
 
 export interface MatrixResult {

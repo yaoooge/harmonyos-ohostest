@@ -85,6 +85,9 @@ export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunRe
     return [
       `### ${device.id}`,
       "",
+      ...(device.foldServerPort !== undefined
+        ? [`- Fold Server Port: ${device.foldServerPort}`, ""]
+        : []),
       "| Suite | Status | Tests | Failures | Errors | Passes | Ignored | Report |",
       "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
       ...suiteRows,
