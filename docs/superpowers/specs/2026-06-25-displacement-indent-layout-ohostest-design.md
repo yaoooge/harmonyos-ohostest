@@ -274,7 +274,7 @@ products/entry/src/ohosTest/ets/test/
 | `should_move_tab_bar_to_side_on_large_breakpoint` | 大屏 Tab 从底部挪移到左侧。 | 当前断点为 `lg` 时，比较前两个 tab 的 bounds，断言 `left` 近似相等且第二个 tab 在第一个下方。 |
 | `should_place_illustration_and_text_side_by_side_on_large_breakpoint` | 大屏图文由上下排列挪移为左右排列。 | 当前断点为 `lg` 时，比较 `illustration-panel` 与 `text-panel` bounds，断言二者左右排列。 |
 | `should_keep_illustration_left_of_text_on_large_breakpoint` | 大屏图文主次顺序稳定。 | 当前断点为 `lg` 时，断言 `illustration-panel.right <= text-panel.left + tolerance`。 |
-| `should_shift_content_right_of_side_tab_bar_on_large_breakpoint` | 大屏内容区为侧边导航让位。 | 当前断点为 `lg` 时，断言 `illustration-text-container.left` 大于侧边首个 tab 的 `right` 附近阈值；底部横向 Tabs 的 SWE 会因内容未让位而失败。 |
+| `should_shift_content_right_of_side_tab_bar_on_large_breakpoint` | 大屏内容区为侧边导航让位。 | 当前断点为 `lg` 时，先断言主 Tabs 为左侧纵向，再比较侧边首个 tab（`displacement-main-tab-0`）与首个主内容块（例如 `illustration-panel` 或列表首项）的 bounds，要求 `content.left >= tab.right + minGap`；固定底部 Tabs、只切到侧边但开启 `barOverlap(true)`、或未给 TabContent 留出左侧空间的 SWE 都应失败。 |
 
 ### 覆盖矩阵
 
@@ -447,6 +447,7 @@ products/entry/src/ohosTest/ets/test/
 - `assertVertical(driver, firstId, secondId)`
 - `assertNoHorizontalOverflow(driver, containerId, childIds)`
 - `assertCenteredInContainer(driver, containerId, contentId, tolerance)`
+- `assertFirstComponentStartsAfter(driver, contentId, obstacleId, minGap)`
 - `assertWidthRatioAtLeast(driver, containerId, contentId, minRatio)`
 - `assertWidthRatioAtMost(driver, containerId, contentId, maxRatio)`
 
