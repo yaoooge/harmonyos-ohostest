@@ -1,8 +1,6 @@
 import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
-import { Driver, ON } from '@kit.TestKit';
+import { Driver } from '@kit.TestKit';
 import {
-  assertComponentById,
-  assertMainTabsVertical,
   clickTabByIndex,
   componentExistsById,
   estimateLanesById,
