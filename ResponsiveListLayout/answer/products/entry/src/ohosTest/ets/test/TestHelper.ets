@@ -37,7 +37,6 @@ async function startEntryAbility(driver: Driver): Promise<string> {
     abilityName: 'EntryAbility',
   };
   await delegator.startAbility(want);
-  await waitForComponentById(driver, ROOT_ID, 10);
   return bundleName;
 }
 
@@ -63,6 +62,7 @@ export function getBreakpointName(vpWidth: number): TestBreakpoint {
 }
 
 export async function getCurrentBreakpoint(driver: Driver, bundleName: string): Promise<TestBreakpoint> {
+  await waitForComponentById(driver, ROOT_ID, 6);
   return getBreakpointName(await getWindowVpWidth(driver, bundleName));
 }
 
@@ -111,6 +111,8 @@ export async function waitForComponentByText(driver: Driver, text: string, retri
 
 export async function estimateLanesById(driver: Driver, containerId: string, itemId: string): Promise<number> {
   try {
+    await waitForComponentById(driver, containerId, 6);
+    await waitForComponentById(driver, itemId, 6);
     const container = await driver.findComponent(ON.id(containerId));
     const items = await driver.findComponents(ON.id(itemId));
     if (container === null || container === undefined || items === null || items === undefined || items.length === 0) {
