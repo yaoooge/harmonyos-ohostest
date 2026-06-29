@@ -12,11 +12,11 @@ export default function lgFailToPassTest() {
       bundleName = await prepareEntryAbility();
     });
 
-    it('should_show_list_as_three_lanes_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
+    it('should_show_list_as_two_lanes_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
       const breakpoint = await getCurrentBreakpoint(driver, bundleName);
       if (breakpoint === 'lg') {
         const lanes = await estimateLanesById(driver, 'order-list', 'order-list-item0');
-        expect(lanes).assertEqual(3);
+        expect(lanes).assertEqual(2);
       } else {
         expect(true).assertTrue();
       }

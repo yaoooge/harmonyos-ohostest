@@ -19,8 +19,8 @@ struct Index {
   build() {
     Column() {
       PageHeader({
-        title: '订单列表',
-        subtitle: '列表项随窗口宽度从单列扩展为多列',
+        title: '订单中心',
+        subtitle: '管理待付款、待收货和已完成订单',
         testId: 'list-header',
       })
       OrderList()
