@@ -201,7 +201,8 @@ cp src/FoldTrigger.ets /path/to/your-project/<module>/src/ohosTest/ets/util/Fold
 ```
 
 - 默认端口 8765，单设备直接可用
-- 多设备场景需修改文件里的 `FOLD_SERVER_PORT`（第 2 台设备改为 8766，以此类推）
+- 多设备场景**无需修改端口**：每台模拟器有独立的 `127.0.0.1` 网络命名空间，通过各自设备的 hdc rport 反向转发到不同的 fold-server 进程，所以所有设备的 `FOLD_SERVER_PORT` 都保持 8765 即可
+- 手动复制的文件仅用于编写用例时避免 `import` 报错；若设备配置了 `foldControl: true`，runner 运行前会自动覆盖该文件并填入正确端口（见下方「方式 C」）
 
 **方式 B：使用部署脚本**
 
