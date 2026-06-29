@@ -339,3 +339,72 @@ runner 为每个 `foldControl: true` 的设备自动：
 
 每台设备拥有独立的 fold-server 进程和端口，互不干扰。
 
+## 故障排查
+
+实际部署时遇到过几个坑，记录在此供对照排查。遇到矩阵返回 `failed` 时，按 build 阶段 → 设备阶段的顺序定位。
+
+### 1. 构建阶段：`Invalid DEVECO_SDK_HOME`
+
+**现象**：`build_failed`，hvigor 报 `Invalid DEVECO_SDK_HOME` 或 `SDK component missing`。
+
+**根因**：`DEVECO_SDK_HOME` 未设置，或路径层级写错。
+
+**关键**：必须指向 `.../sdk`，**不是** `.../sdk/default`：
+
+```bash
+# ✅ 正确
+export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk"
+# ❌ 错误（多了一层 default）
+export DEVECO_SDK_HOME="/Applications/DevEco-Studio.app/Contents/sdk/default"
+```
+
+> 排查技巧：`DEVECO_SDK_HOME` 与环境来源有关，已运行的 hvigor daemon 进程可能持有和当前 shell 不同的值。可读取正在运行的 hvigor daemon 进程的真实环境变量来确认实际生效值，避免被旧 daemon 误导。
+
+### 2. 构建阶段：`Unable to locate Java Runtime`
+
+**现象**：设好 SDK_HOME 后，hvigor 报 `Unable to locate Java Runtime` 或 `Could not find tools.jar`。
+
+**根因**：hvigor 工具链依赖 JDK，还缺 `JAVA_HOME`。DevEco Studio 自带 JBR，直接指向它即可：
+
+```bash
+export JAVA_HOME="/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home"
+```
+
+> 注意：设好两个环境变量后，若 hvigor daemon 仍在运行旧环境，需先杀掉 daemon 再重跑，否则新变量不生效。
+
+### 3. 设备阶段：`hdc_not_connected` 或设备 profile 不存在
+
+**现象**：`build` 通过但设备阶段报 `hdc_not_connected`，或启动模拟器失败。
+
+**根因**：`machine.json` 中的 `profile` / `target` 与真实环境不符。三个最易踩的点：
+
+1. **`emulatorDeployedDir` 用户名错误**：路径里的用户名（如 `/Users/zzz/...`）必须与当前系统真实用户一致，否则 runner 找不到已部署的模拟器实例。
+2. **`profile` 与 deployed 目录名不一致**：`profile` 必须与 `~/.Huawei/Emulator/deployed/` 下的目录名**完全一致**。例如该目录下没有 `Mate X7`，则配 `Mate X7` 必然失败。
+3. **`target` 与 hdc 实际连接不符**：用 `hdc list targets` 确认每台设备的真实连接地址，再填入 `target`。
+
+排查命令：
+
+```bash
+# 查看已部署的模拟器实例名
+ls ~/.Huawei/Emulator/deployed/
+# 查看当前 hdc 连接的设备
+hdc list targets
+```
+
+### 4. 折叠测试失败：折叠命令被设备拒绝
+
+**现象**：`FoldControlTest` 出现 `cannot connect` 或折叠/展开用例失败，但旋转用例能过。
+
+**根因**：`foldControl: true` 的设备必须是**真实可折叠设备/折叠屏模拟器**。若指向的是直板机（如 `Pura 90`、`Mate 80 Pro`），模拟器会拒绝 `-foldedState` 等折叠命令，导致折叠用例失败（旋转用例不受影响，所以可能看到 rotation 通过、fold 失败）。
+
+**解决**：把启用 `foldControl` 的设备 profile 改指向真正的折叠屏实例（如 `Mate X7`、TripleFold），并确认其 `target` 正确。直板机不应启用 `foldControl` 或不应包含 `FoldControlTest`。
+
+### 关于环境变量的注入方式
+
+上述 `DEVECO_SDK_HOME` / `JAVA_HOME` 可加到 `~/.zshrc` 或 `~/.bashrc` 全局生效。需要注意的是：
+
+- runner 通过子进程调用 hvigor，**子进程继承的是 runner 启动时 shell 的环境变量**。
+- 如果 hvigor daemon 在旧环境下已启动，它不会感知新设的变量——**改完环境变量后务必先终止 hvigor daemon 再重跑**。
+- 实际部署中可借助读取 hvigor daemon 进程的真实环境变量来排查「设了但没生效」的情况。
+
+
