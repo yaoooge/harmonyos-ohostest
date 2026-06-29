@@ -1,48 +1,31 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { CommandLogger, defaultCommandExecutor, runDetachedCommand } from "./command.js";
+import { CommandLogger, defaultCommandExecutor, runDetachedCommand } from "../shared/command.js";
+import { sleep } from "../shared/utils/sleep.js";
+import { buildTestHapCommand, runBuild } from "./build.js";
 import { loadMatrixConfig } from "./config.js";
 import {
   buildStartEmulatorCommand,
   buildStopEmulatorCommand,
   installHaps,
   prepareDevice,
-  verifyFileExists,
   waitForTargetDisconnected,
   writeDeviceLog,
 } from "./device.js";
-import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "./ohostest.js";
+import { buildAaTestCommand, parseAaTestOutput } from "./ohostest.js";
 import { deriveMatrixStatus, renderSummaryMarkdown } from "./result.js";
-import { deployFoldTrigger, killFoldServer, startFoldServer } from "./fold.js";
-import type { FoldServerInstance } from "./fold.js";
+import { deployFoldTrigger, killFoldServer, startFoldServer } from "../fold/server.js";
+import type { FoldServerInstance } from "../fold/server.js";
 import type {
-  BuildResult,
   CommandResult,
   DeviceRunResult,
   MatrixConfig,
   MatrixResult,
   RunMatrixInput,
   SuiteRunResult,
-} from "./types.js";
+} from "./types/index.js";
 
 const emulatorRestartCooldownMs = 5000;
-
-const BUILD_STDERR_TAIL_LINES = 15;
-
-/**
- * 取 stderr 尾部若干行，作为构建失败的诊断摘要。
- * hvigor 等工具的报错信息通常在末尾，取尾部既能定位根因又避免超长输出污染 diagnostics。
- */
-function tailOfStderr(stderr: string): string[] {
-  const trimmed = (stderr ?? "").trim();
-  if (!trimmed) {
-    return [];
-  }
-  const lines = trimmed.split(/\r?\n/);
-  const tail = lines.slice(-BUILD_STDERR_TAIL_LINES);
-  const prefix = lines.length > BUILD_STDERR_TAIL_LINES ? "[build stderr 尾部] " : "[build stderr] ";
-  return [prefix + tail.join("\n")];
-}
 
 export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixResult> {
   const startedTime = Date.now();
@@ -144,58 +127,6 @@ function shouldWaitBeforeNextEmulatorStart(
     devices[currentIndex]?.startEmulator === true &&
     devices.slice(currentIndex + 1).some((device) => device.startEmulator)
   );
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function runBuild(input: {
-  config: MatrixConfig;
-  skipBuild: boolean;
-  runCommand: (command: string) => Promise<CommandResult>;
-  diagnostics: string[];
-}): Promise<BuildResult> {
-  const started = Date.now();
-  if (!input.skipBuild) {
-    for (const command of buildCommands(input.config)) {
-      const result = await input.runCommand(command);
-      if (result.exitCode !== 0) {
-        input.diagnostics.push(`构建命令失败：${command}`);
-        input.diagnostics.push(...tailOfStderr(result.stderr));
-        return {
-          status: "blocked",
-          appHap: input.config.artifacts.appHap,
-          testHap: input.config.artifacts.testHap,
-          durationMs: Date.now() - started,
-          blockedReason: "build_failed",
-        };
-      }
-    }
-  }
-
-  try {
-    await verifyFileExists(input.config.artifacts.appHap);
-    await verifyFileExists(input.config.artifacts.testHap);
-  } catch (error) {
-    input.diagnostics.push(`HAP 文件不存在：${error instanceof Error ? error.message : String(error)}`);
-    return {
-      status: "blocked",
-      appHap: input.config.artifacts.appHap,
-      testHap: input.config.artifacts.testHap,
-      durationMs: Date.now() - started,
-      blockedReason: "hap_missing",
-    };
-  }
-
-  return {
-    status: "passed",
-    appHap: input.config.artifacts.appHap,
-    testHap: input.config.artifacts.testHap,
-    durationMs: Date.now() - started,
-  };
 }
 
 async function runDevice(input: {
@@ -458,22 +389,6 @@ function aggregateSuites(suiteResults: SuiteRunResult[]): Pick<
     }),
     { testsRun: 0, failures: 0, errors: 0, passes: 0, ignored: 0 },
   );
-}
-
-function buildCommands(config: MatrixConfig): string[] {
-  const buildExecutable = shellQuote(config.paths.hvigorw);
-  const appBase = `${buildExecutable} --mode ${config.build.mode} -p product=${config.product}`;
-  const appSuffix = "--analyze=normal --parallel --incremental --no-daemon";
-  const testBase = `${buildExecutable} --mode module -p module=${config.module}@ohosTest`;
-  return [
-    `${appBase} ${config.build.appTask} ${appSuffix}`,
-    `${testBase} ${config.build.testTask} --no-daemon --stacktrace`,
-  ];
-}
-
-function buildTestHapCommand(config: MatrixConfig): string {
-  const buildExecutable = shellQuote(config.paths.hvigorw);
-  return `${buildExecutable} --mode module -p module=${config.module}@ohosTest ${config.build.testTask} --no-daemon`;
 }
 
 function reasonFromError(error: unknown): DeviceRunResult["blockedReason"] {

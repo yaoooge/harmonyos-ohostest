@@ -7,7 +7,7 @@
  *   node --import tsx scripts/deployFoldTrigger.ts --project /path/to/project --port 8765
  *   node --import tsx scripts/deployFoldTrigger.ts --project /path/to/project --module products/entry
  */
-import { deployFoldTrigger } from "../src/fold.js";
+import { deployFoldTrigger } from "../src/fold/server.js";
 
 interface Args {
   project: string;

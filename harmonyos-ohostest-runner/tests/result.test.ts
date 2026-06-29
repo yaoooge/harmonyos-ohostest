@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveMatrixStatus, renderSummaryMarkdown } from "../src/result.js";
-import type { DeviceRunResult } from "../src/types.js";
+import { deriveMatrixStatus, renderSummaryMarkdown } from "../src/matrix/result.js";
+import type { DeviceRunResult } from "../src/matrix/types/index.js";
 
 function device(status: DeviceRunResult["status"], id: string = status): DeviceRunResult {
   return {

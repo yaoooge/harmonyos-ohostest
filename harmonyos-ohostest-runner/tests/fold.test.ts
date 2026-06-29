@@ -3,8 +3,8 @@ import assert from "node:assert";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { foldTriggerTemplate } from "../src/fold-template.js";
-import { deployFoldTrigger, healthCheck } from "../src/fold.js";
+import { foldTriggerTemplate } from "../src/fold/foldTriggerTemplate.js";
+import { deployFoldTrigger, healthCheck } from "../src/fold/server.js";
 
 describe("foldTriggerTemplate", () => {
   it("embeds devicePort in the generated template", () => {

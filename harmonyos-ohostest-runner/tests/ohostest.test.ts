@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "../src/ohostest.js";
+import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "../src/matrix/ohostest.js";
 
 test("buildAaTestCommand emits full module command without class filter", () => {
   const command = buildAaTestCommand({

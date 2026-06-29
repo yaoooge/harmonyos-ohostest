@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runOhosTestMatrix } from "../src/runner.js";
+import { runOhosTestMatrix } from "../src/matrix/runner.js";
 
 async function makeProject(t: test.TestContext): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-runner-"));

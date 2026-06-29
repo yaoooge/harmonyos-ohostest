@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { loadMatrixConfig } from "../src/config.js";
+import { loadMatrixConfig } from "../src/matrix/config.js";
 
 async function makeTempProject(t: test.TestContext): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-config-"));

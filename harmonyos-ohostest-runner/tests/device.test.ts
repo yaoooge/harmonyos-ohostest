@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildStartEmulatorCommand, ensureTargetReady, waitForTargetDisconnected } from "../src/device.js";
-import type { DeviceConfig, MatrixConfig } from "../src/types.js";
+import { buildStartEmulatorCommand, ensureTargetReady, waitForTargetDisconnected } from "../src/matrix/device.js";
+import type { DeviceConfig, MatrixConfig } from "../src/matrix/types/index.js";
 
 function makeConfig(): MatrixConfig {
   return {

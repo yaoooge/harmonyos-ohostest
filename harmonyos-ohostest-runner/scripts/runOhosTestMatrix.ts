@@ -1,5 +1,5 @@
 import { parseOhosTestMatrixArgs, runOhosTestMatrix } from "../src/index.js";
-import type { DeviceRunResult, MatrixResult } from "../src/types.js";
+import type { DeviceRunResult, MatrixResult } from "../src/matrix/types/index.js";
 
 async function main(): Promise<void> {
   const input = parseOhosTestMatrixArgs(process.argv.slice(2));

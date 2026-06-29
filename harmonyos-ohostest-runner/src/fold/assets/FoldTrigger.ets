@@ -15,8 +15,8 @@ import { Driver } from '@kit.TestKit';
  *   1. 宿主机已启动 fold-server（由 harmonyos-ohostest-runner 自动管理）
  *   2. 服务会自动建立 hdc rport 转发
  *
- * 手动复制本文件到测试工程的 <module>/src/ohosTest/ets/util/FoldTrigger.ets
- * 多设备场景需修改 FOLD_SERVER_PORT 为对应设备的端口。
+ * 手动复制本文件到测试工程的 <module>/src/ohosTest/ets/util/FoldTrigger.ets。
+ * runner 自动部署时会按设备注入对应端口。
  */
 
 // 通过 hdc rport 转发，模拟器内 127.0.0.1 = 宿主机

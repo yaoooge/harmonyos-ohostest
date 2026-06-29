@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeCommandOutput, runDetachedCommand } from "../src/command.js";
-import { shellQuote } from "../src/ohostest.js";
+import { decodeCommandOutput, runDetachedCommand } from "../src/shared/command.js";
+import { shellQuote } from "../src/matrix/ohostest.js";
 
 test("runDetachedCommand reports quick command failures instead of unconditional success", async () => {
   const command = `${shellQuote(process.execPath)} -e ${shellQuote("process.exit(7)")}`;

@@ -1,24 +1,8 @@
 {
   "app": {
-    "signingConfigs": [
-      {
-        "name": "default",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "/Users/zzz/.ohos/config/default_answer_2lKT8R_Cohxl7hNanHmfBMC9t6qwi78_Mab5m8DZCmE=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B55CB73460FAC48F669EA7E775492DCC41576F3A593DDED2F4D4A8AEEE3A42600E5B4A056663818",
-          "profile": "/Users/zzz/.ohos/config/default_answer_2lKT8R_Cohxl7hNanHmfBMC9t6qwi78_Mab5m8DZCmE=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "/Users/zzz/.ohos/config/default_answer_2lKT8R_Cohxl7hNanHmfBMC9t6qwi78_Mab5m8DZCmE=.p12",
-          "storePassword": "0000001B17541E4A3A2CE6EE4DF8732A7658005FF64803B1A558927AAFAB560D4E77D67A70457937A593CF"
-        }
-      }
-    ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
         "compatibleSdkVersion": "6.0.0(20)",
         "targetSdkVersion": "6.0.2(22)",
         "runtimeOS": "HarmonyOS",

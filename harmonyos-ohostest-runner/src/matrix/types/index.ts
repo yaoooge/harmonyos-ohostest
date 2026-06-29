@@ -1,3 +1,5 @@
+import type { CommandExecutor } from "../../shared/types/index.js";
+
 export type MatrixStatus = "completed" | "failed";
 
 export type DeviceRunStatus = "passed" | "failed" | "blocked";
@@ -9,6 +11,8 @@ export type BlockedReason =
   | "test_command_failed"
   | "test_output_unparseable"
   | "fold_server_start_failed";
+
+export type { CommandExecutor, CommandResult } from "../../shared/types/index.js";
 
 export interface RawMatrixConfig {
   product?: string;
@@ -85,15 +89,6 @@ export interface DeviceConfig {
   foldControl?: boolean;
   testClasses?: string[];
 }
-
-export interface CommandResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  durationMs: number;
-}
-
-export type CommandExecutor = (command: string, cwd: string) => Promise<CommandResult>;
 
 export interface ParsedAaTestOutput {
   ok: boolean;

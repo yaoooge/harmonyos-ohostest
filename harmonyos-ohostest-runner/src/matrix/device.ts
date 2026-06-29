@@ -1,7 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { CommandExecutor, CommandResult, DeviceConfig, MatrixConfig } from "./types.js";
-import { shellQuote } from "./ohostest.js";
+import type { CommandExecutor, CommandResult, DeviceConfig, MatrixConfig } from "./types/index.js";
+import { verifyFileExists } from "../shared/utils/file.js";
+import { sanitizeName } from "../shared/utils/names.js";
+import { shellQuote } from "../shared/utils/shellQuote.js";
+import { sleep } from "../shared/utils/sleep.js";
 
 const targetReadyMaxAttempts = 120;
 
@@ -110,14 +113,6 @@ export function isTargetConnected(output: string, target: string): boolean {
     .some((line) => line.startsWith(target) && !/\bOffline\b/i.test(line));
 }
 
-export async function verifyFileExists(filePath: string): Promise<void> {
-  await fs.access(filePath);
-}
-
-export function sanitizeName(value: string): string {
-  return value.replace(/[^A-Za-z0-9_.-]+/g, "_");
-}
-
 export async function runIfNeeded(
   commandExecutor: CommandExecutor,
   command: string,
@@ -126,8 +121,4 @@ export async function runIfNeeded(
   return commandExecutor(command, cwd);
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
+export { sanitizeName, verifyFileExists };

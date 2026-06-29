@@ -4,7 +4,7 @@
     "hdc": "/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/toolchains/hdc",
     "emulatorBin": "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator",
     "emulatorDeployedDir": "/Users/zzz/.Huawei/Emulator/deployed",
-    "foldServerScript": "src/fold-server.py"
+    "foldServerScript": "src/fold/assets/fold-server.py"
   },
   "devices": [
     {

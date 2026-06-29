@@ -2,7 +2,7 @@ import { exec, spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder, promisify } from "node:util";
-import type { CommandExecutor, CommandResult } from "./types.js";
+import type { CommandExecutor, CommandResult } from "./types/index.js";
 
 const execAsync = promisify(exec);
 const utf8Decoder = new TextDecoder("utf-8");

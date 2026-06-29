@@ -1,4 +1,4 @@
-import type { DeviceRunResult, MatrixStatus } from "./types.js";
+import type { DeviceRunResult, MatrixStatus } from "./types/index.js";
 
 export function deriveMatrixStatus(devices: DeviceRunResult[]): MatrixStatus {
   if (devices.length === 0) {
