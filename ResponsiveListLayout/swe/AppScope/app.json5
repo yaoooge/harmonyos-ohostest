@@ -1,7 +1,6 @@
 {
   "app": {
-// todo: 修改包名
-    "bundleName": "zhsc.1.xxxxxx",
+    "bundleName": "zhsc.1.layout_example",
     "vendor": "example",
     "versionCode": 1000000,
     "versionName": "1.0.0",
