@@ -27,6 +27,23 @@ import type {
 
 const emulatorRestartCooldownMs = 5000;
 
+const BUILD_STDERR_TAIL_LINES = 15;
+
+/**
+ * 取 stderr 尾部若干行，作为构建失败的诊断摘要。
+ * hvigor 等工具的报错信息通常在末尾，取尾部既能定位根因又避免超长输出污染 diagnostics。
+ */
+function tailOfStderr(stderr: string): string[] {
+  const trimmed = (stderr ?? "").trim();
+  if (!trimmed) {
+    return [];
+  }
+  const lines = trimmed.split(/\r?\n/);
+  const tail = lines.slice(-BUILD_STDERR_TAIL_LINES);
+  const prefix = lines.length > BUILD_STDERR_TAIL_LINES ? "[build stderr 尾部] " : "[build stderr] ";
+  return [prefix + tail.join("\n")];
+}
+
 export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixResult> {
   const startedTime = Date.now();
   const startedAt = new Date(startedTime).toISOString();
@@ -147,6 +164,7 @@ async function runBuild(input: {
       const result = await input.runCommand(command);
       if (result.exitCode !== 0) {
         input.diagnostics.push(`构建命令失败：${command}`);
+        input.diagnostics.push(...tailOfStderr(result.stderr));
         return {
           status: "blocked",
           appHap: input.config.artifacts.appHap,
