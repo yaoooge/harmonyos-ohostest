@@ -126,6 +126,7 @@ test("renderCaseSummary splits pass_to_pass and fail_to_pass for every device", 
     artifacts: {
       result: ".ohostest-runs/run/result.json",
       summary: ".ohostest-runs/run/summary.md",
+      commandLog: ".ohostest-runs/run/commands.log",
     },
     diagnostics: [],
   } satisfies CaseResult);

@@ -346,3 +346,69 @@ test("runOhosTestCase uses enabled devices for full test runs", async (t) => {
   assert.ok(commands.every((command) => !command.includes("-s class")));
   assert.ok(commands.every((command) => !command.includes("MachineSuite")));
 });
+
+test("runOhosTestCase writes case command log when golden patch fails before answer run", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-patch-failure-log-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  await fs.writeFile(
+    path.join(caseDir, "golden_patch.patch"),
+    [
+      "diff --git a/products/entry/src/main/ets/TestOnly.ets b/products/entry/src/main/ets/TestOnly.ets",
+      "new file mode 100644",
+      "index 0000000..8f0b6af",
+      "--- /dev/null",
+      "+++ b/products/entry/src/main/ets/TestOnly.ets",
+      "@@ -0,0 +1 @@",
+      "+export const duplicate = true;",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs", "result.json");
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    keepWorkdir: true,
+    commandExecutor: async (command) => ({
+      stdout: command.includes("aa test")
+        ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+        : command.includes("list targets")
+          ? "127.0.0.1:15001\tConnected\n"
+          : "",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 1,
+    }),
+  });
+
+  const outDir = path.dirname(out);
+  const commandLog = await fs.readFile(
+    path.join(outDir, "commands.log"),
+    "utf-8",
+  );
+  const summary = await fs.readFile(path.join(outDir, "summary.md"), "utf-8");
+
+  assert.equal(result.status, "failed");
+  assert.ok(result.runs.swe);
+  assert.equal(result.runs.answer, undefined);
+  assert.equal(
+    result.artifacts.commandLog,
+    path.relative(caseDir, path.join(outDir, "commands.log")),
+  );
+  assert.match(commandLog, /git apply --check/);
+  assert.match(commandLog, /golden_patch\.patch/);
+  assert.match(commandLog, /exitCode: [1-9]/);
+  assert.match(commandLog, /stderr:\n.+/s);
+  assert.match(summary, /patch_apply_failed: golden_patch/);
+  assert.match(summary, /Command Log: \.\.\/runs\/commands\.log/);
+  assert.doesNotMatch(summary, /stderr:\n/);
+});

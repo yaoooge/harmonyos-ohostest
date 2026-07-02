@@ -28,6 +28,7 @@ export function renderCaseSummary(result: CaseResult): string {
     `Case: ${result.caseId}`,
     `Status: ${result.status}`,
     `Base Project: ${result.baseProject}`,
+    `Command Log: ${result.artifacts.commandLog}`,
     "",
     "## Runs",
     "",

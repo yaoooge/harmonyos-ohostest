@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { loadMatrixConfig } from "../matrix/config.js";
 import { runOhosTestMatrix } from "../matrix/runner.js";
-import { defaultCommandExecutor } from "../shared/command.js";
+import { CommandLogger, defaultCommandExecutor } from "../shared/command.js";
+import type { CommandResult } from "../shared/types/index.js";
 import { buildCaseDeviceSelection, loadCaseMetadata } from "./config.js";
 import { applyPatch, copyBaseProject } from "./patch.js";
 import {
@@ -33,6 +34,23 @@ export async function runOhosTestCase(
   const runs: CaseResult["runs"] = {};
 
   await fs.mkdir(outDir, { recursive: true });
+  const logger = new CommandLogger(
+    path.join(outDir, "commands.log"),
+    "# ohosTest case command log\n",
+  );
+  const executor = input.commandExecutor ?? defaultCommandExecutor;
+
+  async function runSetupCommand(command: string): Promise<CommandResult> {
+    const result = await executor(command, workProject);
+    await logger.record(command, result);
+    return result;
+  }
+
+  async function runPatchCommand(command: string): Promise<CommandResult> {
+    const result = await defaultCommandExecutor(command, workProject);
+    await logger.record(command, result);
+    return result;
+  }
 
   try {
     await copyBaseProject({
@@ -43,8 +61,9 @@ export async function runOhosTestCase(
       project: workProject,
       patchFile: metadata.testPatch,
       label: "test_patch",
+      commandExecutor: runPatchCommand,
     });
-    await installDependencies(workProject, input.commandExecutor);
+    await installDependencies(runSetupCommand);
 
     const matrixConfig = await loadMatrixConfig({
       project: workProject,
@@ -68,8 +87,9 @@ export async function runOhosTestCase(
       project: workProject,
       patchFile: metadata.goldenPatch,
       label: "golden_patch",
+      commandExecutor: runPatchCommand,
     });
-    await installDependencies(workProject, input.commandExecutor);
+    await installDependencies(runSetupCommand);
 
     runs.answer = await runOhosTestMatrix({
       project: workProject,
@@ -102,6 +122,10 @@ export async function runOhosTestCase(
     artifacts: {
       result: path.relative(metadata.caseDir, out),
       summary: path.relative(metadata.caseDir, path.join(outDir, "summary.md")),
+      commandLog: path.relative(
+        metadata.caseDir,
+        path.join(outDir, "commands.log"),
+      ),
       ...(runs.swe
         ? {
             sweResult: path.relative(
@@ -149,11 +173,9 @@ function timestampForPath(date: Date): string {
 }
 
 async function installDependencies(
-  project: string,
-  commandExecutor: RunCaseInput["commandExecutor"],
+  runCommand: (command: string) => Promise<CommandResult>,
 ): Promise<void> {
-  const executor = commandExecutor ?? defaultCommandExecutor;
-  const result = await executor("ohpm install", project);
+  const result = await runCommand("ohpm install");
   if (result.exitCode !== 0) {
     throw new Error(
       `dependency_install_failed: ${result.stderr || result.stdout}`,

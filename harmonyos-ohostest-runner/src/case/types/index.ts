@@ -58,6 +58,7 @@ export interface CaseResult {
   artifacts: {
     result: string;
     summary: string;
+    commandLog: string;
     sweResult?: string;
     answerResult?: string;
     workdir?: string;

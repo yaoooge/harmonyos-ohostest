@@ -100,13 +100,16 @@ export class CommandLogger {
   private started = false;
   private index = 0;
 
-  constructor(private readonly logPath: string) {}
+  constructor(
+    private readonly logPath: string,
+    private readonly title = "# ohosTest matrix command log\n",
+  ) {}
 
   async record(command: string, result: CommandResult): Promise<void> {
     this.index += 1;
     await fs.mkdir(path.dirname(this.logPath), { recursive: true });
     if (!this.started) {
-      await fs.writeFile(this.logPath, "# ohosTest matrix command log\n", "utf-8");
+      await fs.writeFile(this.logPath, this.title, "utf-8");
       this.started = true;
     }
     await fs.appendFile(

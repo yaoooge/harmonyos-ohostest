@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { defaultCommandExecutor } from "../shared/command.js";
 import { shellQuote } from "../shared/utils/shellQuote.js";
+import type { CommandExecutor } from "../shared/types/index.js";
 
 export async function copyBaseProject(input: {
   baseProject: string;
@@ -19,16 +20,21 @@ export async function applyPatch(input: {
   project: string;
   patchFile: string;
   label: string;
+  commandExecutor?: CommandExecutor;
 }): Promise<void> {
+  const executor = input.commandExecutor ?? defaultCommandExecutor;
   const quotedPatch = shellQuote(input.patchFile);
   const ceiling = shellQuote(path.dirname(input.project));
   const gitApply = `GIT_CEILING_DIRECTORIES=${ceiling} git apply`;
-  const check = await defaultCommandExecutor(`${gitApply} --check ${quotedPatch}`, input.project);
+  const check = await executor(
+    `${gitApply} --check ${quotedPatch}`,
+    input.project,
+  );
   if (check.exitCode !== 0) {
-    throw new Error(`patch_apply_failed: ${input.label}: ${check.stderr || check.stdout}`);
+    throw new Error(`patch_apply_failed: ${input.label}`);
   }
-  const apply = await defaultCommandExecutor(`${gitApply} ${quotedPatch}`, input.project);
+  const apply = await executor(`${gitApply} ${quotedPatch}`, input.project);
   if (apply.exitCode !== 0) {
-    throw new Error(`patch_apply_failed: ${input.label}: ${apply.stderr || apply.stdout}`);
+    throw new Error(`patch_apply_failed: ${input.label}`);
   }
 }
