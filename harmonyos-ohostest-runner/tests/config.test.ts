@@ -110,6 +110,7 @@ test("loadMatrixConfig accepts explicit machine paths", async (t) => {
     JSON.stringify({
       paths: {
         hvigorw: "/config/hvigorw",
+        ohpm: "/config/ohpm",
         hdc: "/config/hdc",
         emulatorBin: "/config/Emulator",
         emulatorDeployedDir: "/config/deployed",
@@ -123,6 +124,7 @@ test("loadMatrixConfig accepts explicit machine paths", async (t) => {
 
   assert.deepEqual(config.paths, {
     hvigorw: "/config/hvigorw",
+    ohpm: "/config/ohpm",
     hdc: "/config/hdc",
     emulatorBin: "/config/Emulator",
     emulatorDeployedDir: "/config/deployed",

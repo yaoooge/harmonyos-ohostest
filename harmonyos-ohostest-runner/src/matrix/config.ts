@@ -88,6 +88,7 @@ export async function loadMatrixConfig(
     },
     paths: {
       hvigorw: paths.hvigorw,
+      ohpm: paths.ohpm,
       hdc: paths.hdc,
       emulatorBin: paths.emulatorBin,
       emulatorDeployedDir: paths.emulatorDeployedDir,
@@ -117,6 +118,7 @@ function readToolPaths(
       rawPaths?.hvigorw,
       "config.paths.hvigorw",
     ),
+    ohpm: rawPaths?.ohpm?.trim() || "ohpm",
     hdc: readRequiredConfigString(rawPaths?.hdc, "config.paths.hdc"),
     emulatorBin: readRequiredConfigString(
       rawPaths?.emulatorBin,

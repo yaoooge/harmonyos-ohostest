@@ -56,11 +56,13 @@ export function buildTestHapCommand(config: MatrixConfig): string {
 }
 
 function buildCommands(config: MatrixConfig): string[] {
+  const packageManager = shellQuote(config.paths.ohpm);
   const buildExecutable = shellQuote(config.paths.hvigorw);
   const appBase = `${buildExecutable} --mode ${config.build.mode} -p product=${config.product}`;
   const appSuffix = "--analyze=normal --parallel --incremental --no-daemon";
   const testBase = `${buildExecutable} --mode module -p module=${config.module}@ohosTest`;
   return [
+    `${packageManager} install`,
     `${appBase} ${config.build.appTask} ${appSuffix}`,
     `${testBase} ${config.build.testTask} --no-daemon --stacktrace`,
   ];

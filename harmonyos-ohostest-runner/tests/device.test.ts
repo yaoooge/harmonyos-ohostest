@@ -20,6 +20,7 @@ function makeConfig(): MatrixConfig {
     },
     paths: {
       hvigorw: "hvigorw",
+      ohpm: "ohpm",
       hdc: "hdc",
       emulatorBin: "D:\\Software\\Deveco Studio\\tools\\emulator\\Emulator.exe",
       emulatorDeployedDir: "D:\\Software\\Deveco Studio\\emulator\\deployed",

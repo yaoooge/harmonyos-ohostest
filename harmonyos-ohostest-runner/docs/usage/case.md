@@ -81,7 +81,7 @@ case/
 
 case 模式使用 `machine.json` 中的机器相关配置：
 
-- 工具路径：`paths.hvigorw`、`paths.hdc`、`paths.emulatorBin`、`paths.emulatorDeployedDir`、`paths.foldServerScript`
+- 工具路径：`paths.hvigorw`、`paths.ohpm`、`paths.hdc`、`paths.emulatorBin`、`paths.emulatorDeployedDir`、`paths.foldServerScript`
 - 设备连接信息：`devices[].id`、`profile`、`target`、`hdcPort`、`startEmulator`、`foldControl`
 - HarmonyOS 工程覆盖项：`product`、`module`、`bundleName`、`testModule`、`testRunner`、`timeoutMs`、`build`、`artifacts`
 
@@ -98,13 +98,11 @@ case 模式按以下优先级决定设备与 suite：
 1. 读取 `metadata.json`。
 2. 复制 `base_project` 到输出目录下的 `work/project`。
 3. 在 `work/project` 应用 `test_patch`。
-4. 在 `work/project` 执行 `ohpm install`。
-5. 使用 case 设备选择结果调用矩阵运行，输出到 `swe/result.json`。
-6. 在同一个 `work/project` 继续应用 `golden_patch`。
-7. 在 `work/project` 执行 `ohpm install`。
-8. 再次调用矩阵运行，输出到 `answer/result.json`。
-9. 写入 case 级 `result.json` 和 `summary.md`。
-10. `--keep-workdir` 为 `false` 时删除 `work/`。
+4. 使用 case 设备选择结果调用矩阵运行，矩阵构建阶段会先执行 `ohpm install`，输出到 `swe/result.json`。
+5. 在同一个 `work/project` 继续应用 `golden_patch`。
+6. 再次调用矩阵运行，矩阵构建阶段会先执行 `ohpm install`，输出到 `answer/result.json`。
+7. 写入 case 级 `result.json` 和 `summary.md`。
+8. `--keep-workdir` 为 `false` 时删除 `work/`。
 
 ## 输出结果
 

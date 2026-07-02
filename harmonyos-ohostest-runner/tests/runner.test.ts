@@ -54,6 +54,7 @@ async function makeMachineConfig(project: string): Promise<string> {
       paths: {
         hdc: "/fake/hdc",
         hvigorw: "/fake/hvigorw",
+        ohpm: "/fake/ohpm",
         emulatorBin: "/fake/Emulator",
         emulatorDeployedDir: "/fake/deployed",
       },
@@ -95,6 +96,7 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
 
   assert.equal(result.status, "completed");
   assert.deepEqual(result.devices.map((item) => item.status), ["passed"]);
+  assert.equal(commands[0], "/fake/ohpm install");
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode project -p product=default assembleApp/);
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap/);
   assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 install -r .*entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap/);

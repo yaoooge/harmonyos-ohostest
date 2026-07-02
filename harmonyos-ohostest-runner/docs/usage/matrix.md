@@ -46,6 +46,7 @@ config/machine.json
 {
   "paths": {
     "hvigorw": "/path/to/hvigorw",
+    "ohpm": "/path/to/ohpm",
     "hdc": "/path/to/hdc",
     "emulatorBin": "/path/to/Emulator",
     "emulatorDeployedDir": "/path/to/.Huawei/Emulator/deployed",
@@ -78,6 +79,7 @@ config/machine.json
 | 字段 | 说明 |
 |------|------|
 | `paths.hvigorw` | Hvigor 命令，必填；如果命令目录已加入环境变量，可填写 `hvigorw` |
+| `paths.ohpm` | ohpm 命令，可选；如果不配置，默认使用 `ohpm` |
 | `paths.hdc` | hdc 命令，必填；如果命令目录已加入环境变量，可填写 `hdc` |
 | `paths.emulatorBin` | DevEco 模拟器命令，必填；如果模拟器目录已加入环境变量，可填写 `Emulator` |
 | `paths.emulatorDeployedDir` | 模拟器实例目录，必填 |

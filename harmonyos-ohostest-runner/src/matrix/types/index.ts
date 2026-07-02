@@ -32,6 +32,7 @@ export interface RawMatrixConfig {
   };
   paths?: {
     hvigorw?: string;
+    ohpm?: string;
     hdc?: string;
     emulatorBin?: string;
     emulatorDeployedDir?: string;
@@ -71,6 +72,7 @@ export interface MatrixConfig {
   };
   paths: {
     hvigorw: string;
+    ohpm: string;
     hdc: string;
     emulatorBin: string;
     emulatorDeployedDir: string;

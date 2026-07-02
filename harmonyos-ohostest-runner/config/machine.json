@@ -1,6 +1,7 @@
 {
   "paths": {
     "hvigorw": "hvigorw",
+    "ohpm": "ohpm",
     "hdc": "/Users/guoyutong/command-line-tools/sdk/default/openharmony/toolchains/hdc",
     "emulatorBin": "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator",
     "emulatorDeployedDir": "/Users/guoyutong/.Huawei/Emulator/deployed",

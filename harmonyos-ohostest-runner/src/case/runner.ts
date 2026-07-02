@@ -38,14 +38,6 @@ export async function runOhosTestCase(
     path.join(outDir, "commands.log"),
     "# ohosTest case command log\n",
   );
-  const executor = input.commandExecutor ?? defaultCommandExecutor;
-
-  async function runSetupCommand(command: string): Promise<CommandResult> {
-    const result = await executor(command, workProject);
-    await logger.record(command, result);
-    return result;
-  }
-
   async function runPatchCommand(command: string): Promise<CommandResult> {
     const result = await defaultCommandExecutor(command, workProject);
     await logger.record(command, result);
@@ -63,7 +55,6 @@ export async function runOhosTestCase(
       label: "test_patch",
       commandExecutor: runPatchCommand,
     });
-    await installDependencies(runSetupCommand);
 
     const matrixConfig = await loadMatrixConfig({
       project: workProject,
@@ -89,7 +80,6 @@ export async function runOhosTestCase(
       label: "golden_patch",
       commandExecutor: runPatchCommand,
     });
-    await installDependencies(runSetupCommand);
 
     runs.answer = await runOhosTestMatrix({
       project: workProject,
@@ -170,15 +160,4 @@ export async function runOhosTestCase(
 
 function timestampForPath(date: Date): string {
   return date.toISOString().replace(/[:.]/g, "-");
-}
-
-async function installDependencies(
-  runCommand: (command: string) => Promise<CommandResult>,
-): Promise<void> {
-  const result = await runCommand("ohpm install");
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `dependency_install_failed: ${result.stderr || result.stdout}`,
-    );
-  }
 }
