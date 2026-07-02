@@ -1,4 +1,4 @@
-import { exec, spawn } from "node:child_process";
+import { exec, spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { TextDecoder, promisify } from "node:util";
@@ -11,7 +11,10 @@ const windowsDecoder = new TextDecoder("gb18030");
 export const defaultCommandExecutor: CommandExecutor = async (command, cwd) => {
   const started = Date.now();
   try {
-    const result = await execAsync(command, { cwd, maxBuffer: 1024 * 1024 * 20 });
+    const result = await execAsync(command, {
+      cwd,
+      maxBuffer: 1024 * 1024 * 20,
+    });
     return {
       stdout: result.stdout,
       stderr: result.stderr,
@@ -19,7 +22,12 @@ export const defaultCommandExecutor: CommandExecutor = async (command, cwd) => {
       durationMs: Date.now() - started,
     };
   } catch (error) {
-    const maybe = error as { stdout?: string; stderr?: string; code?: number; message?: string };
+    const maybe = error as {
+      stdout?: string;
+      stderr?: string;
+      code?: number;
+      message?: string;
+    };
     return {
       stdout: maybe.stdout ?? "",
       stderr: maybe.stderr ?? maybe.message ?? String(error),
@@ -42,46 +50,7 @@ export async function runDetachedCommand(
       shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-
-    return await new Promise<CommandResult>((resolve) => {
-      const finish = (result: Omit<CommandResult, "durationMs">): void => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        clearTimeout(timeout);
-        resolve({
-          ...result,
-          durationMs: Date.now() - started,
-        });
-      };
-
-      const append = (current: string, chunk: Buffer): string =>
-        `${current}${decodeCommandOutput(chunk)}`.slice(-1024 * 1024);
-
-      child.stdout?.on("data", (chunk: Buffer) => {
-        stdout = append(stdout, chunk);
-      });
-      child.stderr?.on("data", (chunk: Buffer) => {
-        stderr = append(stderr, chunk);
-      });
-      child.on("error", (error) => {
-        finish({ stdout, stderr: stderr || error.message, exitCode: 1 });
-      });
-      child.on("close", (code) => {
-        finish({ stdout, stderr, exitCode: code ?? 0 });
-      });
-
-      const timeout = setTimeout(() => {
-        child.stdout?.destroy();
-        child.stderr?.destroy();
-        child.unref();
-        finish({ stdout, stderr, exitCode: 0 });
-      }, startupTimeoutMs);
-    });
+    return await waitForDetachedStartup(child, started, startupTimeoutMs);
   } catch (error) {
     return {
       stdout: "",
@@ -92,8 +61,57 @@ export async function runDetachedCommand(
   }
 }
 
-export function decodeCommandOutput(chunk: Buffer, platform: NodeJS.Platform = process.platform): string {
-  return platform === "win32" ? windowsDecoder.decode(chunk) : utf8Decoder.decode(chunk);
+function waitForDetachedStartup(
+  child: ChildProcess,
+  started: number,
+  startupTimeoutMs: number,
+): Promise<CommandResult> {
+  let stdout = "";
+  let stderr = "";
+
+  return new Promise<CommandResult>((resolve) => {
+    let settled = false;
+    const finish = (result: Omit<CommandResult, "durationMs">): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      resolve({ ...result, durationMs: Date.now() - started });
+    };
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdout = appendCommandOutput(stdout, chunk);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = appendCommandOutput(stderr, chunk);
+    });
+    child.on("error", (error) =>
+      finish({ stdout, stderr: stderr || error.message, exitCode: 1 }),
+    );
+    child.on("close", (code) =>
+      finish({ stdout, stderr, exitCode: code ?? 0 }),
+    );
+
+    const timeout = setTimeout(() => {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      child.unref();
+      finish({ stdout, stderr, exitCode: 0 });
+    }, startupTimeoutMs);
+  });
+}
+
+function appendCommandOutput(current: string, chunk: Buffer): string {
+  return `${current}${decodeCommandOutput(chunk)}`.slice(-1024 * 1024);
+}
+
+export function decodeCommandOutput(
+  chunk: Buffer,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  return platform === "win32"
+    ? windowsDecoder.decode(chunk)
+    : utf8Decoder.decode(chunk);
 }
 
 export class CommandLogger {

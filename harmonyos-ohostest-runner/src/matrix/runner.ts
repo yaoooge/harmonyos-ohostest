@@ -35,11 +35,54 @@ import type {
 
 const emulatorRestartCooldownMs = 5000;
 
+interface MatrixRunContext {
+  startedTime: number;
+  startedAt: string;
+  config: MatrixConfig;
+  selectedDevices: MatrixConfig["devices"];
+  out: string;
+  outDir: string;
+  diagnostics: string[];
+  runCommand: (command: string) => Promise<CommandResult>;
+  runDetached: (command: string) => Promise<CommandResult>;
+}
+
+interface DeviceRunInput {
+  config: MatrixConfig;
+  device: MatrixConfig["devices"][number];
+  outDir: string;
+  keepEmulators: boolean;
+  runCommand: (command: string) => Promise<CommandResult>;
+  runDetached: (command: string) => Promise<CommandResult>;
+}
+
 export async function runOhosTestMatrix(
   input: RunMatrixInput,
 ): Promise<MatrixResult> {
+  const context = await createMatrixRunContext(input);
+
+  await deployDefaultFoldTriggerIfNeeded(context);
+
+  const build = await runBuild({
+    config: context.config,
+    skipBuild: input.skipBuild ?? false,
+    runCommand: context.runCommand,
+    diagnostics: context.diagnostics,
+  });
+
+  const devices =
+    build.status === "passed" ? await runSelectedDevices(context, input) : [];
+
+  const status = deriveMatrixStatus(devices);
+  const result = buildMatrixResult(context, build, devices, status);
+  await writeMatrixArtifacts(context, result);
+  return result;
+}
+
+async function createMatrixRunContext(
+  input: RunMatrixInput,
+): Promise<MatrixRunContext> {
   const startedTime = Date.now();
-  const startedAt = new Date(startedTime).toISOString();
   const config = await loadMatrixConfig({
     project: input.project,
     machineConfigPath: input.machineConfigPath,
@@ -47,11 +90,41 @@ export async function runOhosTestMatrix(
     deviceSuiteOverrides: input.deviceSuiteOverrides,
     ignoreMachineDeviceSuites: input.ignoreMachineDeviceSuites,
   });
-  const selectedDevices =
-    input.devices && input.devices.length > 0
-      ? config.devices.filter((device) => input.devices?.includes(device.id))
-      : config.devices;
-  const out = path.resolve(
+  const selectedDevices = selectDevices(config, input);
+  const out = resolveMatrixOut(input, config, startedTime);
+  const outDir = path.dirname(out);
+  const logger = new CommandLogger(path.join(outDir, "commands.log"));
+  const executor = input.commandExecutor ?? defaultCommandExecutor;
+  await fs.mkdir(outDir, { recursive: true });
+
+  return {
+    startedTime,
+    startedAt: new Date(startedTime).toISOString(),
+    config,
+    selectedDevices,
+    out,
+    outDir,
+    diagnostics: [],
+    runCommand: loggedCommand(executor, logger, config.project),
+    runDetached: loggedDetachedCommand(logger, config.project),
+  };
+}
+
+function selectDevices(
+  config: MatrixConfig,
+  input: RunMatrixInput,
+): MatrixConfig["devices"] {
+  return input.devices && input.devices.length > 0
+    ? config.devices.filter((device) => input.devices?.includes(device.id))
+    : config.devices;
+}
+
+function resolveMatrixOut(
+  input: RunMatrixInput,
+  config: MatrixConfig,
+  startedTime: number,
+): string {
+  return path.resolve(
     input.out ??
       path.join(
         config.project,
@@ -60,84 +133,105 @@ export async function runOhosTestMatrix(
         "result.json",
       ),
   );
-  const outDir = path.dirname(out);
-  await fs.mkdir(outDir, { recursive: true });
-  const logger = new CommandLogger(path.join(outDir, "commands.log"));
-  const executor = input.commandExecutor ?? defaultCommandExecutor;
-  const diagnostics: string[] = [];
+}
 
-  async function runCommand(command: string): Promise<CommandResult> {
-    const result = await executor(command, config.project);
+function loggedCommand(
+  executor: typeof defaultCommandExecutor,
+  logger: CommandLogger,
+  project: string,
+): (command: string) => Promise<CommandResult> {
+  return async (command) => {
+    const result = await executor(command, project);
     await logger.record(command, result);
     return result;
-  }
+  };
+}
 
-  async function runDetached(command: string): Promise<CommandResult> {
-    const result = await runDetachedCommand(command, config.project);
+function loggedDetachedCommand(
+  logger: CommandLogger,
+  project: string,
+): (command: string) => Promise<CommandResult> {
+  return async (command) => {
+    const result = await runDetachedCommand(command, project);
     await logger.record(command, result);
     return result;
+  };
+}
+
+async function deployDefaultFoldTriggerIfNeeded(
+  context: MatrixRunContext,
+): Promise<void> {
+  if (context.selectedDevices.some((device) => device.foldControl)) {
+    await deployFoldTrigger(
+      context.config.project,
+      8765,
+      context.config.moduleSrcPath,
+    );
   }
+}
 
-  // Pre-deploy default FoldTrigger.ets so the global build succeeds
-  if (selectedDevices.some((d) => d.foldControl)) {
-    await deployFoldTrigger(config.project, 8765, config.moduleSrcPath);
-  }
-
-  const build = await runBuild({
-    config,
-    skipBuild: input.skipBuild ?? false,
-    runCommand,
-    diagnostics,
-  });
-
+async function runSelectedDevices(
+  context: MatrixRunContext,
+  input: RunMatrixInput,
+): Promise<DeviceRunResult[]> {
   const devices: DeviceRunResult[] = [];
-  if (build.status === "passed") {
-    for (let index = 0; index < selectedDevices.length; index += 1) {
-      const device = selectedDevices[index];
-      devices.push(
-        await runDevice({
-          config,
-          device,
-          outDir,
-          keepEmulators: input.keepEmulators ?? false,
-          runCommand,
-          runDetached,
-        }),
-      );
-      if (
-        shouldWaitBeforeNextEmulatorStart(
-          selectedDevices,
-          index,
-          input.keepEmulators ?? false,
-        )
-      ) {
-        await sleep(emulatorRestartCooldownMs);
-      }
+  for (let index = 0; index < context.selectedDevices.length; index += 1) {
+    const device = context.selectedDevices[index];
+    devices.push(
+      await runDevice({
+        ...context,
+        device,
+        keepEmulators: input.keepEmulators ?? false,
+      }),
+    );
+    if (
+      shouldWaitBeforeNextEmulatorStart(
+        context.selectedDevices,
+        index,
+        input.keepEmulators ?? false,
+      )
+    ) {
+      await sleep(emulatorRestartCooldownMs);
     }
   }
+  return devices;
+}
 
-  const status = deriveMatrixStatus(devices);
+function buildMatrixResult(
+  context: MatrixRunContext,
+  build: MatrixResult["build"],
+  devices: DeviceRunResult[],
+  status: MatrixResult["status"],
+): MatrixResult {
   const finishedTime = Date.now();
-  const summary = renderSummaryMarkdown(status, devices);
-  await fs.writeFile(path.join(outDir, "summary.md"), summary, "utf-8");
-
-  const result: MatrixResult = {
+  return {
     schemaVersion: "ohostest-matrix-v1",
-    project: config.project,
+    project: context.config.project,
     status,
-    startedAt,
+    startedAt: context.startedAt,
     finishedAt: new Date(finishedTime).toISOString(),
-    durationMs: finishedTime - startedTime,
+    durationMs: finishedTime - context.startedTime,
     build,
     devices,
     artifacts: {
       commandLog: "commands.log",
       summary: "summary.md",
     },
-    diagnostics,
+    diagnostics: context.diagnostics,
   };
-  await fs.writeFile(out, `${JSON.stringify(result, null, 2)}\n`, "utf-8");
-  return result;
+}
+
+async function writeMatrixArtifacts(
+  context: MatrixRunContext,
+  result: MatrixResult,
+): Promise<void> {
+  const summary = renderSummaryMarkdown(result.status, result.devices);
+  await fs.writeFile(path.join(context.outDir, "summary.md"), summary, "utf-8");
+  await fs.writeFile(
+    context.out,
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf-8",
+  );
 }
 
 function shouldWaitBeforeNextEmulatorStart(
@@ -152,14 +246,7 @@ function shouldWaitBeforeNextEmulatorStart(
   );
 }
 
-async function runDevice(input: {
-  config: MatrixConfig;
-  device: MatrixConfig["devices"][number];
-  outDir: string;
-  keepEmulators: boolean;
-  runCommand: (command: string) => Promise<CommandResult>;
-  runDetached: (command: string) => Promise<CommandResult>;
-}): Promise<DeviceRunResult> {
+async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
   const started = Date.now();
   const logLines: string[] = [
     `device: ${input.device.id}`,
@@ -168,163 +255,230 @@ async function runDevice(input: {
   let foldServer: FoldServerInstance | undefined;
 
   try {
-    if (input.device.startEmulator) {
-      const start = await input.runDetached(
-        buildStartEmulatorCommand(input.config, input.device),
-      );
-      logLines.push(`emulatorStartExitCode: ${start.exitCode}`);
-      if (start.exitCode !== 0) {
-        return blockedDevice(input, started, logLines, "emulator_start_failed");
-      }
-    }
+    const emulatorBlock = await startEmulatorIfNeeded(input, started, logLines);
+    if (emulatorBlock) return emulatorBlock;
 
-    await prepareDevice({
-      config: input.config,
-      device: input.device,
-      cwd: input.config.project,
-      outDir: input.outDir,
-      runCommand: input.runCommand,
-    });
+    await prepareRunDevice(input);
 
-    // Start fold server if device needs fold control
-    if (input.device.foldControl && input.config.paths.foldServerScript) {
-      try {
-        foldServer = await startFoldServer(
-          input.device,
-          input.config.paths.foldServerScript,
-        );
-        logLines.push(`foldServerPort: ${foldServer.port}`);
-        const triggerPath = await deployFoldTrigger(
-          input.config.project,
-          foldServer.devicePort,
-          input.config.moduleSrcPath,
-        );
-        logLines.push(`deployedFoldTrigger: ${triggerPath}`);
+    const foldResult = await startFoldSupportIfNeeded(input, started, logLines);
+    if (foldResult.blocked) return foldResult.blocked;
+    foldServer = foldResult.foldServer;
 
-        // Rebuild test HAP with the new FoldTrigger.ets port
-        const testBuildCmd = buildTestHapCommand(input.config);
-        const buildResult = await input.runCommand(testBuildCmd);
-        logLines.push(`foldTestBuildExitCode: ${buildResult.exitCode}`);
-        if (buildResult.exitCode !== 0) {
-          logLines.push(`foldTestBuildStderr: ${buildResult.stderr.trimEnd()}`);
-        }
-      } catch (error) {
-        logLines.push(
-          `foldServerError: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        return blockedDevice(
-          input,
-          started,
-          logLines,
-          "fold_server_start_failed",
-        );
-      }
-    }
+    await installRunHaps(input);
+    const suiteResults = await runDeviceSuites(input, started, logLines);
+    if (isBlockedDeviceResult(suiteResults)) return suiteResults;
 
-    await installHaps({
-      config: input.config,
-      device: input.device,
-      cwd: input.config.project,
-      outDir: input.outDir,
-      runCommand: input.runCommand,
-    });
-
-    const suiteClasses = input.config.testClass
-      ? [input.config.testClass]
-      : input.device.testClasses && input.device.testClasses.length > 0
-        ? input.device.testClasses
-        : [];
-    const suiteResults: SuiteRunResult[] = [];
-
-    if (suiteClasses.length > 0) {
-      for (const suiteClass of suiteClasses) {
-        suiteResults.push(await runSuite({ ...input, suiteClass, logLines }));
-      }
-    } else {
-      const testResult = await input.runCommand(
-        buildTestCommand(input.config, input.device),
-      );
-      logLines.push(
-        "aaTestStdout:",
-        testResult.stdout.trimEnd(),
-        "aaTestStderr:",
-        testResult.stderr.trimEnd(),
-      );
-      if (testResult.exitCode !== 0) {
-        return blockedDevice(input, started, logLines, "test_command_failed");
-      }
-      const parsed = parseAaTestOutput(
-        `${testResult.stdout}\n${testResult.stderr}`,
-      );
-      if (!parsed.ok && parsed.blockedReason) {
-        return blockedDevice(input, started, logLines, parsed.blockedReason);
-      }
-      suiteResults.push({
-        suiteClass: "ALL",
-        status: parsed.ok ? "passed" : "failed",
-        testsRun: parsed.testsRun ?? 0,
-        failures: parsed.failures ?? 0,
-        errors: parsed.errors ?? 0,
-        passes: parsed.passes ?? 0,
-        ignored: parsed.ignored ?? 0,
-        reportCode: parsed.reportCode ?? null,
-        ok: parsed.ok,
-        testCases: parsed.testCases ?? [],
-      });
-    }
-
-    const status = suiteResults.some((suite) => suite.status !== "passed")
-      ? "failed"
-      : "passed";
-    const aggregate = aggregateSuites(suiteResults);
-    const log = await writeDeviceLog({
-      outDir: input.outDir,
-      deviceId: input.device.id,
-      lines: logLines,
-    });
-    return {
-      id: input.device.id,
-      ...(input.device.profile ? { profile: input.device.profile } : {}),
-      target: input.device.target,
-      status,
-      testsRun: aggregate.testsRun,
-      failures: aggregate.failures,
-      errors: aggregate.errors,
-      passes: aggregate.passes,
-      ignored: aggregate.ignored,
+    return await passedDevice(
+      input,
+      started,
+      logLines,
       suiteResults,
-      durationMs: Date.now() - started,
-      log,
-      ...(foldServer ? { foldServerPort: foldServer.port } : {}),
-    };
+      foldServer,
+    );
   } catch (error) {
     const reason = reasonFromError(error);
     return blockedDevice(input, started, [...logLines, String(error)], reason);
   } finally {
-    // Stop fold server if started
-    if (foldServer) {
-      killFoldServer(foldServer);
-    }
-    if (input.device.startEmulator && !input.keepEmulators) {
-      await input.runDetached(
-        buildStopEmulatorCommand(input.config, input.device),
-      );
-      await waitForTargetDisconnected({
-        config: input.config,
-        device: input.device,
-        cwd: input.config.project,
-        outDir: input.outDir,
-        runCommand: input.runCommand,
-      });
-    }
+    await cleanupRunDevice(input, foldServer);
   }
 }
 
+async function startEmulatorIfNeeded(
+  input: DeviceRunInput,
+  started: number,
+  logLines: string[],
+): Promise<DeviceRunResult | undefined> {
+  if (!input.device.startEmulator) return undefined;
+  const start = await input.runDetached(
+    buildStartEmulatorCommand(input.config, input.device),
+  );
+  logLines.push(`emulatorStartExitCode: ${start.exitCode}`);
+  return start.exitCode === 0
+    ? undefined
+    : blockedDevice(input, started, logLines, "emulator_start_failed");
+}
+
+async function prepareRunDevice(input: DeviceRunInput): Promise<void> {
+  await prepareDevice({
+    config: input.config,
+    device: input.device,
+    cwd: input.config.project,
+    outDir: input.outDir,
+    runCommand: input.runCommand,
+  });
+}
+
+async function startFoldSupportIfNeeded(
+  input: DeviceRunInput,
+  started: number,
+  logLines: string[],
+): Promise<{ foldServer?: FoldServerInstance; blocked?: DeviceRunResult }> {
+  if (!input.device.foldControl || !input.config.paths.foldServerScript) {
+    return {};
+  }
+  try {
+    const foldServer = await startFoldServer(
+      input.device,
+      input.config.paths.foldServerScript,
+    );
+    await deployDeviceFoldTrigger(input, foldServer, logLines);
+    return { foldServer };
+  } catch (error) {
+    logLines.push(
+      `foldServerError: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return {
+      blocked: await blockedDevice(
+        input,
+        started,
+        logLines,
+        "fold_server_start_failed",
+      ),
+    };
+  }
+}
+
+async function deployDeviceFoldTrigger(
+  input: DeviceRunInput,
+  foldServer: FoldServerInstance,
+  logLines: string[],
+): Promise<void> {
+  logLines.push(`foldServerPort: ${foldServer.port}`);
+  const triggerPath = await deployFoldTrigger(
+    input.config.project,
+    foldServer.devicePort,
+    input.config.moduleSrcPath,
+  );
+  logLines.push(`deployedFoldTrigger: ${triggerPath}`);
+  const buildResult = await input.runCommand(buildTestHapCommand(input.config));
+  logLines.push(`foldTestBuildExitCode: ${buildResult.exitCode}`);
+  if (buildResult.exitCode !== 0) {
+    logLines.push(`foldTestBuildStderr: ${buildResult.stderr.trimEnd()}`);
+  }
+}
+
+async function installRunHaps(input: DeviceRunInput): Promise<void> {
+  await installHaps({
+    config: input.config,
+    device: input.device,
+    cwd: input.config.project,
+    outDir: input.outDir,
+    runCommand: input.runCommand,
+  });
+}
+
+async function runDeviceSuites(
+  input: DeviceRunInput,
+  started: number,
+  logLines: string[],
+): Promise<SuiteRunResult[] | DeviceRunResult> {
+  const suiteClasses = selectedSuiteClasses(input);
+  if (suiteClasses.length === 0) {
+    return runAllSuites(input, started, logLines);
+  }
+
+  const suiteResults: SuiteRunResult[] = [];
+  for (const suiteClass of suiteClasses) {
+    suiteResults.push(await runSuite({ ...input, suiteClass, logLines }));
+  }
+  return suiteResults;
+}
+
+function selectedSuiteClasses(input: DeviceRunInput): string[] {
+  if (input.config.testClass) {
+    return [input.config.testClass];
+  }
+  return input.device.testClasses && input.device.testClasses.length > 0
+    ? input.device.testClasses
+    : [];
+}
+
+async function runAllSuites(
+  input: DeviceRunInput,
+  started: number,
+  logLines: string[],
+): Promise<SuiteRunResult[] | DeviceRunResult> {
+  const testResult = await input.runCommand(
+    buildTestCommand(input.config, input.device),
+  );
+  logLines.push(
+    "aaTestStdout:",
+    testResult.stdout.trimEnd(),
+    "aaTestStderr:",
+    testResult.stderr.trimEnd(),
+  );
+  if (testResult.exitCode !== 0) {
+    return blockedDevice(input, started, logLines, "test_command_failed");
+  }
+  const parsed = parseAaTestOutput(
+    `${testResult.stdout}\n${testResult.stderr}`,
+  );
+  if (!parsed.ok && parsed.blockedReason) {
+    return blockedDevice(input, started, logLines, parsed.blockedReason);
+  }
+  return [suiteResultFromParsed("ALL", parsed)];
+}
+
+function isBlockedDeviceResult(
+  result: SuiteRunResult[] | DeviceRunResult,
+): result is DeviceRunResult {
+  return !Array.isArray(result);
+}
+
+async function passedDevice(
+  input: DeviceRunInput,
+  started: number,
+  logLines: string[],
+  suiteResults: SuiteRunResult[],
+  foldServer?: FoldServerInstance,
+): Promise<DeviceRunResult> {
+  const aggregate = aggregateSuites(suiteResults);
+  const log = await writeDeviceLog({
+    outDir: input.outDir,
+    deviceId: input.device.id,
+    lines: logLines,
+  });
+  return {
+    id: input.device.id,
+    ...(input.device.profile ? { profile: input.device.profile } : {}),
+    target: input.device.target,
+    status: suiteResults.some((suite) => suite.status !== "passed")
+      ? "failed"
+      : "passed",
+    testsRun: aggregate.testsRun,
+    failures: aggregate.failures,
+    errors: aggregate.errors,
+    passes: aggregate.passes,
+    ignored: aggregate.ignored,
+    suiteResults,
+    durationMs: Date.now() - started,
+    log,
+    ...(foldServer ? { foldServerPort: foldServer.port } : {}),
+  };
+}
+
+async function cleanupRunDevice(
+  input: DeviceRunInput,
+  foldServer: FoldServerInstance | undefined,
+): Promise<void> {
+  if (foldServer) {
+    killFoldServer(foldServer);
+  }
+  if (!input.device.startEmulator || input.keepEmulators) {
+    return;
+  }
+  await input.runDetached(buildStopEmulatorCommand(input.config, input.device));
+  await waitForTargetDisconnected({
+    config: input.config,
+    device: input.device,
+    cwd: input.config.project,
+    outDir: input.outDir,
+    runCommand: input.runCommand,
+  });
+}
+
 async function blockedDevice(
-  input: {
-    device: MatrixConfig["devices"][number];
-    outDir: string;
-  },
+  input: Pick<DeviceRunInput, "device" | "outDir">,
   started: number,
   logLines: string[],
   blockedReason: DeviceRunResult["blockedReason"],
@@ -370,38 +524,41 @@ async function runSuite(input: {
     testResult.stderr.trimEnd(),
   );
   if (testResult.exitCode !== 0) {
-    return {
-      suiteClass: input.suiteClass,
-      status: "failed",
-      testsRun: 0,
-      failures: 0,
-      errors: 1,
-      passes: 0,
-      ignored: 0,
-      reportCode: null,
-      ok: false,
-      testCases: [],
-    };
+    return emptySuiteResult(input.suiteClass, "failed");
   }
   const parsed = parseAaTestOutput(
     `${testResult.stdout}\n${testResult.stderr}`,
   );
   if (!parsed.ok && parsed.blockedReason) {
-    return {
-      suiteClass: input.suiteClass,
-      status: "blocked",
-      testsRun: 0,
-      failures: 0,
-      errors: 1,
-      passes: 0,
-      ignored: 0,
-      reportCode: null,
-      ok: false,
-      testCases: [],
-    };
+    return emptySuiteResult(input.suiteClass, "blocked");
   }
+  return suiteResultFromParsed(input.suiteClass, parsed);
+}
+
+function emptySuiteResult(
+  suiteClass: string,
+  status: SuiteRunResult["status"],
+): SuiteRunResult {
   return {
-    suiteClass: input.suiteClass,
+    suiteClass,
+    status,
+    testsRun: 0,
+    failures: 0,
+    errors: 1,
+    passes: 0,
+    ignored: 0,
+    reportCode: null,
+    ok: false,
+    testCases: [],
+  };
+}
+
+function suiteResultFromParsed(
+  suiteClass: string,
+  parsed: ReturnType<typeof parseAaTestOutput>,
+): SuiteRunResult {
+  return {
+    suiteClass,
     status: parsed.ok ? "passed" : "failed",
     testsRun: parsed.testsRun ?? 0,
     failures: parsed.failures ?? 0,

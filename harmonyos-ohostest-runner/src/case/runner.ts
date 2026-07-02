@@ -11,15 +11,129 @@ import {
   metadataForResult,
   renderCaseSummary,
 } from "./result.js";
-import type { CaseResult, RunCaseInput } from "./types/index.js";
+import type {
+  CaseDeviceSelection,
+  CaseMetadata,
+  CaseResult,
+  RunCaseInput,
+} from "./types/index.js";
+
+interface CaseRunContext {
+  startedTime: number;
+  startedAt: string;
+  metadata: CaseMetadata;
+  outDir: string;
+  out: string;
+  workProject: string;
+  diagnostics: string[];
+  runs: CaseResult["runs"];
+  logger: CommandLogger;
+}
 
 export async function runOhosTestCase(
   input: RunCaseInput,
 ): Promise<CaseResult> {
+  const context = await createCaseRunContext(input);
+
+  try {
+    await runCaseComparisons(input, context);
+  } catch (error) {
+    context.diagnostics.push(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+
+  const result = buildCaseResult(input, context);
+  await writeCaseArtifacts(result, context);
+  await cleanupCaseWorkdir(input, context, result);
+  return result;
+}
+
+async function runCaseComparisons(
+  input: RunCaseInput,
+  context: CaseRunContext,
+): Promise<void> {
+  const runPatchCommand = loggedPatchCommand(context);
+  await copyBaseProject({
+    baseProject: context.metadata.baseProject,
+    workProject: context.workProject,
+  });
+  await applyPatch({
+    project: context.workProject,
+    patchFile: context.metadata.testPatch,
+    label: "test_patch",
+    commandExecutor: runPatchCommand,
+  });
+
+  const matrixConfig = await loadMatrixConfig({
+    project: context.workProject,
+    machineConfigPath: input.machineConfigPath,
+  });
+  const deviceSelection = buildCaseDeviceSelection(
+    context.metadata,
+    matrixConfig,
+  );
+  context.runs.swe = await runCaseMatrix(
+    input,
+    context,
+    deviceSelection,
+    "swe",
+  );
+
+  await applyPatch({
+    project: context.workProject,
+    patchFile: context.metadata.goldenPatch,
+    label: "golden_patch",
+    commandExecutor: runPatchCommand,
+  });
+  context.runs.answer = await runCaseMatrix(
+    input,
+    context,
+    deviceSelection,
+    "answer",
+  );
+}
+
+function loggedPatchCommand(
+  context: CaseRunContext,
+): (command: string) => Promise<CommandResult> {
+  return async (command) => {
+    const result = await defaultCommandExecutor(command, context.workProject);
+    await context.logger.record(command, result);
+    return result;
+  };
+}
+
+async function createCaseRunContext(
+  input: RunCaseInput,
+): Promise<CaseRunContext> {
   const startedTime = Date.now();
-  const startedAt = new Date(startedTime).toISOString();
   const metadata = await loadCaseMetadata(input.caseDir);
-  const outDir = path.resolve(
+  const outDir = resolveOutDir(input, metadata, startedTime);
+  const context: CaseRunContext = {
+    startedTime,
+    startedAt: new Date(startedTime).toISOString(),
+    metadata,
+    outDir,
+    out: path.join(outDir, "result.json"),
+    workProject: path.join(outDir, "work", "project"),
+    diagnostics: [],
+    runs: {},
+    logger: new CommandLogger(
+      path.join(outDir, "commands.log"),
+      "# ohosTest case command log\n",
+    ),
+  };
+  await fs.mkdir(outDir, { recursive: true });
+  return context;
+}
+
+function resolveOutDir(
+  input: RunCaseInput,
+  metadata: CaseMetadata,
+  startedTime: number,
+): string {
+  return path.resolve(
     input.out ??
       path.join(
         metadata.caseDir,
@@ -27,134 +141,125 @@ export async function runOhosTestCase(
         timestampForPath(new Date(startedTime)),
       ),
   );
-  const out = path.join(outDir, "result.json");
-  const workProject = path.join(outDir, "work", "project");
-  const diagnostics: string[] = [];
-  const runs: CaseResult["runs"] = {};
+}
 
-  await fs.mkdir(outDir, { recursive: true });
-  const logger = new CommandLogger(
-    path.join(outDir, "commands.log"),
-    "# ohosTest case command log\n",
-  );
-  async function runPatchCommand(command: string): Promise<CommandResult> {
-    const result = await defaultCommandExecutor(command, workProject);
-    await logger.record(command, result);
-    return result;
-  }
+async function runCaseMatrix(
+  input: RunCaseInput,
+  context: CaseRunContext,
+  deviceSelection: CaseDeviceSelection,
+  phase: "swe" | "answer",
+): Promise<NonNullable<CaseResult["runs"]["swe"]>> {
+  return runOhosTestMatrix({
+    project: context.workProject,
+    machineConfigPath: input.machineConfigPath,
+    out: path.join(context.outDir, phase, "result.json"),
+    devices: deviceSelection.devices,
+    skipBuild: input.skipBuild,
+    keepEmulators: input.keepEmulators,
+    commandExecutor: input.commandExecutor,
+    deviceSuiteOverrides: deviceSelection.deviceSuiteOverrides,
+    ignoreMachineDeviceSuites: deviceSelection.runAllTests,
+  });
+}
 
-  try {
-    await copyBaseProject({
-      baseProject: metadata.baseProject,
-      workProject,
-    });
-    await applyPatch({
-      project: workProject,
-      patchFile: metadata.testPatch,
-      label: "test_patch",
-      commandExecutor: runPatchCommand,
-    });
-
-    const matrixConfig = await loadMatrixConfig({
-      project: workProject,
-      machineConfigPath: input.machineConfigPath,
-    });
-    const deviceSelection = buildCaseDeviceSelection(metadata, matrixConfig);
-
-    runs.swe = await runOhosTestMatrix({
-      project: workProject,
-      machineConfigPath: input.machineConfigPath,
-      out: path.join(outDir, "swe", "result.json"),
-      devices: deviceSelection.devices,
-      skipBuild: input.skipBuild,
-      keepEmulators: input.keepEmulators,
-      commandExecutor: input.commandExecutor,
-      deviceSuiteOverrides: deviceSelection.deviceSuiteOverrides,
-      ignoreMachineDeviceSuites: deviceSelection.runAllTests,
-    });
-
-    await applyPatch({
-      project: workProject,
-      patchFile: metadata.goldenPatch,
-      label: "golden_patch",
-      commandExecutor: runPatchCommand,
-    });
-
-    runs.answer = await runOhosTestMatrix({
-      project: workProject,
-      machineConfigPath: input.machineConfigPath,
-      out: path.join(outDir, "answer", "result.json"),
-      devices: deviceSelection.devices,
-      skipBuild: input.skipBuild,
-      keepEmulators: input.keepEmulators,
-      commandExecutor: input.commandExecutor,
-      deviceSuiteOverrides: deviceSelection.deviceSuiteOverrides,
-      ignoreMachineDeviceSuites: deviceSelection.runAllTests,
-    });
-  } catch (error) {
-    diagnostics.push(error instanceof Error ? error.message : String(error));
-  }
-
-  const status = deriveCaseStatus(runs, diagnostics);
+function buildCaseResult(
+  input: RunCaseInput,
+  context: CaseRunContext,
+): CaseResult {
+  const status = deriveCaseStatus(context.runs, context.diagnostics);
   const finishedTime = Date.now();
-  const result: CaseResult = {
+  return {
     schemaVersion: "ohostest-case-v1",
-    caseId: metadata.caseId,
-    caseDir: metadata.caseDir,
-    baseProject: metadata.baseProject,
-    startedAt,
+    caseId: context.metadata.caseId,
+    caseDir: context.metadata.caseDir,
+    baseProject: context.metadata.baseProject,
+    startedAt: context.startedAt,
     finishedAt: new Date(finishedTime).toISOString(),
-    durationMs: finishedTime - startedTime,
+    durationMs: finishedTime - context.startedTime,
     status,
-    metadata: metadataForResult(metadata),
-    runs,
-    artifacts: {
-      result: path.relative(metadata.caseDir, out),
-      summary: path.relative(metadata.caseDir, path.join(outDir, "summary.md")),
-      commandLog: path.relative(
-        metadata.caseDir,
-        path.join(outDir, "commands.log"),
-      ),
-      ...(runs.swe
-        ? {
-            sweResult: path.relative(
-              metadata.caseDir,
-              path.join(outDir, "swe", "result.json"),
-            ),
-          }
-        : {}),
-      ...(runs.answer
-        ? {
-            answerResult: path.relative(
-              metadata.caseDir,
-              path.join(outDir, "answer", "result.json"),
-            ),
-          }
-        : {}),
-      ...(input.keepWorkdir ? { workdir: workProject } : {}),
-    },
-    diagnostics,
+    metadata: metadataForResult(context.metadata),
+    runs: context.runs,
+    artifacts: buildCaseArtifacts(input, context),
+    diagnostics: context.diagnostics,
   };
+}
 
+function buildCaseArtifacts(
+  input: RunCaseInput,
+  context: CaseRunContext,
+): CaseResult["artifacts"] {
+  return {
+    result: relativeToCaseDir(context, context.out),
+    summary: relativeToCaseDir(
+      context,
+      path.join(context.outDir, "summary.md"),
+    ),
+    commandLog: relativeToCaseDir(
+      context,
+      path.join(context.outDir, "commands.log"),
+    ),
+    ...(context.runs.swe
+      ? {
+          sweResult: relativeToCaseDir(
+            context,
+            path.join(context.outDir, "swe", "result.json"),
+          ),
+        }
+      : {}),
+    ...(context.runs.answer
+      ? {
+          answerResult: relativeToCaseDir(
+            context,
+            path.join(context.outDir, "answer", "result.json"),
+          ),
+        }
+      : {}),
+    ...(input.keepWorkdir ? { workdir: context.workProject } : {}),
+  };
+}
+
+function relativeToCaseDir(context: CaseRunContext, target: string): string {
+  return path.relative(context.metadata.caseDir, target);
+}
+
+async function writeCaseArtifacts(
+  result: CaseResult,
+  context: CaseRunContext,
+): Promise<void> {
   await fs.writeFile(
-    path.join(outDir, "summary.md"),
+    path.join(context.outDir, "summary.md"),
     renderCaseSummary(result),
     "utf-8",
   );
-  await fs.writeFile(out, `${JSON.stringify(result, null, 2)}\n`, "utf-8");
+  await fs.writeFile(
+    context.out,
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf-8",
+  );
+}
 
+async function cleanupCaseWorkdir(
+  input: RunCaseInput,
+  context: CaseRunContext,
+  result: CaseResult,
+): Promise<void> {
   if (!input.keepWorkdir) {
     try {
-      await fs.rm(path.join(outDir, "work"), { recursive: true, force: true });
+      await fs.rm(path.join(context.outDir, "work"), {
+        recursive: true,
+        force: true,
+      });
     } catch (error) {
       result.diagnostics.push(
         `cleanup_failed: ${error instanceof Error ? error.message : String(error)}`,
       );
-      await fs.writeFile(out, `${JSON.stringify(result, null, 2)}\n`, "utf-8");
+      await fs.writeFile(
+        context.out,
+        `${JSON.stringify(result, null, 2)}\n`,
+        "utf-8",
+      );
     }
   }
-
-  return result;
 }
 
 function timestampForPath(date: Date): string {

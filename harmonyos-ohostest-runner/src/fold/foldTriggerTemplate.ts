@@ -3,7 +3,14 @@
  * devicePort 在部署时注入，确保设备内 HTTP 请求转发到正确的 fold-server 实例。
  */
 export function foldTriggerTemplate(devicePort: number): string {
-  return `import http from '@ohos.net.http';
+  return [
+    foldTriggerTemplateHeader,
+    String(devicePort),
+    foldTriggerTemplateBody,
+  ].join("");
+}
+
+const foldTriggerTemplateHeader = `import http from '@ohos.net.http';
 import { Driver } from '@kit.TestKit';
 
 /**
@@ -13,7 +20,7 @@ import { Driver } from '@kit.TestKit';
  * 宿主机执行 Emulator 命令切换折叠/旋转状态，返回后继续执行用例。
  *
  * 通用连接机制（所有平台通用，无需配置 IP）：
- *   使用 hdc rport 反向端口转发，模拟器内访问 127.0.0.1:${devicePort}
+ *   使用 hdc rport 反向端口转发，模拟器内访问 127.0.0.1:\${devicePort}
  *   通过 rport 转发到宿主机的 fold-server。
  *
  * 由 harmonyos-ohostest-runner 自动部署，端口在部署时注入。
@@ -21,7 +28,9 @@ import { Driver } from '@kit.TestKit';
  */
 
 const FOLD_SERVER_HOST = '127.0.0.1';
-const FOLD_SERVER_PORT = ${devicePort};
+const FOLD_SERVER_PORT = `;
+
+const foldTriggerTemplateBody = `;
 
 export type FoldState = 'open' | 'half-open' | 'close';
 export type RotationDirection = 'left' | 'right';
@@ -111,4 +120,3 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 `;
-}
