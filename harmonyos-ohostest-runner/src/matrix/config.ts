@@ -8,19 +8,28 @@ export interface LoadMatrixConfigInput {
   machineConfigPath?: string;
   testClass?: string;
   deviceSuiteOverrides?: Record<string, string[]>;
+  ignoreMachineDeviceSuites?: boolean;
 }
 
-export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<MatrixConfig> {
+export async function loadMatrixConfig(
+  input: LoadMatrixConfigInput,
+): Promise<MatrixConfig> {
   const project = path.resolve(input.project);
-  const machineConfigPath = path.resolve(input.machineConfigPath ?? defaultMachineConfigPath());
-  const raw = JSON.parse(await fs.readFile(machineConfigPath, "utf-8")) as RawMatrixConfig;
+  const machineConfigPath = path.resolve(
+    input.machineConfigPath ?? defaultMachineConfigPath(),
+  );
+  const raw = JSON.parse(
+    await fs.readFile(machineConfigPath, "utf-8"),
+  ) as RawMatrixConfig;
   const projectInfo = await discoverProjectInfo(project);
 
   if (!raw.devices || raw.devices.length === 0) {
     throw new Error("config.devices must contain at least one device.");
   }
   if (hasOwn(raw, "testFolders")) {
-    throw new Error("config.testFolders has been removed. Put suite class names in config.devices[].testSuites.");
+    throw new Error(
+      "config.testFolders has been removed. Put suite class names in config.devices[].testSuites.",
+    );
   }
   const paths = readToolPaths(raw.paths);
 
@@ -32,17 +41,21 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
       throw new Error(`config.devices[${index}].target is invalid.`);
     }
     if (hasOwn(device, "testFolders")) {
-      throw new Error(`config.devices[${index}].testFolders has been renamed to testSuites.`);
+      throw new Error(
+        `config.devices[${index}].testFolders has been renamed to testSuites.`,
+      );
     }
-    const testClasses = readDeviceTestSuites(
-      input.deviceSuiteOverrides?.[device.id] ?? device.testSuites,
-      index,
-    );
+    const rawTestSuites =
+      input.deviceSuiteOverrides?.[device.id] ??
+      (input.ignoreMachineDeviceSuites ? undefined : device.testSuites);
+    const testClasses = readDeviceTestSuites(rawTestSuites, index);
     return {
       id: device.id,
       ...(device.profile ? { profile: device.profile } : {}),
       target: device.target,
-      ...(device.hdcPort !== undefined ? { hdcPort: readHdcPort(device.hdcPort, index) } : {}),
+      ...(device.hdcPort !== undefined
+        ? { hdcPort: readHdcPort(device.hdcPort, index) }
+        : {}),
       startEmulator: device.startEmulator ?? false,
       foldControl: device.foldControl ?? false,
       ...(testClasses.length > 0 ? { testClasses } : {}),
@@ -64,7 +77,9 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     bundleName: raw.bundleName ?? projectInfo.bundleName,
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
-    ...(input.testClass ?? raw.testClass ? { testClass: input.testClass ?? raw.testClass } : {}),
+    ...((input.testClass ?? raw.testClass)
+      ? { testClass: input.testClass ?? raw.testClass }
+      : {}),
     timeoutMs: raw.timeoutMs ?? 120000,
     build: {
       mode: raw.build?.mode ?? "project",
@@ -76,24 +91,37 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
       hdc: paths.hdc,
       emulatorBin: paths.emulatorBin,
       emulatorDeployedDir: paths.emulatorDeployedDir,
-      ...(paths.foldServerScript ? { foldServerScript: paths.foldServerScript } : {}),
+      ...(paths.foldServerScript
+        ? { foldServerScript: paths.foldServerScript }
+        : {}),
     },
     artifacts: {
       appHap: resolveProjectPath(
         project,
         raw.artifacts?.appHap ?? projectInfo.appHap,
       ),
-      testHap: resolveProjectPath(project, raw.artifacts?.testHap ?? projectInfo.testHap),
+      testHap: resolveProjectPath(
+        project,
+        raw.artifacts?.testHap ?? projectInfo.testHap,
+      ),
     },
     devices,
   };
 }
 
-function readToolPaths(rawPaths: RawMatrixConfig["paths"]): MatrixConfig["paths"] {
+function readToolPaths(
+  rawPaths: RawMatrixConfig["paths"],
+): MatrixConfig["paths"] {
   return {
-    hvigorw: readRequiredConfigString(rawPaths?.hvigorw, "config.paths.hvigorw"),
+    hvigorw: readRequiredConfigString(
+      rawPaths?.hvigorw,
+      "config.paths.hvigorw",
+    ),
     hdc: readRequiredConfigString(rawPaths?.hdc, "config.paths.hdc"),
-    emulatorBin: readRequiredConfigString(rawPaths?.emulatorBin, "config.paths.emulatorBin"),
+    emulatorBin: readRequiredConfigString(
+      rawPaths?.emulatorBin,
+      "config.paths.emulatorBin",
+    ),
     emulatorDeployedDir: readRequiredConfigString(
       rawPaths?.emulatorDeployedDir,
       "config.paths.emulatorDeployedDir",
@@ -104,7 +132,10 @@ function readToolPaths(rawPaths: RawMatrixConfig["paths"]): MatrixConfig["paths"
   };
 }
 
-function readRequiredConfigString(value: string | undefined, configKey: string): string {
+function readRequiredConfigString(
+  value: string | undefined,
+  configKey: string,
+): string {
   const resolved = value?.trim() ?? "";
   if (resolved.length === 0) {
     throw new Error(`${configKey} is required.`);
@@ -117,13 +148,17 @@ function readDeviceTestSuites(value: unknown, deviceIndex: number): string[] {
     return [];
   }
   if (!Array.isArray(value)) {
-    throw new Error(`config.devices[${deviceIndex}].testSuites must be an array.`);
+    throw new Error(
+      `config.devices[${deviceIndex}].testSuites must be an array.`,
+    );
   }
   const classes: string[] = [];
   const seen = new Set<string>();
   for (const suiteClass of value) {
     if (typeof suiteClass !== "string" || suiteClass.trim().length === 0) {
-      throw new Error(`config.devices[${deviceIndex}].testSuites must contain non-empty suite class strings.`);
+      throw new Error(
+        `config.devices[${deviceIndex}].testSuites must contain non-empty suite class strings.`,
+      );
     }
     const trimmedSuiteClass = suiteClass.trim();
     if (!seen.has(trimmedSuiteClass)) {

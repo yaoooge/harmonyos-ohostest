@@ -1,7 +1,14 @@
 import type { CaseMetadata, CaseResult, CaseStatus } from "./types/index.js";
-import type { DeviceRunResult, MatrixResult, SuiteRunResult } from "../matrix/types/index.js";
+import type {
+  DeviceRunResult,
+  MatrixResult,
+  SuiteRunResult,
+} from "../matrix/types/index.js";
 
-export function deriveCaseStatus(runs: { swe?: MatrixResult; answer?: MatrixResult }, diagnostics: string[]): CaseStatus {
+export function deriveCaseStatus(
+  runs: { swe?: MatrixResult; answer?: MatrixResult },
+  diagnostics: string[],
+): CaseStatus {
   if (diagnostics.length > 0) {
     return "failed";
   }
@@ -51,16 +58,23 @@ export function renderCaseSummary(result: CaseResult): string {
     "## Fail To Pass",
     "",
     ...listOrEmpty(result.metadata.failToPass),
-    ...(result.diagnostics.length > 0 ? ["", "## Diagnostics", "", ...listOrEmpty(result.diagnostics)] : []),
+    ...(result.diagnostics.length > 0
+      ? ["", "## Diagnostics", "", ...listOrEmpty(result.diagnostics)]
+      : []),
     "",
   ].join("\n");
 }
 
-export function metadataForResult(metadata: CaseMetadata): CaseResult["metadata"] {
+export function metadataForResult(
+  metadata: CaseMetadata,
+): CaseResult["metadata"] {
   return {
     failToPass: metadata.failToPass,
     passToPass: metadata.passToPass,
-    deviceTestSuites: metadata.deviceTestSuites,
+    deviceTestSuites: metadata.deviceTestSuites ?? {},
+    ...(metadata.enabledDevices
+      ? { enabledDevices: metadata.enabledDevices }
+      : {}),
   };
 }
 
@@ -99,10 +113,14 @@ function runRow(label: string, run: MatrixResult | undefined): string {
   ].join(" ");
 }
 
-function deviceSuiteLines(deviceTestSuites: CaseResult["metadata"]["deviceTestSuites"]): string[] {
+function deviceSuiteLines(
+  deviceTestSuites: CaseResult["metadata"]["deviceTestSuites"],
+): string[] {
   const lines = ["| Device | Suites |", "| --- | --- |"];
   for (const [deviceId, suites] of Object.entries(deviceTestSuites)) {
-    lines.push(`| ${deviceId} | ${suites.map((suite) => suite.suite).join(", ")} |`);
+    lines.push(
+      `| ${deviceId} | ${suites.map((suite) => suite.suite).join(", ")} |`,
+    );
   }
   return lines;
 }
@@ -136,7 +154,9 @@ function categoryTableLines(
     .filter((suiteClass) => suiteCategory(suiteClass) === category);
   const rows =
     suiteNames.length > 0
-      ? suiteNames.map((suiteClass) => categoryRow(result, deviceId, suiteClass, category))
+      ? suiteNames.map((suiteClass) =>
+          categoryRow(result, deviceId, suiteClass, category),
+        )
       : ["| none | - | - | - | - |"];
   return [
     "| Suite | SWE | Answer | Expected | Verdict |",
@@ -154,7 +174,9 @@ function categoryRow(
   const sweSuite = findSuite(result.runs.swe, deviceId, suiteClass);
   const answerSuite = findSuite(result.runs.answer, deviceId, suiteClass);
   const expected =
-    category === "pass_to_pass" ? "SWE pass, Answer pass" : "SWE fail, Answer pass";
+    category === "pass_to_pass"
+      ? "SWE pass, Answer pass"
+      : "SWE fail, Answer pass";
   const verdict = suiteVerdict(sweSuite, answerSuite, category);
   return [
     "|",
@@ -176,10 +198,15 @@ function findSuite(
   deviceId: string,
   suiteClass: string,
 ): SuiteRunResult | undefined {
-  return findDevice(run, deviceId)?.suiteResults.find((suite) => suite.suiteClass === suiteClass);
+  return findDevice(run, deviceId)?.suiteResults.find(
+    (suite) => suite.suiteClass === suiteClass,
+  );
 }
 
-function findDevice(run: MatrixResult | undefined, deviceId: string): DeviceRunResult | undefined {
+function findDevice(
+  run: MatrixResult | undefined,
+  deviceId: string,
+): DeviceRunResult | undefined {
   return run?.devices.find((device) => device.id === deviceId);
 }
 
@@ -212,11 +239,15 @@ function suiteVerdict(
   return !swePassed && answerPassed ? "correct" : "incorrect";
 }
 
-function totalsRow(label: "swe" | "answer", run: MatrixResult | undefined): string {
+function totalsRow(
+  label: "swe" | "answer",
+  run: MatrixResult | undefined,
+): string {
   const totals = categoryTotals(run);
-  const verdict = label === "swe"
-    ? totals.passToPassFailed === 0 && totals.failToPassFailed > 0
-    : totals.passToPassFailed === 0 && totals.failToPassFailed === 0;
+  const verdict =
+    label === "swe"
+      ? totals.passToPassFailed === 0 && totals.failToPassFailed > 0
+      : totals.passToPassFailed === 0 && totals.failToPassFailed === 0;
   return [
     "|",
     label,
@@ -244,7 +275,10 @@ function categoryTotals(run: MatrixResult | undefined): {
   };
   for (const device of run?.devices ?? []) {
     for (const suite of device.suiteResults) {
-      const passed = Math.max(0, suite.testsRun - suite.failures - suite.errors);
+      const passed = Math.max(
+        0,
+        suite.testsRun - suite.failures - suite.errors,
+      );
       const failed = suite.failures + suite.errors;
       if (suiteCategory(suite.suiteClass) === "fail_to_pass") {
         totals.failToPassPassed += passed;

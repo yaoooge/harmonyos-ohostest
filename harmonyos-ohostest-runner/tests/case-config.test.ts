@@ -3,11 +3,16 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { buildDeviceSuiteOverrides, loadCaseMetadata } from "../src/case/config.js";
+import {
+  buildCaseDeviceSelection,
+  loadCaseMetadata,
+} from "../src/case/config.js";
 import type { MatrixConfig } from "../src/index.js";
 
 async function makeTempCase(t: test.TestContext): Promise<string> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-case-config-"));
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-config-"),
+  );
   t.after(async () => {
     await fs.rm(root, { recursive: true, force: true });
   });
@@ -43,10 +48,14 @@ test("loadCaseMetadata reads metadata and resolves patch and base paths", async 
   assert.equal(metadata.baseProject, path.resolve(caseDir, "..", "base"));
   assert.equal(metadata.testPatch, path.join(caseDir, "test_patch.patch"));
   assert.equal(metadata.goldenPatch, path.join(caseDir, "golden_patch.patch"));
-  assert.deepEqual(metadata.deviceTestSuites.phone?.map((suite) => suite.suite), ["CommonPassToPassTest"]);
+  assert.ok(metadata.deviceTestSuites);
+  assert.deepEqual(
+    metadata.deviceTestSuites.phone?.map((suite) => suite.suite),
+    ["CommonPassToPassTest"],
+  );
 });
 
-test("buildDeviceSuiteOverrides validates metadata devices against machine devices", () => {
+test("buildCaseDeviceSelection uses metadata device suites when present", () => {
   const matrixConfig = {
     devices: [
       { id: "phone", target: "127.0.0.1:15001", startEmulator: false },
@@ -54,7 +63,7 @@ test("buildDeviceSuiteOverrides validates metadata devices against machine devic
     ],
   } as MatrixConfig;
 
-  const overrides = buildDeviceSuiteOverrides(
+  const selection = buildCaseDeviceSelection(
     {
       caseId: "case",
       caseDir: "/tmp/case",
@@ -64,16 +73,23 @@ test("buildDeviceSuiteOverrides validates metadata devices against machine devic
       failToPass: [],
       passToPass: [],
       deviceTestSuites: {
-        phone: [{ suite: "CommonPassToPassTest" }, { suite: "CommonPassToPassTest" }],
+        phone: [
+          { suite: "CommonPassToPassTest" },
+          { suite: "CommonPassToPassTest" },
+        ],
       },
     },
     matrixConfig,
   );
 
-  assert.deepEqual(overrides, { phone: ["CommonPassToPassTest"] });
+  assert.deepEqual(selection, {
+    devices: ["phone"],
+    deviceSuiteOverrides: { phone: ["CommonPassToPassTest"] },
+    runAllTests: false,
+  });
   assert.throws(
     () =>
-      buildDeviceSuiteOverrides(
+      buildCaseDeviceSelection(
         {
           caseId: "case",
           caseDir: "/tmp/case",
@@ -87,5 +103,70 @@ test("buildDeviceSuiteOverrides validates metadata devices against machine devic
         matrixConfig,
       ),
     /metadata device foldable is missing in machine config/,
+  );
+});
+
+test("loadCaseMetadata accepts enabled devices without device test suites", async (t) => {
+  const caseDir = await makeTempCase(t);
+  await fs.mkdir(path.join(caseDir, "..", "base"), { recursive: true });
+  await fs.writeFile(path.join(caseDir, "test_patch.patch"), "", "utf-8");
+  await fs.writeFile(path.join(caseDir, "golden_patch.patch"), "", "utf-8");
+  await fs.writeFile(
+    path.join(caseDir, "metadata.json"),
+    JSON.stringify({
+      case_id: "responsive-repeat-layout",
+      base_project: "base",
+      test_patch: "test_patch.patch",
+      golden_patch: "golden_patch.patch",
+      enabled_devices: ["phone", "foldable", "phone"],
+    }),
+    "utf-8",
+  );
+
+  const metadata = await loadCaseMetadata(caseDir);
+
+  assert.equal(metadata.deviceTestSuites, undefined);
+  assert.deepEqual(metadata.enabledDevices, ["phone", "foldable"]);
+});
+
+test("buildCaseDeviceSelection falls back to enabled devices or machine devices for full test runs", () => {
+  const matrixConfig = {
+    devices: [
+      { id: "phone", target: "127.0.0.1:15001", startEmulator: false },
+      { id: "foldable", target: "127.0.0.1:15002", startEmulator: false },
+      { id: "tablet", target: "127.0.0.1:15003", startEmulator: false },
+    ],
+  } as MatrixConfig;
+  const baseMetadata = {
+    caseId: "case",
+    caseDir: "/tmp/case",
+    baseProject: "/tmp/base",
+    testPatch: "/tmp/case/test_patch.patch",
+    goldenPatch: "/tmp/case/golden_patch.patch",
+    failToPass: [],
+    passToPass: [],
+  };
+
+  assert.deepEqual(
+    buildCaseDeviceSelection(
+      { ...baseMetadata, enabledDevices: ["phone", "foldable"] },
+      matrixConfig,
+    ),
+    {
+      devices: ["phone", "foldable"],
+      runAllTests: true,
+    },
+  );
+  assert.deepEqual(buildCaseDeviceSelection(baseMetadata, matrixConfig), {
+    devices: ["phone", "foldable", "tablet"],
+    runAllTests: true,
+  });
+  assert.throws(
+    () =>
+      buildCaseDeviceSelection(
+        { ...baseMetadata, enabledDevices: ["watch"] },
+        matrixConfig,
+      ),
+    /metadata device watch is missing in machine config/,
   );
 });

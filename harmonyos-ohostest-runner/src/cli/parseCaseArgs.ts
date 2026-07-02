@@ -2,12 +2,10 @@ import type { RunCaseInput } from "../case/types/index.js";
 
 export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
   const values = new Map<string, string>();
-  const devices: string[] = [];
   const knownArgs = new Set([
     "--case",
     "--machine-config",
     "--out",
-    "--device",
     "--skip-build",
     "--keep-emulators",
     "--keep-workdir",
@@ -18,6 +16,11 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
     if (!arg?.startsWith("--")) {
       continue;
     }
+    if (arg === "--device") {
+      throw new Error(
+        "case_device_cli_not_supported: case 模式不支持 --device。",
+      );
+    }
     if (!knownArgs.has(arg)) {
       throw new Error(`未知参数 ${arg}。`);
     }
@@ -25,11 +28,7 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
     if (!value || value.startsWith("--")) {
       throw new Error(`参数 ${arg} 缺少取值。`);
     }
-    if (arg === "--device") {
-      devices.push(value);
-    } else {
-      values.set(arg, value);
-    }
+    values.set(arg, value);
     index += 1;
   }
 
@@ -43,12 +42,15 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
     caseDir,
     ...(machineConfigPath ? { machineConfigPath } : {}),
     ...(values.has("--out") ? { out: values.get("--out") } : {}),
-    ...(devices.length > 0 ? { devices } : {}),
-    ...(values.has("--skip-build") ? { skipBuild: readBoolean(values.get("--skip-build")) } : {}),
+    ...(values.has("--skip-build")
+      ? { skipBuild: readBoolean(values.get("--skip-build")) }
+      : {}),
     ...(values.has("--keep-emulators")
       ? { keepEmulators: readBoolean(values.get("--keep-emulators")) }
       : {}),
-    ...(values.has("--keep-workdir") ? { keepWorkdir: readBoolean(values.get("--keep-workdir")) } : {}),
+    ...(values.has("--keep-workdir")
+      ? { keepWorkdir: readBoolean(values.get("--keep-workdir")) }
+      : {}),
   };
 }
 

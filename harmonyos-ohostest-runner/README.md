@@ -48,16 +48,15 @@ npm run ohostest:case -- \
 
 case 模式会读取 `case/metadata.json`，将 `base_project + test_patch` 作为 `swe` 轮执行，
 再在同一工作目录继续应用 `golden_patch` 作为 `answer` 轮执行。设备连接、模拟器和工具路径仍来自
-`config/machine.json`，实际设备集合和 suite class 使用 `metadata.device_test_suites`。默认报告输出到
-`<case>/.ohostest-runs/<timestamp>/`。
+`config/machine.json`。实际设备集合优先使用 `metadata.device_test_suites`，其次使用
+`metadata.enabled_devices`，两者都没有时使用 `machine.json.devices`。没有 `device_test_suites` 时每台设备执行
+全量测试，不继承 `machine.json.devices[].testSuites`。默认报告输出到 `<case>/.ohostest-runs/<timestamp>/`。
 
 常用参数：
 
 ```text
 --out <path>                  指定 result.json 输出路径
---device <id>                 只运行指定设备，可重复传入
 --machine-config <path>       指定设备矩阵配置文件
---test-class <className>      只运行指定 suite class
 --skip-build true|false       是否跳过构建
 --keep-emulators true|false   运行结束后是否保留模拟器
 ```
@@ -68,6 +67,8 @@ case 模式额外支持：
 --case <path>                 指定 case 目录
 --keep-workdir true|false     是否保留合成工程目录，默认 false
 ```
+
+case 模式不支持 `--device` 和 `--test-class`，以保证 SWE/Answer 两轮报告的设备与 suite 选择只由 case 配置决定。
 
 ## 配置入口
 

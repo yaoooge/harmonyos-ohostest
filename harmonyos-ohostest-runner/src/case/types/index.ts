@@ -5,7 +5,6 @@ export interface RunCaseInput {
   caseDir: string;
   machineConfigPath?: string;
   out?: string;
-  devices?: string[];
   skipBuild?: boolean;
   keepEmulators?: boolean;
   keepWorkdir?: boolean;
@@ -25,7 +24,14 @@ export interface CaseMetadata {
   goldenPatch: string;
   failToPass: string[];
   passToPass: string[];
-  deviceTestSuites: Record<string, CaseDeviceSuite[]>;
+  deviceTestSuites?: Record<string, CaseDeviceSuite[]>;
+  enabledDevices?: string[];
+}
+
+export interface CaseDeviceSelection {
+  devices: string[];
+  deviceSuiteOverrides?: Record<string, string[]>;
+  runAllTests: boolean;
 }
 
 export type CaseStatus = "completed" | "failed";
@@ -43,6 +49,7 @@ export interface CaseResult {
     failToPass: string[];
     passToPass: string[];
     deviceTestSuites: Record<string, CaseDeviceSuite[]>;
+    enabledDevices?: string[];
   };
   runs: {
     swe?: MatrixResult;

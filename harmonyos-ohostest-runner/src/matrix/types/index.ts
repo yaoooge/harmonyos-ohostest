@@ -12,7 +12,10 @@ export type BlockedReason =
   | "test_output_unparseable"
   | "fold_server_start_failed";
 
-export type { CommandExecutor, CommandResult } from "../../shared/types/index.js";
+export type {
+  CommandExecutor,
+  CommandResult,
+} from "../../shared/types/index.js";
 
 export interface RawMatrixConfig {
   product?: string;
@@ -177,5 +180,6 @@ export interface RunMatrixInput {
   skipBuild?: boolean;
   keepEmulators?: boolean;
   deviceSuiteOverrides?: Record<string, string[]>;
+  ignoreMachineDeviceSuites?: boolean;
   commandExecutor?: CommandExecutor;
 }
