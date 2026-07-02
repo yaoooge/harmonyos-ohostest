@@ -146,6 +146,40 @@ test("loadMatrixConfig reads device testSuites and deduplicates suite classes", 
   ]);
 });
 
+test("loadMatrixConfig lets case mode override device testSuites in memory", async (t) => {
+  const project = await makeTempProject(t);
+  const machineConfigPath = path.join(project, "suites.json");
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: {
+        hvigorw: "hvigorw",
+        hdc: "hdc",
+        emulatorBin: "Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: [
+        {
+          id: "foldable",
+          target: "127.0.0.1:15002",
+          testSuites: ["MachineSuite"],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+
+  const config = await loadMatrixConfig({
+    project,
+    machineConfigPath,
+    deviceSuiteOverrides: {
+      foldable: ["MetadataSuite", "MetadataSuite", "AnotherMetadataSuite"],
+    },
+  });
+
+  assert.deepEqual(config.devices[0]?.testClasses, ["MetadataSuite", "AnotherMetadataSuite"]);
+});
+
 test("loadMatrixConfig rejects legacy testFolders config and invalid testSuites", async (t) => {
   const project = await makeTempProject(t);
   const machineConfigPath = path.join(project, "bad-suites.json");

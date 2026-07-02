@@ -1,0 +1,462 @@
+diff --git a/build-profile.json5 b/build-profile.json5
+index 3a7c395..3b45a56 100644
+--- a/build-profile.json5
++++ b/build-profile.json5
+@@ -1,10 +1,8 @@
+ {
+   "app": {
+-    "signingConfigs": [],
+     "products": [
+       {
+         "name": "default",
+-        "signingConfig": "default",
+         "compatibleSdkVersion": "6.0.0(20)",
+         "targetSdkVersion": "6.0.2(22)",
+         "runtimeOS": "HarmonyOS",
+@@ -51,4 +49,4 @@
+       "srcPath": "./commons/lib_network"
+     }
+   ]
+-}
+\ No newline at end of file
++}
+diff --git a/commons/lib_foundation/Index.ets b/commons/lib_foundation/Index.ets
+index 228d467..130fe99 100644
+--- a/commons/lib_foundation/Index.ets
++++ b/commons/lib_foundation/Index.ets
+@@ -2,4 +2,12 @@ export { iData, GlobalStateMgr } from './src/main/ets/utils/IData';
+ 
+ export { routerUtil as routerStack } from './src/main/ets/utils/RouterUtil';
+ 
++export {
++  BreakpointTypeEnum,
++  BreakpointSystem,
++  BreakpointType,
++  BreakpointModel,
++  BreakpointStorage,
++} from './src/main/ets/utils/BreakpointSystem';
++
+ export { WindowUtil } from './src/main/ets/utils/WindowUtil';
+diff --git a/commons/lib_foundation/src/main/ets/utils/BreakpointSystem.ets b/commons/lib_foundation/src/main/ets/utils/BreakpointSystem.ets
+new file mode 100644
+index 0000000..25e9c1b
+--- /dev/null
++++ b/commons/lib_foundation/src/main/ets/utils/BreakpointSystem.ets
+@@ -0,0 +1,105 @@
++import { AppStorageV2, window } from '@kit.ArkUI';
++import { BusinessError } from '@kit.BasicServicesKit';
++import { UtilLog } from '@hw-agconnect/util-log';
++
++export enum BreakpointTypeEnum {
++  SM = 'sm',
++  MD = 'md',
++  LG = 'lg',
++}
++
++export interface BreakpointType<T> {
++  sm: T;
++  md: T;
++  lg: T;
++}
++
++export class BreakpointModel<T> {
++  sm: T;
++  md: T;
++  lg: T;
++
++  constructor(param: BreakpointType<T>) {
++    this.sm = param.sm;
++    this.md = param.md;
++    this.lg = param.lg;
++  }
++
++  getValue(currentBreakpoint: string): T {
++    if (currentBreakpoint === BreakpointTypeEnum.SM) {
++      return this.sm;
++    }
++    if (currentBreakpoint === BreakpointTypeEnum.MD) {
++      return this.md;
++    }
++    return this.lg;
++  }
++}
++
++const TAG = '[BreakpointSystem]';
++
++@ObservedV2
++export class BreakpointStorage {
++  @Trace
++  value: BreakpointTypeEnum = BreakpointTypeEnum.SM;
++}
++
++@ObservedV2
++class BreakpointSystem {
++  @Trace
++  public currentBreakpoint: BreakpointStorage = AppStorageV2.connect(
++    BreakpointStorage,
++    () => new BreakpointStorage(),
++  )!;
++  private _uiContext: UIContext | undefined;
++  private _windowClass: window.Window | undefined;
++
++  @Computed
++  get isTablet() {
++    return this.currentBreakpoint.value === BreakpointTypeEnum.LG;
++  }
++
++  public register(uiContext: UIContext) {
++    this._uiContext = uiContext;
++    if (this._uiContext) {
++      this.updateBreakpoint();
++      window.getLastWindow(this._uiContext.getHostContext())
++        .then((win) => {
++          this._windowClass = win;
++          this._windowClass.on('windowSizeChange', () => {
++            this.updateBreakpoint();
++          });
++        })
++        .catch((err: BusinessError) => {
++          UtilLog.error(TAG, 'get last window failed. error: ' + JSON.stringify(err));
++        });
++    }
++  }
++
++  public unregister() {
++    if (this._windowClass) {
++      this._windowClass.off('windowSizeChange');
++    }
++  }
++
++  public updateBreakpoint() {
++    let temp: BreakpointTypeEnum = BreakpointTypeEnum.MD;
++    const curBreakPoint = this._uiContext!.getWindowWidthBreakpoint();
++    if (
++      curBreakPoint === WidthBreakpoint.WIDTH_XS ||
++        curBreakPoint === WidthBreakpoint.WIDTH_SM
++    ) {
++      temp = BreakpointTypeEnum.SM;
++    } else if (curBreakPoint === WidthBreakpoint.WIDTH_MD) {
++      temp = BreakpointTypeEnum.MD;
++    } else {
++      temp = BreakpointTypeEnum.LG;
++    }
++    this.currentBreakpoint.value = temp;
++    UtilLog.info(TAG, 'set breakpoint success, result:' + temp);
++  }
++}
++
++const breakpointSystem = new BreakpointSystem();
++
++export { breakpointSystem as BreakpointSystem };
+diff --git a/products/entry/src/main/ets/components/CartCard.ets b/products/entry/src/main/ets/components/CartCard.ets
+index 5c2680e..ca79f53 100644
+--- a/products/entry/src/main/ets/components/CartCard.ets
++++ b/products/entry/src/main/ets/components/CartCard.ets
+@@ -181,4 +181,4 @@ export struct CartCard {
+     .justifyContent(FlexAlign.SpaceBetween)
+     .alignItems(HorizontalAlign.Start)
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/products/entry/src/main/ets/components/CartListView.ets b/products/entry/src/main/ets/components/CartListView.ets
+index c196012..37ebbab 100644
+--- a/products/entry/src/main/ets/components/CartListView.ets
++++ b/products/entry/src/main/ets/components/CartListView.ets
+@@ -1,3 +1,4 @@
++import { BreakpointStorage, BreakpointSystem, BreakpointTypeEnum } from 'lib_foundation';
+ import { PriceType } from 'lib_network';
+ import { ProductModel } from '../commons/Model';
+ import { CartCard } from './CartCard';
+@@ -21,6 +22,8 @@ export struct CartListView {
+   @Event onSpecClick: (productId: string, skuCode: string, count: number, priceType: PriceType,
+     slotId?: string) => void = () => {
+   };
++  @Local curBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint
++
+   build() {
+     List({ space: 12 }) {
+       ForEach(this.listData, (card: ProductModel, index: number) => {
+@@ -55,7 +58,7 @@ export struct CartListView {
+     }
+     .width('100%')
+     .height('auto')
+-    .lanes(1)
++    .lanes(this.curBreakpoint.value === BreakpointTypeEnum.LG ? 2 : 1)
+     .edgeEffect(EdgeEffect.None)
+     .margin({ top: 10 })
+     .padding({ left: 8, right: 8 })
+diff --git a/products/entry/src/main/ets/components/CartPageHeader.ets b/products/entry/src/main/ets/components/CartPageHeader.ets
+index b2a5802..10c63a8 100644
+--- a/products/entry/src/main/ets/components/CartPageHeader.ets
++++ b/products/entry/src/main/ets/components/CartPageHeader.ets
+@@ -42,4 +42,4 @@ export struct CartPageHeader {
+       }
+     }
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/products/entry/src/main/ets/components/HomePageContent.ets b/products/entry/src/main/ets/components/HomePageContent.ets
+index 4575128..ff36970 100644
+--- a/products/entry/src/main/ets/components/HomePageContent.ets
++++ b/products/entry/src/main/ets/components/HomePageContent.ets
+@@ -1,7 +1,18 @@
++import {
++  BreakpointStorage,
++  BreakpointSystem,
++  BreakpointTypeEnum,
++} from 'lib_foundation';
+ import { CategoryItem } from 'lib_network';
+ import { ProductWaterFlow } from './ProductWaterFlow';
++import { LengthMetrics } from '@kit.ArkUI';
+ import { UnavailableAction } from '../utils/UnavailableAction';
+ 
++enum ActivityType {
++  CHECKIN = '签到',
++  SECKILL = '秒杀'
++}
++
+ @ComponentV2
+ export struct HomePageContent {
+   @Param
+@@ -10,6 +21,18 @@ export struct HomePageContent {
+   scroller: Scroller = new Scroller();
+   @Event
+   handleClickCategory: (id: string) => void;
++  @Local curBreakpoint: BreakpointStorage = BreakpointSystem.currentBreakpoint
++
++  @Computed
++  get bannerAspectRatio() {
++    if (this.curBreakpoint.value === BreakpointTypeEnum.SM) {
++      return 4 / 3
++    }
++    if (this.curBreakpoint.value === BreakpointTypeEnum.MD) {
++      return 2.5
++    }
++    return 5
++  }
+ 
+   build() {
+     Column({ space: 12 }) {
+@@ -58,7 +81,7 @@ export struct HomePageContent {
+         }
+         .constraintSize({ minWidth: '100%' })
+         .padding($r('app.float.space_l'))
+-        .justifyContent(FlexAlign.Start)
++        .justifyContent(BreakpointSystem.isTablet ? FlexAlign.SpaceBetween : FlexAlign.Start)
+       }
+       .scrollable(ScrollDirection.Horizontal)
+       .scrollBar(BarState.Off)
+diff --git a/products/entry/src/main/ets/components/NumberStepper.ets b/products/entry/src/main/ets/components/NumberStepper.ets
+index 141b932..03322af 100644
+--- a/products/entry/src/main/ets/components/NumberStepper.ets
++++ b/products/entry/src/main/ets/components/NumberStepper.ets
+@@ -135,4 +135,4 @@ export struct NumberStepper {
+       this.handleClickStepperBtn(type);
+     })
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/products/entry/src/main/ets/components/ProductCategory.ets b/products/entry/src/main/ets/components/ProductCategory.ets
+index 46961a3..5eb399c 100644
+--- a/products/entry/src/main/ets/components/ProductCategory.ets
++++ b/products/entry/src/main/ets/components/ProductCategory.ets
+@@ -74,6 +74,7 @@ export struct ProductCategory {
+         }, (item: CategoryItem, index: number) => index + JSON.stringify(item));
+       }
+       .width('30%')
++      .constraintSize({ maxWidth: 240 })
+       .height('100%')
+       .borderWidth({ right: 1 })
+       .borderColor($r('sys.color.comp_divider'))
+@@ -166,7 +167,10 @@ export struct ProductCategory {
+   productListBuilder() {
+     Scroll() {
+       GridRow({
+-        columns: 2,
++        columns: {
++          xs: 2,
++          md: 4,
++        },
+         gutter: { x: 12, y: 12 },
+       }) {
+         if (this.isLoading) {
+diff --git a/products/entry/src/main/ets/tabviews/HomePage.ets b/products/entry/src/main/ets/tabviews/HomePage.ets
+index 237bfa1..348a9fa 100644
+--- a/products/entry/src/main/ets/tabviews/HomePage.ets
++++ b/products/entry/src/main/ets/tabviews/HomePage.ets
+@@ -20,14 +20,15 @@ export struct HomePage {
+       }) {
+         Scroll(this.scroller) {
+           Column() {
+-            HomePageContent({
+-              categoryList: this.vm.categoryList,
+-              scroller: this.scroller,
+-              handleClickCategory: (id) => {
+-                this.vm.jumpToCategoryPage(id);
+-              },
+-            })
+-              .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
++              HomePageContent({
++                categoryList: this.vm.categoryList,
++                scroller: this.scroller,
++                handleClickCategory: (id) => {
++                  this.vm.jumpToCategoryPage(id);
++                },
++              })
++                .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
++
+           }
+           .justifyContent(FlexAlign.Center)
+           .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+@@ -65,7 +66,8 @@ export struct HomePage {
+       .height($r('app.float.nav_header_height'))
+       .width('100%')
+     }
+-    .backgroundColor($r('app.color.background_color_primary'))
++    .backgroundColor(this.vm.isTablet ? $r('app.color.background_color_transparent') :
++      $r('app.color.background_color_primary'))
+     .expandSafeArea()
+     .padding({
+       left: $r('app.float.space_l'),
+diff --git a/products/entry/src/main/ets/viewmodels/HomePageVM.ets b/products/entry/src/main/ets/viewmodels/HomePageVM.ets
+index 1600355..5580bb2 100644
+--- a/products/entry/src/main/ets/viewmodels/HomePageVM.ets
++++ b/products/entry/src/main/ets/viewmodels/HomePageVM.ets
+@@ -1,6 +1,8 @@
+ import {
+   GlobalStateMgr,
+   iData,
++  BreakpointSystem,
++  BreakpointTypeEnum,
+ } from 'lib_foundation';
+ import { CategoryItem, HomeApis } from 'lib_network';
+ import { UnavailableAction } from '../utils/UnavailableAction';
+@@ -19,6 +21,11 @@ export class HomePageVM {
+   @Trace
+   currentSearchStr: string = '';
+ 
++  @Computed
++  get isTablet() {
++    return BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG;
++  }
++
+   public onRefreshStateChange(state: RefreshStatus): void {
+     this.refreshStatus = state;
+     if (state === RefreshStatus.Refresh) {
+diff --git a/products/entry/src/main/ets/viewmodels/MainEntryVM.ets b/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
+index f5d0252..685287c 100644
+--- a/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
++++ b/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
+@@ -1,3 +1,5 @@
++import { iData } from 'lib_foundation';
++
+ @ObservedV2
+ export class MainEntryVM {
+   @Trace curIndex: number = 0;
+diff --git a/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets b/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
+index d3689f9..3eefeb8 100644
+--- a/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
++++ b/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
+@@ -1,5 +1,5 @@
+ import { util } from '@kit.ArkTS';
+-import { WindowUtil } from 'lib_foundation';
++import { BreakpointSystem, BreakpointTypeEnum, WindowUtil } from 'lib_foundation';
+ import { FilterSelectionItem, ProductApis, ProductCardItem } from 'lib_network';
+ import { SortTypeMap } from '../commons/Enums';
+ 
+@@ -59,9 +59,16 @@ export class ProductWaterFlowVM {
+   @Computed
+   get columnTemplate() {
+     if (this.isGrid) {
+-      return '1fr';
++      return BreakpointSystem.currentBreakpoint.value === BreakpointTypeEnum.LG ? '1fr 1fr' : '1fr';
+     }
+-    return '1fr 1fr';
++    const bp = BreakpointSystem.currentBreakpoint.value;
++    if (bp === BreakpointTypeEnum.SM) {
++      return '1fr 1fr';
++    }
++    if (bp === BreakpointTypeEnum.MD) {
++      return '1fr 1fr 1fr';
++    }
++    return '1fr 1fr 1fr 1fr';
+   }
+ 
+   async refreshList() {
+diff --git a/products/entry/src/main/ets/views/Index.ets b/products/entry/src/main/ets/views/Index.ets
+index efb2e8b..581cc84 100644
+--- a/products/entry/src/main/ets/views/Index.ets
++++ b/products/entry/src/main/ets/views/Index.ets
+@@ -1,5 +1,5 @@
+ import { common } from '@kit.AbilityKit';
+-import { routerStack, WindowUtil } from 'lib_foundation';
++import { BreakpointSystem, routerStack, WindowUtil } from 'lib_foundation';
+ 
+ @Entry
+ @ComponentV2
+@@ -11,6 +11,7 @@ struct Index {
+     const uiContext = this.getUIContext()
+     const abilityContext = uiContext.getHostContext() as common.UIAbilityContext;
+     const abilityName: string = abilityContext.abilityInfo.name;
++    BreakpointSystem.register(uiContext)
+     WindowUtil.setUIContext(abilityName, uiContext)
+     routerStack.registerStack(abilityName, this.stack, uiContext)
+     this.stack.pushPath({ name: 'MainEntry' }, false)
+diff --git a/products/entry/src/main/ets/views/MainEntry.ets b/products/entry/src/main/ets/views/MainEntry.ets
+index 45db008..8f0cc08 100644
+--- a/products/entry/src/main/ets/views/MainEntry.ets
++++ b/products/entry/src/main/ets/views/MainEntry.ets
+@@ -1,4 +1,5 @@
+ import { UtilLog } from '@hw-agconnect/util-log';
++import { BreakpointSystem } from 'lib_foundation';
+ import { TAB_LIST } from '../commons/Constants';
+ import { TabListItem } from '../commons/Types';
+ import { MainEntryVM } from '../viewmodels/MainEntryVM';
+@@ -16,7 +17,7 @@ struct MainEntry {
+   build() {
+     NavDestination() {
+       Tabs({
+-        barPosition: BarPosition.End,
++        barPosition: BreakpointSystem.isTablet ? BarPosition.Start : BarPosition.End,
+         index: this.vm.curIndex,
+         controller: this.controller,
+       }) {
+@@ -33,19 +34,21 @@ struct MainEntry {
+       .height($r('app.string.size_percent_full'))
+       .animationDuration(0)
+       .divider({ strokeWidth: '1px' })
+-      .barMode(BarMode.Fixed)
+-      .vertical(false)
+-      .barWidth('100%')
++      .barMode(BreakpointSystem.isTablet ? BarMode.Scrollable : BarMode.Fixed)
++      .vertical(BreakpointSystem.isTablet)
++      .barWidth(BreakpointSystem.isTablet ? 96 : '100%')
+       .id('main-tabs')
+       .onChange((index: number) => {
+         this.vm.curIndex = index;
+       })
+       .expandSafeArea([SafeAreaType.SYSTEM],
+         [SafeAreaEdge.BOTTOM, SafeAreaEdge.TOP, SafeAreaEdge.START, SafeAreaEdge.END])
+-      .barOverlap(true)
++      .barOverlap(!BreakpointSystem.isTablet)
+     }
+     .hideTitleBar(true)
+-    .backgroundColor($r('app.color.background_color_transparent'))
++    .backgroundColor(BreakpointSystem.isTablet ?
++      $r('app.color.background_color_grey') :
++      $r('app.color.background_color_transparent'))
+     .onBackPressed(() => {
+       let nowTime = Date.now();
+       if (nowTime - this.vm.firstBackTime < 1500) {
+@@ -77,7 +80,7 @@ struct MainEntry {
+         .margin({ top: $r('app.float.space_xs') });
+     }
+     .width($r('app.string.size_percent_full'))
+-    .height(undefined)
++    .height(BreakpointSystem.isTablet ? 100 : undefined)
+     .id('main-tab-' + index)
+   }
+ }

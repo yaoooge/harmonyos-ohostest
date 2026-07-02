@@ -39,6 +39,18 @@ npm run ohostest:matrix -- \
   --project /path/to/ResponsiveRepeatLayout
 ```
 
+以 SWE case 目录执行两轮验证：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case
+```
+
+case 模式会读取 `case/metadata.json`，将 `base_project + test_patch` 作为 `swe` 轮执行，
+再在同一工作目录继续应用 `golden_patch` 作为 `answer` 轮执行。设备连接、模拟器和工具路径仍来自
+`config/machine.json`，实际设备集合和 suite class 使用 `metadata.device_test_suites`。默认报告输出到
+`<case>/.ohostest-runs/<timestamp>/`。
+
 常用参数：
 
 ```text
@@ -48,6 +60,13 @@ npm run ohostest:matrix -- \
 --test-class <className>      只运行指定 suite class
 --skip-build true|false       是否跳过构建
 --keep-emulators true|false   运行结束后是否保留模拟器
+```
+
+case 模式额外支持：
+
+```text
+--case <path>                 指定 case 目录
+--keep-workdir true|false     是否保留合成工程目录，默认 false
 ```
 
 ## 配置入口
@@ -63,6 +82,7 @@ config/machine.json
 ## 文档索引
 
 - [矩阵测试运行](docs/usage/matrix.md)
+- [case 目录执行](docs/usage/case.md)
 - [折叠屏和旋转控制](docs/usage/fold-control.md)
 - [故障排查](docs/usage/troubleshooting.md)
 - [工程结构说明](docs/project-structure/README.md)

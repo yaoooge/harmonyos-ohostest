@@ -7,6 +7,7 @@ export interface LoadMatrixConfigInput {
   project: string;
   machineConfigPath?: string;
   testClass?: string;
+  deviceSuiteOverrides?: Record<string, string[]>;
 }
 
 export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<MatrixConfig> {
@@ -33,7 +34,10 @@ export async function loadMatrixConfig(input: LoadMatrixConfigInput): Promise<Ma
     if (hasOwn(device, "testFolders")) {
       throw new Error(`config.devices[${index}].testFolders has been renamed to testSuites.`);
     }
-    const testClasses = readDeviceTestSuites(device.testSuites, index);
+    const testClasses = readDeviceTestSuites(
+      input.deviceSuiteOverrides?.[device.id] ?? device.testSuites,
+      index,
+    );
     return {
       id: device.id,
       ...(device.profile ? { profile: device.profile } : {}),

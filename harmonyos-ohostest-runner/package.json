@@ -6,6 +6,7 @@
   "description": "Standalone HarmonyOS ohosTest matrix runner.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "ohostest:case": "node --import tsx scripts/runOhosTestCase.ts",
     "ohostest:matrix": "node --import tsx scripts/runOhosTestMatrix.ts",
     "test": "node --import tsx --test tests/*.test.ts",
     "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.ts\" \"tests/**/*.ts\" \"*.json\"",

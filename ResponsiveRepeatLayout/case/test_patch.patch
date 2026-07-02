@@ -1,0 +1,531 @@
+diff --git a/products/entry/build-profile.json5 b/products/entry/build-profile.json5
+index 4cae967..4d61187 100644
+--- a/products/entry/build-profile.json5
++++ b/products/entry/build-profile.json5
+@@ -20,6 +20,9 @@
+   "targets": [
+     {
+       "name": "default"
++    },
++    {
++      "name": "ohosTest",
+     }
+   ]
+-}
++}
+\ No newline at end of file
+diff --git a/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets b/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets
+new file mode 100644
+index 0000000..fade962
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets
+@@ -0,0 +1,85 @@
++import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
++import { Driver } from '@kit.TestKit';
++import {
++  assertComponentById,
++  assertComponentByText,
++  assertNoHorizontalOverflow,
++  clickTabByIndex,
++  componentExistsById,
++  getDriver,
++  prepareEntryAbility,
++  waitForComponentById,
++} from './TestHelper';
++
++export default function commonPassToPassTest() {
++  describe('CommonPassToPassTest', () => {
++    let driver: Driver;
++
++    beforeAll(async () => {
++      driver = getDriver();
++      await prepareEntryAbility();
++    });
++
++    it('should_start_ability_successfully', Level.LEVEL2, async (done: Function) => {
++      await assertComponentById(driver, 'main-tabs');
++      done();
++    });
++
++    it('should_show_home_tab_content_after_app_launch', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await assertComponentByText(driver, '首页');
++      await assertComponentByText(driver, '分类');
++      await assertComponentByText(driver, '购物车');
++      await assertComponentByText(driver, '我的');
++      done();
++    });
++
++    it('should_show_home_waterflow_product_items', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await assertComponentById(driver, 'home-waterflow');
++      await assertComponentById(driver, 'home-waterflow-item');
++      done();
++    });
++
++    it('should_keep_home_waterflow_items_visible_without_horizontal_overflow', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await waitForComponentById(driver, 'home-waterflow', 10);
++      await assertNoHorizontalOverflow(driver, 'home-waterflow', 'home-waterflow-item');
++      done();
++    });
++
++    it('should_switch_to_category_tab_and_show_category_content', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 1);
++      await waitForComponentById(driver, 'category-left-list', 10);
++      await assertComponentByText(driver, '分类');
++      await assertComponentById(driver, 'category-left-list');
++      done();
++    });
++
++    it('should_show_category_side_list_and_product_area', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 1);
++      await waitForComponentById(driver, 'category-product-grid', 10);
++      await assertComponentById(driver, 'category-left-list');
++      await assertComponentById(driver, 'category-product-grid');
++      done();
++    });
++
++    it('should_switch_to_cart_tab_and_show_cart_content', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 2);
++      await waitForComponentById(driver, 'cart-page', 10);
++      await assertComponentByText(driver, '购物车');
++      await assertComponentById(driver, 'cart-page');
++      done();
++    });
++
++    it('should_show_cart_product_list_or_empty_state', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 2);
++      await waitForComponentById(driver, 'cart-page', 10);
++      const hasList = await componentExistsById(driver, 'cart-list');
++      const hasEmpty = await componentExistsById(driver, 'cart-empty-state');
++      expect(hasList || hasEmpty).assertTrue();
++      done();
++    });
++
++  });
++}
+diff --git a/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets b/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets
+new file mode 100644
+index 0000000..b4fcc75
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets
+@@ -0,0 +1,64 @@
++import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
++import { Driver, ON } from '@kit.TestKit';
++import {
++  assertComponentById,
++  assertMainTabsVertical,
++  clickTabByIndex,
++  componentExistsById,
++  estimateLanesById,
++  getCurrentBreakpoint,
++  getDriver,
++  prepareEntryAbility,
++  waitForComponentById,
++} from './TestHelper';
++
++export default function lgFailToPassTest() {
++  describe('LgFailToPassTest', () => {
++    let driver: Driver;
++    let bundleName: string;
++
++    beforeAll(async () => {
++      driver = getDriver();
++      bundleName = await prepareEntryAbility();
++    });
++
++    it('should_show_home_waterflow_as_multi_column_layout_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await waitForComponentById(driver, 'home-waterflow', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'lg') {
++        const lanes = await estimateLanesById(driver, 'home-waterflow', 'home-waterflow-item');
++        expect(lanes > 2).assertTrue();
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++    it('should_show_category_products_as_four_columns_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 1);
++      await waitForComponentById(driver, 'category-product-grid', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'lg') {
++        const lanes = await estimateLanesById(driver, 'category-product-grid', 'category-product-item');
++        expect(lanes).assertEqual(4);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++    it('should_show_cart_list_as_two_lanes_on_large_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 2);
++      await waitForComponentById(driver, 'cart-page', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'lg' && await componentExistsById(driver, 'cart-list')) {
++        const lanes = await estimateLanesById(driver, 'cart-list', 'cart-list-item');
++        expect(lanes).assertEqual(2);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++  });
++}
+diff --git a/products/entry/src/ohosTest/ets/test/List.test.ets b/products/entry/src/ohosTest/ets/test/List.test.ets
+new file mode 100644
+index 0000000..c664d46
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/List.test.ets
+@@ -0,0 +1,11 @@
++import commonPassToPassTest from './CommonPassToPass.test';
++import smPassToPassTest from './SmPassToPass.test';
++import mdFailToPassTest from './MdFailToPass.test';
++import lgFailToPassTest from './LgFailToPass.test';
++
++export default function testsuite() {
++  commonPassToPassTest();
++  smPassToPassTest();
++  mdFailToPassTest();
++  lgFailToPassTest();
++}
+diff --git a/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets b/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets
+new file mode 100644
+index 0000000..37859a7
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets
+@@ -0,0 +1,49 @@
++import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
++import { Driver } from '@kit.TestKit';
++import {
++  clickTabByIndex,
++  estimateLanesById,
++  getCurrentBreakpoint,
++  getDriver,
++  prepareEntryAbility,
++  waitForComponentById,
++} from './TestHelper';
++
++export default function mdFailToPassTest() {
++  describe('MdFailToPassTest', () => {
++    let driver: Driver;
++    let bundleName: string;
++
++    beforeAll(async () => {
++      driver = getDriver();
++      bundleName = await prepareEntryAbility();
++    });
++
++    it('should_show_home_waterflow_as_multi_column_layout_on_medium_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await waitForComponentById(driver, 'home-waterflow', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'md') {
++        const lanes = await estimateLanesById(driver, 'home-waterflow', 'home-waterflow-item');
++        expect(lanes > 2).assertTrue();
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++    it('should_show_category_products_as_four_columns_on_medium_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 1);
++      await waitForComponentById(driver, 'category-product-grid', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'md') {
++        const lanes = await estimateLanesById(driver, 'category-product-grid', 'category-product-item');
++        expect(lanes).assertEqual(4);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++  });
++}
+diff --git a/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets b/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets
+new file mode 100644
+index 0000000..093f6a8
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets
+@@ -0,0 +1,63 @@
++import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
++import { Driver } from '@kit.TestKit';
++import {
++  assertMainTabsHorizontal,
++  clickTabByIndex,
++  componentExistsById,
++  estimateLanesById,
++  getCurrentBreakpoint,
++  getDriver,
++  prepareEntryAbility,
++  waitForComponentById,
++} from './TestHelper';
++
++export default function smPassToPassTest() {
++  describe('SmPassToPassTest', () => {
++    let driver: Driver;
++    let bundleName: string;
++
++    beforeAll(async () => {
++      driver = getDriver();
++      bundleName = await prepareEntryAbility();
++    });
++
++    it('should_show_home_waterflow_as_two_columns_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 0);
++      await waitForComponentById(driver, 'home-waterflow', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'sm') {
++        const lanes = await estimateLanesById(driver, 'home-waterflow', 'home-waterflow-item');
++        expect(lanes).assertEqual(2);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++    it('should_show_category_products_as_two_columns_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 1);
++      await waitForComponentById(driver, 'category-product-grid', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'sm') {
++        const lanes = await estimateLanesById(driver, 'category-product-grid', 'category-product-item');
++        expect(lanes).assertEqual(2);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++
++    it('should_show_cart_list_as_one_lane_on_small_breakpoint', Level.LEVEL2, async (done: Function) => {
++      await clickTabByIndex(driver, 2);
++      await waitForComponentById(driver, 'cart-page', 10);
++      const breakpoint = await getCurrentBreakpoint(driver, bundleName);
++      if (breakpoint === 'sm' && await componentExistsById(driver, 'cart-list')) {
++        const lanes = await estimateLanesById(driver, 'cart-list', 'cart-list-item');
++        expect(lanes).assertEqual(1);
++      } else {
++        expect(true).assertTrue();
++      }
++      done();
++    });
++  });
++}
+diff --git a/products/entry/src/ohosTest/ets/test/TestHelper.ets b/products/entry/src/ohosTest/ets/test/TestHelper.ets
+new file mode 100644
+index 0000000..acba252
+--- /dev/null
++++ b/products/entry/src/ohosTest/ets/test/TestHelper.ets
+@@ -0,0 +1,189 @@
++import { Want } from '@kit.AbilityKit';
++import { abilityDelegatorRegistry, Driver, ON, UiWindow } from '@kit.TestKit';
++import { expect } from '@ohos/hypium';
++
++export const delegator: abilityDelegatorRegistry.AbilityDelegator = abilityDelegatorRegistry.getAbilityDelegator();
++
++const BREAKPOINT_SM = 600;
++const BREAKPOINT_MD = 840;
++
++export type TestBreakpoint = 'sm' | 'md' | 'lg';
++
++let sharedDriver: Driver | undefined = undefined;
++let sharedBundleName: string = '';
++let hasStartedEntryAbility: boolean = false;
++
++export function getDriver(): Driver {
++  if (sharedDriver === undefined) {
++    sharedDriver = Driver.create();
++  }
++  return sharedDriver;
++}
++
++export async function prepareEntryAbility(): Promise<string> {
++  const driver = getDriver();
++  if (!hasStartedEntryAbility) {
++    sharedBundleName = await startEntryAbility(driver);
++    hasStartedEntryAbility = true;
++  }
++  return sharedBundleName;
++}
++
++async function startEntryAbility(driver: Driver): Promise<string> {
++  const bundleName = abilityDelegatorRegistry.getArguments().bundleName;
++  const want: Want = {
++    bundleName: bundleName,
++    abilityName: 'EntryAbility',
++  };
++  await delegator.startAbility(want);
++  await waitForComponentById(driver, 'main-tabs', 10);
++  return bundleName;
++}
++
++export async function finishAbility(): Promise<void> {
++  try {
++    const driver = getDriver();
++    await driver.waitForIdle(1000, 3000);
++    await driver.pressBack();
++  } catch (e) {
++    console.error('finishAbility failed: ' + JSON.stringify(e));
++  }
++}
++
++export async function getWindowVpWidth(driver: Driver, bundleName: string): Promise<number> {
++  try {
++    const uiWindow: UiWindow = await driver.findWindow({ bundleName: bundleName, active: true });
++    const bounds = await uiWindow.getBounds();
++    return px2vp(bounds.right - bounds.left);
++  } catch (e) {
++    console.error('getWindowVpWidth failed: ' + JSON.stringify(e));
++    return -1;
++  }
++}
++
++export function getBreakpointName(vpWidth: number): TestBreakpoint {
++  if (vpWidth < BREAKPOINT_SM) {
++    return 'sm';
++  }
++  if (vpWidth < BREAKPOINT_MD) {
++    return 'md';
++  }
++  return 'lg';
++}
++
++export async function getCurrentBreakpoint(driver: Driver, bundleName: string): Promise<TestBreakpoint> {
++  return getBreakpointName(await getWindowVpWidth(driver, bundleName));
++}
++
++export async function clickTab(driver: Driver, label: string): Promise<void> {
++  const tab = await driver.findComponent(ON.text(label));
++  expect(tab !== null).assertTrue();
++  await tab.click();
++  await driver.waitForIdle(300, 1000);
++}
++
++export async function clickTabByIndex(driver: Driver, index: number): Promise<void> {
++  const tab = await driver.findComponent(ON.id('main-tab-' + index));
++  expect(tab !== null).assertTrue();
++  await tab.click();
++  await driver.waitForIdle(300, 1000);
++}
++
++export async function assertMainTabsHorizontal(driver: Driver): Promise<void> {
++  const firstTab = await driver.findComponent(ON.id('main-tab-0'));
++  const secondTab = await driver.findComponent(ON.id('main-tab-1'));
++  expect(firstTab !== null && firstTab !== undefined).assertTrue();
++  expect(secondTab !== null && secondTab !== undefined).assertTrue();
++  const firstBounds = await firstTab.getBounds();
++  const secondBounds = await secondTab.getBounds();
++  expect(Math.abs(firstBounds.top - secondBounds.top) <= 2).assertTrue();
++  expect(secondBounds.left >= firstBounds.right - 2).assertTrue();
++}
++
++export async function assertMainTabsVertical(driver: Driver): Promise<void> {
++  const firstTab = await driver.findComponent(ON.id('main-tab-0'));
++  const secondTab = await driver.findComponent(ON.id('main-tab-1'));
++  expect(firstTab !== null && firstTab !== undefined).assertTrue();
++  expect(secondTab !== null && secondTab !== undefined).assertTrue();
++  const firstBounds = await firstTab.getBounds();
++  const secondBounds = await secondTab.getBounds();
++  expect(Math.abs(firstBounds.left - secondBounds.left) <= 2).assertTrue();
++  expect(secondBounds.top >= firstBounds.bottom - 2).assertTrue();
++}
++
++export async function assertComponentById(driver: Driver, id: string): Promise<void> {
++  await waitForComponentById(driver, id);
++}
++
++export async function assertComponentByText(driver: Driver, text: string): Promise<void> {
++  await waitForComponentByText(driver, text);
++}
++
++export async function componentExistsById(driver: Driver, id: string): Promise<boolean> {
++  try {
++    const component = await driver.findComponent(ON.id(id));
++    return component !== null && component !== undefined;
++  } catch (e) {
++    return false;
++  }
++}
++
++export async function waitForComponentById(driver: Driver, id: string, retries: number = 8): Promise<void> {
++  for (let index = 0; index < retries; index++) {
++    if (await componentExistsById(driver, id)) {
++      expect(true).assertTrue();
++      return;
++    }
++    await driver.waitForIdle(200, 500);
++  }
++  expect(false).assertTrue();
++}
++
++export async function waitForComponentByText(driver: Driver, text: string, retries: number = 8): Promise<void> {
++  for (let index = 0; index < retries; index++) {
++    try {
++      const component = await driver.findComponent(ON.text(text));
++      if (component !== null && component !== undefined) {
++        expect(true).assertTrue();
++        return;
++      }
++    } catch (e) {
++    }
++    await driver.waitForIdle(200, 500);
++  }
++  expect(false).assertTrue();
++}
++
++export async function estimateLanesById(driver: Driver, containerId: string, itemId: string): Promise<number> {
++  try {
++    const container = await driver.findComponent(ON.id(containerId));
++    const items = await driver.findComponents(ON.id(itemId));
++    if (container === null || container === undefined || items === null || items === undefined || items.length === 0) {
++      return -1;
++    }
++    const containerBounds = await container.getBounds();
++    const itemBounds = await items[0].getBounds();
++    const containerWidth = containerBounds.right - containerBounds.left;
++    const itemWidth = itemBounds.right - itemBounds.left;
++    if (itemWidth <= 0) {
++      return -1;
++    }
++    return Math.round(containerWidth / itemWidth);
++  } catch (e) {
++    console.error('estimateLanesById failed: ' + JSON.stringify(e));
++    return -1;
++  }
++}
++
++export async function assertNoHorizontalOverflow(driver: Driver, containerId: string, itemId: string): Promise<void> {
++  const container = await driver.findComponent(ON.id(containerId));
++  const items = await driver.findComponents(ON.id(itemId));
++  expect(container !== null && container !== undefined).assertTrue();
++  expect(items !== null && items !== undefined && items.length > 0).assertTrue();
++  const containerBounds = await container.getBounds();
++  for (let index = 0; index < items.length; index++) {
++    const itemBounds = await items[index].getBounds();
++    expect(itemBounds.left >= containerBounds.left - 1).assertTrue();
++    expect(itemBounds.right <= containerBounds.right + 1).assertTrue();
++  }
++}
+diff --git a/products/entry/src/ohosTest/module.json5 b/products/entry/src/ohosTest/module.json5
+new file mode 100644
+index 0000000..6902687
+--- /dev/null
++++ b/products/entry/src/ohosTest/module.json5
+@@ -0,0 +1,12 @@
++{
++  "module": {
++    "name": "entry_test",
++    "type": "feature",
++    "deviceTypes": [
++      "default",
++      "tablet"
++    ],
++    "deliveryWithInstall": true,
++    "installationFree": false
++  }
++}

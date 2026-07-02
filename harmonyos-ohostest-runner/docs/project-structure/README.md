@@ -1,78 +1,53 @@
 # 工程结构说明
 
-`harmonyos-ohostest-runner/src` 按功能分为三个区域：矩阵测试执行、折叠屏处理、共享基础能力。
+`harmonyos-ohostest-runner/src` 按功能分为四个区域：case 执行、矩阵测试执行、折叠屏处理、共享基础能力。
 
 ```text
-src/
-  index.ts
-  cli/
-    parseArgs.ts
-  matrix/
-    build.ts
-    config.ts
-    device.ts
-    ohostest.ts
-    result.ts
-    runner.ts
-    types/
-      index.ts
-    utils/
-      json5ish.ts
-      projectDiscovery.ts
-  fold/
-    server.ts
-    foldTriggerTemplate.ts
-    assets/
-      FoldTrigger.ets
-      fold-server.py
-    types/
-    utils/
-  shared/
-    command.ts
-    types/
-      command.ts
-      index.ts
-    utils/
-      file.ts
-      names.ts
-      shellQuote.ts
-      sleep.ts
+src/                              # 源码根目录
+  index.ts                        # 包级公共出口，导出 CLI 解析、case API、矩阵 API 和公共类型
+  cli/                            # 命令行参数解析
+    parseArgs.ts                  # 解析 ohostest:matrix 参数，生成 RunMatrixInput
+    parseCaseArgs.ts              # 解析 ohostest:case 参数，生成 RunCaseInput
+  case/                           # case 目录执行
+    config.ts                     # 读取 metadata.json，解析 patch、设备 suite 和 case 元信息
+    patch.ts                      # 复制基线工程并执行 git apply
+    result.ts                     # 生成 case 状态和 case 级 summary.md
+    runner.ts                     # 编排 base + test_patch 与 base + test_patch + golden_patch 两轮执行
+    types/                        # case 相关类型
+      index.ts                    # RunCaseInput、CaseMetadata、CaseResult 等类型
+  matrix/                         # 单工程矩阵测试执行
+    build.ts                      # 构建 app HAP 和 ohosTest HAP，并校验产物
+    config.ts                     # 读取 machine.json，发现工程信息，生成 MatrixConfig
+    device.ts                     # 处理模拟器启停、hdc 连接、唤醒、安装和设备日志
+    ohostest.ts                   # 构造 aa test 命令并解析 OHOS_REPORT_* 输出
+    result.ts                     # 生成矩阵状态和矩阵 summary.md
+    runner.ts                     # 编排构建、设备循环、suite 执行和矩阵结果写入
+    types/                        # 矩阵相关类型
+      index.ts                    # MatrixConfig、MatrixResult、DeviceRunResult、SuiteRunResult 等类型
+    utils/                        # 矩阵辅助工具
+      json5ish.ts                 # 解析 HarmonyOS 配置中的 JSON5 风格文本
+      projectDiscovery.ts         # 发现 product、entry module、bundle、test module 和 HAP 路径
+  fold/                           # 折叠屏和旋转控制
+    server.ts                     # 启停 fold-server、健康检查、部署 FoldTrigger.ets
+    foldTriggerTemplate.ts        # 生成注入端口后的 FoldTrigger.ets 内容
+    assets/                       # 折叠屏控制运行资产
+      FoldTrigger.ets             # 设备端折叠/旋转触发工具源码
+      fold-server.py              # 宿主机 HTTP 服务，调用 DevEco Emulator 命令
+    types/                        # 折叠屏控制类型
+    utils/                        # 折叠屏控制辅助工具
+  shared/                         # 共享基础能力
+    command.ts                    # 命令执行、detached 进程启动和命令日志记录
+    types/                        # 共享类型
+      command.ts                  # CommandExecutor 和 CommandResult 类型
+      index.ts                    # 共享类型出口
+    utils/                        # 共享工具
+      file.ts                     # 文件存在性校验
+      names.ts                    # 日志文件名等名称清洗
+      shellQuote.ts               # 跨平台 shell 参数转义
+      sleep.ts                    # 异步等待工具
 ```
 
-## 入口层
 
-- `src/index.ts`：包级公共出口，导出 CLI 参数解析、矩阵运行 API 和公共类型。
-- `src/cli/parseArgs.ts`：解析 `ohostest:matrix` 命令行参数，生成 `RunMatrixInput`。
-
-## 矩阵测试执行
-
-- `matrix/runner.ts`：矩阵运行主编排。负责加载配置、创建输出目录、记录命令日志、依次运行设备、写入结果文件。
-- `matrix/build.ts`：执行 app HAP 和 ohosTest HAP 构建，校验构建产物，并返回构建阶段结果。
-- `matrix/config.ts`：读取 `machine.json`，合并 HarmonyOS 工程发现信息，生成标准化 `MatrixConfig`。
-- `matrix/device.ts`：处理设备连接、模拟器启停命令、设备唤醒、HAP 安装、设备日志写入。
-- `matrix/ohostest.ts`：构造 `aa test` 命令，解析 `OHOS_REPORT_*` 测试输出。
-- `matrix/result.ts`：生成矩阵状态和 `summary.md`。
-- `matrix/types/index.ts`：矩阵配置、运行输入、构建结果、设备结果、suite 结果和用例结果类型。
-- `matrix/utils/json5ish.ts`：解析 HarmonyOS 工程中的 JSON5 风格配置文本。
-- `matrix/utils/projectDiscovery.ts`：读取目标 HarmonyOS 工程信息，包括 product、entry module、bundle name、ohosTest module 和 HAP 路径。
-
-## 折叠屏处理
-
-- `fold/server.ts`：启动和停止 fold-server，执行健康检查，部署 `FoldTrigger.ets` 到目标工程。
-- `fold/foldTriggerTemplate.ts`：生成注入设备端口后的 `FoldTrigger.ets` 内容。
-- `fold/assets/fold-server.py`：宿主机 HTTP 服务，接收折叠/旋转请求并调用 DevEco Emulator 命令。
-- `fold/assets/FoldTrigger.ets`：可手动复制到测试工程的设备端触发工具。
-- `fold/types/`：折叠屏处理相关类型目录。
-- `fold/utils/`：折叠屏处理工具目录。
-
-## 共享能力
-
-- `shared/command.ts`：命令执行、detached 进程启动和命令日志记录。
-- `shared/types/command.ts`：命令执行结果和命令执行器类型。
-- `shared/utils/file.ts`：文件存在性校验。
-- `shared/utils/names.ts`：日志文件名等场景使用的名称清洗。
-- `shared/utils/shellQuote.ts`：跨平台 shell 参数转义。
-- `shared/utils/sleep.ts`：异步等待工具。
 
 ## 调用关系
 
@@ -88,6 +63,16 @@ scripts/runOhosTestMatrix.ts
      -> matrix/result.ts
      -> fold/server.ts
      -> shared/command.ts
+
+scripts/runOhosTestCase.ts
+  -> src/index.ts
+  -> cli/parseCaseArgs.ts
+  -> case/runner.ts
+     -> case/config.ts
+     -> case/patch.ts
+     -> case/result.ts
+     -> matrix/config.ts
+     -> matrix/runner.ts
 ```
 
-矩阵执行是主流程，折叠屏处理是按设备启用的可选能力。共享层不依赖 `matrix/` 或 `fold/`。
+case 执行调用矩阵执行。折叠屏处理是矩阵执行中按设备启用的能力。共享层不依赖 `case/`、`matrix/` 或 `fold/`。

@@ -34,6 +34,7 @@ export async function runOhosTestMatrix(input: RunMatrixInput): Promise<MatrixRe
     project: input.project,
     machineConfigPath: input.machineConfigPath,
     testClass: input.testClass,
+    deviceSuiteOverrides: input.deviceSuiteOverrides,
   });
   const selectedDevices =
     input.devices && input.devices.length > 0

@@ -1,0 +1,62 @@
+{
+  "case_id": "responsive-repeat-layout",
+  "golden_patch": "golden_patch.patch",
+  "test_patch": "test_patch.patch",
+  "base_project": "task",
+  "fail_to_pass": [
+    "should_show_home_waterflow_as_multi_column_layout_on_medium_breakpoint",
+    "should_show_category_products_as_four_columns_on_medium_breakpoint",
+    "should_show_home_waterflow_as_multi_column_layout_on_large_breakpoint",
+    "should_show_category_products_as_four_columns_on_large_breakpoint",
+    "should_show_cart_list_as_two_lanes_on_large_breakpoint"
+  ],
+  "pass_to_pass": [
+    "should_start_ability_successfully",
+    "should_show_home_tab_content_after_app_launch",
+    "should_show_home_waterflow_product_items",
+    "should_keep_home_waterflow_items_visible_without_horizontal_overflow",
+    "should_switch_to_category_tab_and_show_category_content",
+    "should_show_category_side_list_and_product_area",
+    "should_switch_to_cart_tab_and_show_cart_content",
+    "should_show_cart_product_list_or_empty_state",
+    "should_show_home_waterflow_as_two_columns_on_small_breakpoint",
+    "should_show_category_products_as_two_columns_on_small_breakpoint",
+    "should_show_cart_list_as_one_lane_on_small_breakpoint"
+  ],
+  "device_test_suites": {
+    "phone": [
+      {
+        "suite": "CommonPassToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+      },
+      {
+        "suite": "SmPassToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets"
+      }
+    ],
+    "foldable": [
+      {
+        "suite": "CommonPassToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+      },
+      {
+        "suite": "SmPassToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets"
+      },
+      {
+        "suite": "MdFailToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets"
+      }
+    ],
+    "tablet": [
+      {
+        "suite": "CommonPassToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+      },
+      {
+        "suite": "LgFailToPassTest",
+        "file": "products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets"
+      }
+    ]
+  }
+}

@@ -176,5 +176,6 @@ export interface RunMatrixInput {
   testClass?: string;
   skipBuild?: boolean;
   keepEmulators?: boolean;
+  deviceSuiteOverrides?: Record<string, string[]>;
   commandExecutor?: CommandExecutor;
 }
