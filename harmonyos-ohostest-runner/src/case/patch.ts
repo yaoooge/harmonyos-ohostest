@@ -23,18 +23,48 @@ export async function applyPatch(input: {
   commandExecutor?: CommandExecutor;
 }): Promise<void> {
   const executor = input.commandExecutor ?? defaultCommandExecutor;
-  const quotedPatch = shellQuote(input.patchFile);
-  const ceiling = shellQuote(path.dirname(input.project));
-  const gitApply = `GIT_CEILING_DIRECTORIES=${ceiling} git apply`;
   const check = await executor(
-    `${gitApply} --check ${quotedPatch}`,
+    buildGitApplyCommand({
+      project: input.project,
+      patchFile: input.patchFile,
+      check: true,
+    }),
     input.project,
   );
   if (check.exitCode !== 0) {
     throw new Error(`patch_apply_failed: ${input.label}`);
   }
-  const apply = await executor(`${gitApply} ${quotedPatch}`, input.project);
+  const apply = await executor(
+    buildGitApplyCommand({
+      project: input.project,
+      patchFile: input.patchFile,
+      check: false,
+    }),
+    input.project,
+  );
   if (apply.exitCode !== 0) {
     throw new Error(`patch_apply_failed: ${input.label}`);
   }
+}
+
+export function buildGitApplyCommand(input: {
+  project: string;
+  patchFile: string;
+  check: boolean;
+  platform?: NodeJS.Platform;
+}): string {
+  const platform = input.platform ?? process.platform;
+  const quotedPatch = shellQuote(input.patchFile, platform);
+  const checkArg = input.check ? " --check" : "";
+  const gitApply = `git apply${checkArg} ${quotedPatch}`;
+  const ceiling =
+    platform === "win32"
+      ? path.win32.dirname(input.project)
+      : path.dirname(input.project);
+
+  if (platform === "win32") {
+    return `set "GIT_CEILING_DIRECTORIES=${ceiling}" && ${gitApply}`;
+  }
+
+  return `GIT_CEILING_DIRECTORIES=${shellQuote(ceiling, platform)} ${gitApply}`;
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { applyPatch } from "../src/case/patch.js";
+import { applyPatch, buildGitApplyCommand } from "../src/case/patch.js";
 
 test("applyPatch applies relative to project even when project is inside a parent git repository", async (t) => {
   const root = path.join(process.cwd(), ".tmp-case-patch-test");
@@ -33,4 +33,32 @@ test("applyPatch applies relative to project even when project is inside a paren
 
   assert.equal(await fs.readFile(path.join(project, "generated.txt"), "utf-8"), "generated\n");
   await assert.rejects(fs.stat(path.join(process.cwd(), "generated.txt")));
+});
+
+test("buildGitApplyCommand uses cmd-compatible environment syntax on Windows", () => {
+  const command = buildGitApplyCommand({
+    project: "C:\\work\\case\\project",
+    patchFile: "C:\\work\\case\\golden patch.patch",
+    check: true,
+    platform: "win32",
+  });
+
+  assert.equal(
+    command,
+    'set "GIT_CEILING_DIRECTORIES=C:\\work\\case" && git apply --check "C:\\work\\case\\golden patch.patch"',
+  );
+});
+
+test("buildGitApplyCommand keeps inline environment syntax on POSIX shells", () => {
+  const command = buildGitApplyCommand({
+    project: "/tmp/case/project",
+    patchFile: "/tmp/case/golden patch.patch",
+    check: false,
+    platform: "darwin",
+  });
+
+  assert.equal(
+    command,
+    "GIT_CEILING_DIRECTORIES=/tmp/case git apply '/tmp/case/golden patch.patch'",
+  );
 });
