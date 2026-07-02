@@ -19,16 +19,15 @@ export async function runOhosTestCase(
   const startedTime = Date.now();
   const startedAt = new Date(startedTime).toISOString();
   const metadata = await loadCaseMetadata(input.caseDir);
-  const out = path.resolve(
+  const outDir = path.resolve(
     input.out ??
       path.join(
         metadata.caseDir,
         ".ohostest-runs",
         timestampForPath(new Date(startedTime)),
-        "result.json",
       ),
   );
-  const outDir = path.dirname(out);
+  const out = path.join(outDir, "result.json");
   const workProject = path.join(outDir, "work", "project");
   const diagnostics: string[] = [];
   const runs: CaseResult["runs"] = {};

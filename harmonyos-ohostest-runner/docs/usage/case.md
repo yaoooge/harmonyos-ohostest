@@ -19,7 +19,7 @@ npm run ohostest:case -- \
 ```text
 --case <path>                 case 目录，必填
 --machine-config <path>       设备矩阵配置文件，默认 config/machine.json
---out <path>                  指定 case 级 result.json 输出路径
+--out <path>                  指定 case 级输出目录，目录下写入 result.json
 --skip-build true|false       是否跳过构建
 --keep-emulators true|false   运行结束后是否保留模拟器
 --keep-workdir true|false     是否保留合成工程目录，默认 false

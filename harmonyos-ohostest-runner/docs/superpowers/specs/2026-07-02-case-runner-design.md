@@ -64,7 +64,7 @@ npm run ohostest:case -- \
 
 ```text
 --machine-config <path>       指定机器配置，默认 config/machine.json
---out <path>                  指定 case 级 result.json 输出路径
+--out <path>                  指定 case 级输出目录，目录下写入 result.json
 --device <id>                 只运行指定设备，可重复传入
 --skip-build true|false       是否跳过构建
 --keep-emulators true|false   运行结束后是否保留模拟器

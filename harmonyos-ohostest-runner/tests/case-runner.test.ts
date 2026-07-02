@@ -200,7 +200,7 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
   await makeProject(root);
   const caseDir = await writeCase(root);
   const machineConfigPath = await writeMachineConfig(root);
-  const out = path.join(root, "runs", "result.json");
+  const out = path.join(root, "runs", "result");
   const commands: string[] = [];
 
   const result = await runOhosTestCase({
@@ -229,10 +229,18 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
   assert.equal(result.runs.answer?.status, "completed");
   assert.ok(result.artifacts.sweResult);
   assert.ok(result.artifacts.answerResult);
-  assert.ok(await fs.readFile(out, "utf-8"));
+  assert.ok(await fs.readFile(path.join(out, "result.json"), "utf-8"));
   assert.match(
-    await fs.readFile(path.join(path.dirname(out), "summary.md"), "utf-8"),
+    await fs.readFile(path.join(out, "summary.md"), "utf-8"),
     /responsive-repeat-layout/,
+  );
+  assert.equal(
+    result.artifacts.result,
+    path.relative(caseDir, path.join(out, "result.json")),
+  );
+  assert.equal(
+    result.artifacts.sweResult,
+    path.relative(caseDir, path.join(out, "swe", "result.json")),
   );
   assert.equal(
     commands.filter((command) => command.includes("aa test")).length,
@@ -318,7 +326,7 @@ test("runOhosTestCase uses enabled devices for full test runs", async (t) => {
   const result = await runOhosTestCase({
     caseDir,
     machineConfigPath,
-    out: path.join(root, "runs", "result.json"),
+    out: path.join(root, "runs"),
     commandExecutor: async (command) => {
       commands.push(command);
       return {
@@ -371,7 +379,7 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     "utf-8",
   );
   const machineConfigPath = await writeMachineConfig(root);
-  const out = path.join(root, "runs", "result.json");
+  const out = path.join(root, "runs");
 
   const result = await runOhosTestCase({
     caseDir,
@@ -390,19 +398,18 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     }),
   });
 
-  const outDir = path.dirname(out);
   const commandLog = await fs.readFile(
-    path.join(outDir, "commands.log"),
+    path.join(out, "commands.log"),
     "utf-8",
   );
-  const summary = await fs.readFile(path.join(outDir, "summary.md"), "utf-8");
+  const summary = await fs.readFile(path.join(out, "summary.md"), "utf-8");
 
   assert.equal(result.status, "failed");
   assert.ok(result.runs.swe);
   assert.equal(result.runs.answer, undefined);
   assert.equal(
     result.artifacts.commandLog,
-    path.relative(caseDir, path.join(outDir, "commands.log")),
+    path.relative(caseDir, path.join(out, "commands.log")),
   );
   assert.match(commandLog, /git apply --check/);
   assert.match(commandLog, /golden_patch\.patch/);
