@@ -1,6 +1,6 @@
 # case 目录执行
 
-case 模式以 `case/` 目录为输入，执行两轮矩阵测试：
+case 模式以 `case/` 目录为输入，默认执行 answer 矩阵测试，也可以显式选择 swe 或完整双轮：
 
 ```text
 base_project + test_patch    -> swe
@@ -14,10 +14,19 @@ npm run ohostest:case -- \
   --case /path/to/ResponsiveRepeatLayout/case
 ```
 
+完整 SWE/Answer 双轮比较：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case \
+  --run all
+```
+
 参数：
 
 ```text
 --case <path>                 case 目录，必填
+--run answer|swe|all          运行范围，默认 answer
 --machine-config <path>       设备矩阵配置文件，默认 config/machine.json
 --out <path>                  指定 case 级输出目录，目录下写入 result.json
 --skip-build true|false       是否跳过构建
@@ -98,10 +107,10 @@ case 模式按以下优先级决定设备与 suite：
 1. 读取 `metadata.json`。
 2. 复制 `base_project` 到输出目录下的 `work/project`。
 3. 在 `work/project` 应用 `test_patch`。
-4. 使用 case 设备选择结果调用矩阵运行，矩阵构建阶段会先执行 `ohpm install`，输出到 `swe/result.json`。
-5. 在同一个 `work/project` 继续应用 `golden_patch`。
-6. 再次调用矩阵运行，矩阵构建阶段会先执行 `ohpm install`，输出到 `answer/result.json`。
-7. 写入 case 级 `result.json` 和 `summary.md`。
+4. 读取 case 设备选择结果。
+5. `--run swe` 或 `--run all` 时调用矩阵运行，输出到 `swe/result.json`。
+6. `--run answer` 或 `--run all` 时在同一个 `work/project` 继续应用 `golden_patch`，再调用矩阵运行，输出到 `answer/result.json`。
+7. 写入 case 级 `result.json` 和 `summary.md`。未执行的一侧在 summary 中显示为 `not run`。
 8. `--keep-workdir` 为 `false` 时删除 `work/`。
 
 ## 输出结果
@@ -144,7 +153,7 @@ case 级 `result.json` 使用 `ohostest-case-v1` schema，包含：
 
 case 级 `summary.md` 包含：
 
-- `Runs`：swe 和 answer 两轮总体统计
+- `Runs`：swe 和 answer 两侧总体统计，未执行的一侧显示 `not run`
 - `Device Results`：每台设备分别列出 `pass_to_pass` 和 `fail_to_pass`
 - `Totals`：按 `pass_to_pass` 和 `fail_to_pass` 汇总 swe/answer 的通过与失败数量
 - `Device Suites`：metadata 中的设备 suite 列表
@@ -176,7 +185,7 @@ suite class 名称包含 `FailToPass` 时归入 `fail_to_pass`。其他 suite cl
 
 case 级 `status`：
 
-- `completed`：swe 和 answer 两轮矩阵运行均完成，且没有 case 级诊断信息
-- `failed`：缺少任一轮结果、任一轮矩阵状态为 failed，或存在 case 级诊断信息
+- `completed`：所选运行范围内至少有一轮矩阵运行完成，且没有 case 级诊断信息
+- `failed`：所选运行范围内没有任何矩阵结果、任一已执行矩阵状态为 failed，或存在 case 级诊断信息
 
 矩阵级 `status` 的含义与矩阵模式一致。suite failure 不会使矩阵级 `status` 变为 failed；设备 blocked 会使矩阵级 `status` 变为 failed。

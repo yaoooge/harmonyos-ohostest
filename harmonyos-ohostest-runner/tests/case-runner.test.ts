@@ -207,6 +207,7 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
     caseDir,
     machineConfigPath,
     out,
+    runMode: "all",
     keepWorkdir: true,
     commandExecutor: async (command) => {
       commands.push(command);
@@ -265,6 +266,125 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
       "utf-8",
     ),
     /answer/,
+  );
+});
+
+test("runOhosTestCase defaults to answer run only", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-runner-answer-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs");
+  const commands: string[] = [];
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    keepWorkdir: true,
+    commandExecutor: async (command) => {
+      commands.push(command);
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : command.includes("list targets")
+            ? "127.0.0.1:15001\tConnected\n"
+            : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.runs.swe, undefined);
+  assert.equal(result.runs.answer?.status, "completed");
+  assert.equal(result.artifacts.sweResult, undefined);
+  assert.ok(result.artifacts.answerResult);
+  assert.equal(
+    commands.filter((command) => command.includes("aa test")).length,
+    1,
+  );
+  assert.equal(
+    commands.filter((command) => command === "ohpm install").length,
+    1,
+  );
+  assert.match(
+    await fs.readFile(
+      path.join(
+        result.artifacts.workdir ?? "",
+        "products/entry/src/main/ets/Index.ets",
+      ),
+      "utf-8",
+    ),
+    /answer/,
+  );
+  assert.match(await fs.readFile(path.join(out, "summary.md"), "utf-8"), /\| swe \| not run \|/);
+});
+
+test("runOhosTestCase can run swe without applying golden patch", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-runner-swe-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs");
+  const commands: string[] = [];
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    runMode: "swe",
+    keepWorkdir: true,
+    commandExecutor: async (command) => {
+      commands.push(command);
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : command.includes("list targets")
+            ? "127.0.0.1:15001\tConnected\n"
+            : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.runs.swe?.status, "completed");
+  assert.equal(result.runs.answer, undefined);
+  assert.ok(result.artifacts.sweResult);
+  assert.equal(result.artifacts.answerResult, undefined);
+  assert.equal(
+    commands.filter((command) => command.includes("aa test")).length,
+    1,
+  );
+  assert.equal(
+    commands.filter((command) => command.includes("golden_patch.patch"))
+      .length,
+    0,
+  );
+  assert.match(
+    await fs.readFile(
+      path.join(
+        result.artifacts.workdir ?? "",
+        "products/entry/src/main/ets/Index.ets",
+      ),
+      "utf-8",
+    ),
+    /base/,
   );
 });
 
@@ -327,6 +447,7 @@ test("runOhosTestCase uses enabled devices for full test runs", async (t) => {
     caseDir,
     machineConfigPath,
     out: path.join(root, "runs"),
+    runMode: "all",
     commandExecutor: async (command) => {
       commands.push(command);
       return {
@@ -385,6 +506,7 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     caseDir,
     machineConfigPath,
     out,
+    runMode: "all",
     keepWorkdir: true,
     commandExecutor: async (command) => ({
       stdout: command.includes("aa test")

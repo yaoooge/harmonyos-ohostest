@@ -70,6 +70,8 @@ test("parseOhosTestCaseArgs parses case mode arguments", () => {
     "false",
     "--keep-workdir",
     "true",
+    "--run",
+    "swe",
   ]);
 
   assert.deepEqual(parsed, {
@@ -79,7 +81,22 @@ test("parseOhosTestCaseArgs parses case mode arguments", () => {
     skipBuild: true,
     keepEmulators: false,
     keepWorkdir: true,
+    runMode: "swe",
   });
+});
+
+test("parseOhosTestCaseArgs defaults to answer run mode", () => {
+  assert.deepEqual(parseOhosTestCaseArgs(["--case", "/tmp/case"]), {
+    caseDir: "/tmp/case",
+    runMode: "answer",
+  });
+});
+
+test("parseOhosTestCaseArgs rejects unknown run mode", () => {
+  assert.throws(
+    () => parseOhosTestCaseArgs(["--case", "/tmp/case", "--run", "both"]),
+    /--run/,
+  );
 });
 
 test("parseOhosTestCaseArgs rejects device filtering", () => {

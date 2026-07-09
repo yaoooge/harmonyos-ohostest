@@ -1,10 +1,13 @@
 import type { CommandExecutor } from "../../shared/types/index.js";
 import type { MatrixResult } from "../../matrix/types/index.js";
 
+export type CaseRunMode = "answer" | "swe" | "all";
+
 export interface RunCaseInput {
   caseDir: string;
   machineConfigPath?: string;
   out?: string;
+  runMode?: CaseRunMode;
   skipBuild?: boolean;
   keepEmulators?: boolean;
   keepWorkdir?: boolean;

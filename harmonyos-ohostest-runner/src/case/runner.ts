@@ -53,6 +53,7 @@ async function runCaseComparisons(
   input: RunCaseInput,
   context: CaseRunContext,
 ): Promise<void> {
+  const runMode = input.runMode ?? "answer";
   const runPatchCommand = loggedPatchCommand(context);
   await copyBaseProject({
     baseProject: context.metadata.baseProject,
@@ -73,25 +74,29 @@ async function runCaseComparisons(
     context.metadata,
     matrixConfig,
   );
-  context.runs.swe = await runCaseMatrix(
-    input,
-    context,
-    deviceSelection,
-    "swe",
-  );
+  if (runMode === "swe" || runMode === "all") {
+    context.runs.swe = await runCaseMatrix(
+      input,
+      context,
+      deviceSelection,
+      "swe",
+    );
+  }
 
-  await applyPatch({
-    project: context.workProject,
-    patchFile: context.metadata.goldenPatch,
-    label: "golden_patch",
-    commandExecutor: runPatchCommand,
-  });
-  context.runs.answer = await runCaseMatrix(
-    input,
-    context,
-    deviceSelection,
-    "answer",
-  );
+  if (runMode === "answer" || runMode === "all") {
+    await applyPatch({
+      project: context.workProject,
+      patchFile: context.metadata.goldenPatch,
+      label: "golden_patch",
+      commandExecutor: runPatchCommand,
+    });
+    context.runs.answer = await runCaseMatrix(
+      input,
+      context,
+      deviceSelection,
+      "answer",
+    );
+  }
 }
 
 function loggedPatchCommand(

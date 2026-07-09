@@ -1,15 +1,17 @@
-import type { RunCaseInput } from "../case/types/index.js";
+import type { CaseRunMode, RunCaseInput } from "../case/types/index.js";
+
+const knownCaseArgs = new Set([
+  "--case",
+  "--machine-config",
+  "--out",
+  "--skip-build",
+  "--keep-emulators",
+  "--keep-workdir",
+  "--run",
+]);
 
 export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
   const values = new Map<string, string>();
-  const knownArgs = new Set([
-    "--case",
-    "--machine-config",
-    "--out",
-    "--skip-build",
-    "--keep-emulators",
-    "--keep-workdir",
-  ]);
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -21,7 +23,7 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
         "case_device_cli_not_supported: case 模式不支持 --device。",
       );
     }
-    if (!knownArgs.has(arg)) {
+    if (!knownCaseArgs.has(arg)) {
       throw new Error(`未知参数 ${arg}。`);
     }
     const value = args[index + 1];
@@ -37,11 +39,13 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
     throw new Error("缺少必填参数 --case。");
   }
   const machineConfigPath = values.get("--machine-config");
+  const runMode = readRunMode(values.get("--run"));
 
   return {
     caseDir,
     ...(machineConfigPath ? { machineConfigPath } : {}),
     ...(values.has("--out") ? { out: values.get("--out") } : {}),
+    runMode,
     ...(values.has("--skip-build")
       ? { skipBuild: readBoolean(values.get("--skip-build")) }
       : {}),
@@ -52,6 +56,16 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
       ? { keepWorkdir: readBoolean(values.get("--keep-workdir")) }
       : {}),
   };
+}
+
+function readRunMode(value: string | undefined): CaseRunMode {
+  if (!value) {
+    return "answer";
+  }
+  if (value === "answer" || value === "swe" || value === "all") {
+    return value;
+  }
+  throw new Error("参数 --run 只支持 answer、swe、all。");
 }
 
 function readBoolean(value: string | undefined): boolean {

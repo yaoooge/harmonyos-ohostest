@@ -12,10 +12,13 @@ export function deriveCaseStatus(
   if (diagnostics.length > 0) {
     return "failed";
   }
-  if (!runs.swe || !runs.answer) {
+  const executedRuns = [runs.swe, runs.answer].filter(
+    (run): run is MatrixResult => Boolean(run),
+  );
+  if (executedRuns.length === 0) {
     return "failed";
   }
-  if (runs.swe.status !== "completed" || runs.answer.status !== "completed") {
+  if (executedRuns.some((run) => run.status !== "completed")) {
     return "failed";
   }
   return "completed";
@@ -81,7 +84,7 @@ export function metadataForResult(
 
 function runRow(label: string, run: MatrixResult | undefined): string {
   if (!run) {
-    return `| ${label} | missing | 0 | 0 | 0 | 0 | 0 | 0 |`;
+    return `| ${label} | not run | 0 | 0 | 0 | 0 | 0 | 0 |`;
   }
   const totals = run.devices.reduce(
     (aggregate, device) => ({
@@ -175,17 +178,22 @@ function categoryRow(
   const sweSuite = findSuite(result.runs.swe, deviceId, suiteClass);
   const answerSuite = findSuite(result.runs.answer, deviceId, suiteClass);
   const expected =
-    category === "pass_to_pass"
+    !result.runs.swe || !result.runs.answer
+      ? "not run"
+      : category === "pass_to_pass"
       ? "SWE pass, Answer pass"
       : "SWE fail, Answer pass";
-  const verdict = suiteVerdict(sweSuite, answerSuite, category);
+  const verdict =
+    !result.runs.swe || !result.runs.answer
+      ? "not run"
+      : suiteVerdict(sweSuite, answerSuite, category);
   return [
     "|",
     suiteClass,
     "|",
-    formatSuiteStatus(sweSuite),
+    result.runs.swe ? formatSuiteStatus(sweSuite) : "not run",
     "|",
-    formatSuiteStatus(answerSuite),
+    result.runs.answer ? formatSuiteStatus(answerSuite) : "not run",
     "|",
     expected,
     "|",
@@ -244,6 +252,9 @@ function totalsRow(
   label: "swe" | "answer",
   run: MatrixResult | undefined,
 ): string {
+  if (!run) {
+    return `| ${label} | not run | not run | not run |`;
+  }
   const totals = categoryTotals(run);
   const verdict =
     label === "swe"

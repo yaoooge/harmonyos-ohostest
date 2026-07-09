@@ -39,15 +39,16 @@ npm run ohostest:matrix -- \
   --project /path/to/ResponsiveRepeatLayout
 ```
 
-以 SWE case 目录执行两轮验证：
+以 SWE case 目录执行默认 answer 验证：
 
 ```bash
 npm run ohostest:case -- \
   --case /path/to/ResponsiveRepeatLayout/case
 ```
 
-case 模式会读取 `case/metadata.json`，将 `base_project + test_patch` 作为 `swe` 轮执行，
-再在同一工作目录继续应用 `golden_patch` 作为 `answer` 轮执行。设备连接、模拟器和工具路径仍来自
+默认会读取 `case/metadata.json`，在 `base_project + test_patch` 基础上继续应用 `golden_patch`，
+只执行 `answer` 轮。需要完整 SWE/Answer 双轮比较时传入 `--run all`；只验证题目工程时传入
+`--run swe`。设备连接、模拟器和工具路径仍来自
 `config/machine.json`。实际设备集合优先使用 `metadata.device_test_suites`，其次使用
 `metadata.enabled_devices`，两者都没有时使用 `machine.json.devices`。没有 `device_test_suites` 时每台设备执行
 全量测试，不继承 `machine.json.devices[].testSuites`。默认报告输出到 `<case>/.ohostest-runs/<timestamp>/`。
@@ -65,6 +66,7 @@ case 模式额外支持：
 
 ```text
 --case <path>                 指定 case 目录
+--run answer|swe|all          运行范围，默认 answer
 --keep-workdir true|false     是否保留合成工程目录，默认 false
 ```
 
