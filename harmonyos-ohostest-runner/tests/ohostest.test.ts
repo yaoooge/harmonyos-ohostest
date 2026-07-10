@@ -14,7 +14,7 @@ test("buildAaTestCommand emits full module command without class filter", () => 
 
   assert.equal(
     command,
-    "/fake/hdc -t 127.0.0.1:15001 shell aa test -b zhsc.1.xxxxxx -m entry_test -s unittest OpenHarmonyTestRunner -w 120000",
+    "/fake/hdc -t 127.0.0.1:15001 shell aa test -b zhsc.1.xxxxxx -m entry_test -s unittest OpenHarmonyTestRunner -s timeout 15000 -w 120000",
   );
 });
 
@@ -30,6 +30,7 @@ test("buildAaTestCommand includes class filter when configured", () => {
   });
 
   assert.match(command, /-s class HomePageAdaptiveTest/);
+  assert.match(command, /-s timeout 15000/);
 });
 
 test("parseAaTestOutput extracts summary and report code", () => {

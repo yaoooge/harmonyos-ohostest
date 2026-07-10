@@ -229,13 +229,13 @@ Install command:
 Full test command:
 
 ```bash
-<hdc> -t <target> shell aa test -b <bundleName> -m <testModule> -s unittest <testRunner> -w <timeoutMs>
+<hdc> -t <target> shell aa test -b <bundleName> -m <testModule> -s unittest <testRunner> -s timeout 15000 -w <timeoutMs>
 ```
 
 Class-filtered test command:
 
 ```bash
-<hdc> -t <target> shell aa test -b <bundleName> -m <testModule> -s unittest <testRunner> -s class <testClass> -w <timeoutMs>
+<hdc> -t <target> shell aa test -b <bundleName> -m <testModule> -s unittest <testRunner> -s class <testClass> -s timeout 15000 -w <timeoutMs>
 ```
 
 Device preparation commands:

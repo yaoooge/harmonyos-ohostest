@@ -11,6 +11,8 @@ export interface BuildAaTestCommandInput {
   testClass?: string;
 }
 
+export const AA_TEST_CASE_TIMEOUT_MS = 15000;
+
 export function buildAaTestCommand(input: BuildAaTestCommandInput): string {
   return [
     shellQuote(input.hdc),
@@ -24,6 +26,8 @@ export function buildAaTestCommand(input: BuildAaTestCommandInput): string {
     "-s unittest",
     shellQuote(input.testRunner),
     ...(input.testClass ? ["-s class", shellQuote(input.testClass)] : []),
+    "-s timeout",
+    String(AA_TEST_CASE_TIMEOUT_MS),
     "-w",
     String(input.timeoutMs),
   ].join(" ");
