@@ -10,10 +10,50 @@ export async function copyBaseProject(input: {
 }): Promise<void> {
   await fs.rm(input.workProject, { recursive: true, force: true });
   await fs.mkdir(path.dirname(input.workProject), { recursive: true });
-  await fs.cp(input.baseProject, input.workProject, {
-    recursive: true,
-    filter: (source) => path.basename(source) !== ".git",
-  });
+  await copyProjectEntry(input.baseProject, input.workProject);
+}
+
+async function copyProjectEntry(
+  source: string,
+  destination: string,
+): Promise<void> {
+  if (path.basename(source) === ".git") {
+    return;
+  }
+
+  const stat = await fs.lstat(source);
+  if (stat.isSymbolicLink()) {
+    await copyProjectTarget(await fs.realpath(source), destination);
+    return;
+  }
+
+  await copyProjectTarget(source, destination);
+}
+
+async function copyProjectTarget(
+  source: string,
+  destination: string,
+): Promise<void> {
+  const stat = await fs.stat(source);
+  if (stat.isDirectory()) {
+    await fs.mkdir(destination, { recursive: true });
+    const entries = await fs.readdir(source);
+    for (const entry of entries) {
+      await copyProjectEntry(
+        path.join(source, entry),
+        path.join(destination, entry),
+      );
+    }
+    return;
+  }
+
+  if (stat.isFile()) {
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.copyFile(source, destination);
+    return;
+  }
+
+  throw new Error(`copy_base_project_unsupported_entry: ${source}`);
 }
 
 export async function applyPatch(input: {

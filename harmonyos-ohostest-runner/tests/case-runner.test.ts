@@ -533,7 +533,7 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     result.artifacts.commandLog,
     path.relative(caseDir, path.join(out, "commands.log")),
   );
-  assert.match(commandLog, /git apply --check/);
+  assert.match(commandLog, /git apply --ignore-whitespace --check/);
   assert.match(commandLog, /golden_patch\.patch/);
   assert.match(commandLog, /exitCode: [1-9]/);
   assert.match(commandLog, /stderr:\n.+/s);
