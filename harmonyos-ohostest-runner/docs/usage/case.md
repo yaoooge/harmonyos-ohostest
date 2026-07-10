@@ -90,9 +90,63 @@ case/
 
 case 模式使用 `machine.json` 中的机器相关配置：
 
-- 工具路径：`paths.hvigorw`、`paths.ohpm`、`paths.hdc`、`paths.emulatorBin`、`paths.emulatorDeployedDir`、`paths.foldServerScript`
-- 设备连接信息：`devices[].id`、`profile`、`target`、`hdcPort`、`startEmulator`、`foldControl`
-- HarmonyOS 工程覆盖项：`product`、`module`、`bundleName`、`testModule`、`testRunner`、`timeoutMs`、`build`、`artifacts`
+## 设备矩阵配置
+
+默认配置文件：
+
+```text
+config/machine.json
+```
+
+配置示例：
+
+```json
+{
+  "paths": {
+    "hvigorw": "/path/to/hvigorw",
+    "ohpm": "/path/to/ohpm",
+    "hdc": "/path/to/hdc",
+    "emulatorBin": "/path/to/Emulator",
+    "emulatorDeployedDir": "/path/to/.Huawei/Emulator/deployed",
+    "foldServerScript": "src/fold/assets/fold-server.py"
+  },
+  "devices": [
+    {
+      "id": "phone",
+      "profile": "Mate 80 Pro",
+      "target": "127.0.0.1:15001",
+      "hdcPort": 15001,
+      "startEmulator": true
+    },
+    {
+      "id": "foldable",
+      "profile": "Mate X7",
+      "target": "127.0.0.1:15002",
+      "hdcPort": 15002,
+      "startEmulator": true,
+      "foldControl": true
+    }
+  ]
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+|------|------|
+| `paths.hvigorw` | Hvigor 命令，必填；如果命令目录已加入环境变量，可填写 `hvigorw` |
+| `paths.ohpm` | ohpm 命令，可选；如果不配置，默认使用 `ohpm` |
+| `paths.hdc` | hdc 命令，必填；如果命令目录已加入环境变量，可填写 `hdc` |
+| `paths.emulatorBin` | DevEco 模拟器命令，必填；如果模拟器目录已加入环境变量，可填写 `Emulator` |
+| `paths.emulatorDeployedDir` | 模拟器实例目录，必填 |
+| `paths.foldServerScript` | fold-server.py 路径；有设备启用 `foldControl` 时必填 |
+| `devices[].id` | 设备标识，用于 `--device` |
+| `devices[].profile` | 模拟器 profile 名称 |
+| `devices[].target` | hdc target，例如 `127.0.0.1:15002` |
+| `devices[].hdcPort` | 启动模拟器时使用的 hdc 端口 |
+| `devices[].startEmulator` | 是否由运行器启动该模拟器 |
+| `devices[].foldControl` | 是否启用折叠屏/旋转控制 |
+
 
 case 模式按以下优先级决定设备与 suite：
 
@@ -100,7 +154,7 @@ case 模式按以下优先级决定设备与 suite：
 2. 无 `device_test_suites`、有 `metadata.enabled_devices` 时，按 enabled 设备执行全量测试。
 3. 两者都没有时，按 `machine.json.devices` 中全部设备执行全量测试。
 
-全量测试表示不传 suite class 过滤条件。`machine.json` 中的 `devices[].testSuites` 不参与 case 模式的全量测试选择。
+`machine.json` 中的 `devices[].testSuites` 不参与 case 模式的全量测试选择。
 
 ## 执行流程
 
