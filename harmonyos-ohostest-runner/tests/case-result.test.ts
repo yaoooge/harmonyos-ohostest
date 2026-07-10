@@ -2,13 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderCaseSummary } from "../src/case/result.js";
 import type { CaseResult } from "../src/index.js";
-import type { DeviceRunResult, MatrixResult, SuiteRunResult } from "../src/matrix/types/index.js";
+import type {
+  DeviceRunResult,
+  MatrixResult,
+  SuiteRunResult,
+  TestCaseRunResult,
+} from "../src/matrix/types/index.js";
 
 function suite(
   suiteClass: string,
   status: SuiteRunResult["status"],
   testsRun: number,
   failures: number,
+  testCases: TestCaseRunResult[] = [],
 ): SuiteRunResult {
   return {
     suiteClass,
@@ -20,7 +26,18 @@ function suite(
     ignored: 0,
     reportCode: failures === 0 ? 0 : -1,
     ok: failures === 0,
-    testCases: [],
+    testCases,
+  };
+}
+
+function testCase(
+  name: string,
+  status: TestCaseRunResult["status"],
+): TestCaseRunResult {
+  return {
+    name,
+    status,
+    statusCode: status === "passed" ? 0 : -1,
   };
 }
 
@@ -68,8 +85,21 @@ function matrix(devices: DeviceRunResult[]): MatrixResult {
   };
 }
 
-test("renderCaseSummary splits pass_to_pass and fail_to_pass for every device", () => {
-  const summary = renderCaseSummary({
+function baseCaseResult(
+  runs: CaseResult["runs"],
+  metadata: CaseResult["metadata"] = {
+    passToPass: ["should_launch", "should_keep_small"],
+    failToPass: ["should_adapt_medium", "should_adapt_large"],
+    deviceTestSuites: {
+      foldable: [
+        { suite: "CommonSmokeTest" },
+        { suite: "MdAdaptiveSuite" },
+      ],
+      tablet: [{ suite: "LargeScreenSuite" }],
+    },
+  },
+): CaseResult {
+  return {
     schemaVersion: "ohostest-case-v1",
     caseId: "responsive-repeat-layout",
     caseDir: "/tmp/case",
@@ -78,72 +108,199 @@ test("renderCaseSummary splits pass_to_pass and fail_to_pass for every device", 
     finishedAt: "2026-07-02T00:00:01.000Z",
     durationMs: 1,
     status: "completed",
-    metadata: {
-      passToPass: ["should_launch", "should_keep_sm"],
-      failToPass: ["should_adapt_md", "should_adapt_lg"],
-      deviceTestSuites: {
-        phone: [{ suite: "CommonPassToPassTest" }, { suite: "SmPassToPassTest" }],
-        foldable: [
-          { suite: "CommonPassToPassTest" },
-          { suite: "SmPassToPassTest" },
-          { suite: "MdFailToPassTest" },
-        ],
-        tablet: [{ suite: "CommonPassToPassTest" }, { suite: "LgFailToPassTest" }],
-      },
-    },
-    runs: {
-      swe: matrix([
-        device("phone", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("SmPassToPassTest", "passed", 3, 0),
-        ]),
-        device("foldable", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("SmPassToPassTest", "passed", 3, 0),
-          suite("MdFailToPassTest", "failed", 2, 2),
-        ]),
-        device("tablet", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("LgFailToPassTest", "failed", 3, 3),
-        ]),
-      ]),
-      answer: matrix([
-        device("phone", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("SmPassToPassTest", "passed", 3, 0),
-        ]),
-        device("foldable", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("SmPassToPassTest", "passed", 3, 0),
-          suite("MdFailToPassTest", "passed", 2, 0),
-        ]),
-        device("tablet", [
-          suite("CommonPassToPassTest", "passed", 8, 0),
-          suite("LgFailToPassTest", "passed", 3, 0),
-        ]),
-      ]),
-    },
+    metadata,
+    runs,
     artifacts: {
       result: ".ohostest-runs/run/result.json",
       summary: ".ohostest-runs/run/summary.md",
       commandLog: ".ohostest-runs/run/commands.log",
     },
     diagnostics: [],
-  } satisfies CaseResult);
+  };
+}
 
-  assert.match(summary, /## Device Results/);
-  assert.match(summary, /### phone\n\n#### pass_to_pass/);
-  assert.match(summary, /#### fail_to_pass\n\n\| Suite \| SWE \| Answer \| Expected \| Verdict \|/);
-  assert.match(summary, /\| none \| - \| - \| - \| - \|/);
-  assert.match(summary, /### foldable\n\n#### pass_to_pass/);
+test("renderCaseSummary lists comparison results by test case and classifies from metadata", () => {
+  const summary = renderCaseSummary(
+    baseCaseResult({
+      swe: matrix([
+        device("foldable", [
+          suite("CommonSmokeTest", "passed", 2, 0, [
+            testCase("should_launch", "passed"),
+            testCase("should_keep_small", "passed"),
+          ]),
+          suite("MdAdaptiveSuite", "failed", 2, 1, [
+            testCase("should_adapt_medium", "failed"),
+            testCase("should_unknown_metadata", "passed"),
+          ]),
+        ]),
+        device("tablet", [
+          suite("LargeScreenSuite", "failed", 1, 1, [
+            testCase("should_adapt_large", "failed"),
+          ]),
+        ]),
+      ]),
+      answer: matrix([
+        device("foldable", [
+          suite("CommonSmokeTest", "passed", 2, 0, [
+            testCase("should_launch", "passed"),
+            testCase("should_keep_small", "passed"),
+          ]),
+          suite("MdAdaptiveSuite", "passed", 2, 0, [
+            testCase("should_adapt_medium", "passed"),
+            testCase("should_unknown_metadata", "passed"),
+          ]),
+        ]),
+        device("tablet", [
+          suite("LargeScreenSuite", "passed", 1, 0, [
+            testCase("should_adapt_large", "passed"),
+          ]),
+        ]),
+      ]),
+    }),
+  );
+
+  assert.match(summary, /### foldable\n\n#### Comparison Results/);
   assert.match(
     summary,
-    /\| MdFailToPassTest \| failed, 0\/2, failures=2 \| passed, 2\/2 \| SWE fail, Answer pass \| correct \|/,
+    /\| Suite \| Test Case \| Category \| SWE Actual \| Answer Actual \| Expected \| Verdict \|/,
   );
   assert.match(
     summary,
-    /\| LgFailToPassTest \| failed, 0\/3, failures=3 \| passed, 3\/3 \| SWE fail, Answer pass \| correct \|/,
+    /\| CommonSmokeTest \| should_launch \| pass_to_pass \| passed \| passed \| SWE pass, Answer pass \| correct \|/,
   );
-  assert.match(summary, /\| swe \| 30 passed \/ 0 failed \| 0 passed \/ 5 failed \| correct \|/);
-  assert.match(summary, /\| answer \| 30 passed \/ 0 failed \| 5 passed \/ 0 failed \| correct \|/);
+  assert.match(
+    summary,
+    /\| MdAdaptiveSuite \| should_adapt_medium \| fail_to_pass \| failed \| passed \| SWE fail, Answer pass \| correct \|/,
+  );
+  assert.match(
+    summary,
+    /\| MdAdaptiveSuite \| should_unknown_metadata \| unclassified \| passed \| passed \| metadata category required \| incorrect \|/,
+  );
+  assert.doesNotMatch(summary, /##### MdAdaptiveSuite Cases/);
+  assert.doesNotMatch(summary, /\| MdAdaptiveSuite \| fail_to_pass \|/);
+  assert.match(
+    summary,
+    /\| foldable \| swe \| 4 \| 3 \| 1 \| incorrect \|/,
+  );
+  assert.match(
+    summary,
+    /\| foldable \| answer \| 4 \| 3 \| 1 \| incorrect \|/,
+  );
+  assert.match(summary, /\| tablet \| swe \| 1 \| 1 \| 0 \| correct \|/);
+  assert.match(
+    summary,
+    /\| tablet \| answer \| 1 \| 1 \| 0 \| correct \|/,
+  );
+});
+
+test("renderCaseSummary classifies fail_to_pass from metadata instead of suite name", () => {
+  const summary = renderCaseSummary(
+    baseCaseResult({
+      swe: matrix([
+        device("foldable", [
+          suite("NameContainsFailToPassButMetadataPass", "passed", 1, 0, [
+            testCase("should_launch", "passed"),
+          ]),
+          suite("NameWithoutSpecialSuffix", "failed", 1, 1, [
+            testCase("should_adapt_medium", "failed"),
+          ]),
+        ]),
+      ]),
+    }),
+  );
+
+  assert.match(summary, /### foldable\n\n#### SWE Results/);
+  assert.match(
+    summary,
+    /\| Suite \| Test Case \| Category \| SWE Actual \| Expected \| Verdict \|/,
+  );
+  assert.match(
+    summary,
+    /\| NameContainsFailToPassButMetadataPass \| should_launch \| pass_to_pass \| passed \| SWE pass \| correct \|/,
+  );
+  assert.match(
+    summary,
+    /\| NameWithoutSpecialSuffix \| should_adapt_medium \| fail_to_pass \| failed \| SWE fail \| correct \|/,
+  );
+  assert.match(
+    summary,
+    /\| foldable \| swe \| 2 \| 2 \| 0 \| correct \|/,
+  );
+});
+
+test("renderCaseSummary marks answer-only cases against answer expectations", () => {
+  const summary = renderCaseSummary(
+    baseCaseResult({
+      answer: matrix([
+        device("foldable", [
+          suite("CommonSmokeTest", "passed", 1, 0, [
+            testCase("should_launch", "passed"),
+          ]),
+          suite("MdAdaptiveSuite", "failed", 2, 1, [
+            testCase("should_adapt_medium", "passed"),
+            testCase("should_adapt_large", "failed"),
+          ]),
+        ]),
+      ]),
+    }),
+  );
+
+  assert.match(summary, /### foldable\n\n#### Answer Results/);
+  assert.match(
+    summary,
+    /\| CommonSmokeTest \| should_launch \| pass_to_pass \| passed \| Answer pass \| correct \|/,
+  );
+  assert.match(
+    summary,
+    /\| MdAdaptiveSuite \| should_adapt_medium \| fail_to_pass \| passed \| Answer pass \| correct \|/,
+  );
+  assert.match(
+    summary,
+    /\| MdAdaptiveSuite \| should_adapt_large \| fail_to_pass \| failed \| Answer pass \| incorrect \|/,
+  );
+  assert.match(
+    summary,
+    /\| foldable \| answer \| 3 \| 2 \| 1 \| incorrect \|/,
+  );
+  assert.doesNotMatch(summary, /SWE Actual/);
+});
+
+test("renderCaseSummary marks conflicts and suites without parsed cases as incorrect", () => {
+  const summary = renderCaseSummary(
+    baseCaseResult(
+      {
+        swe: matrix([
+          device("foldable", [
+            suite("ConflictSuite", "passed", 1, 0, [
+              testCase("should_be_conflicted", "passed"),
+            ]),
+            suite("NoParsedCasesSuite", "failed", 2, 2, []),
+          ]),
+        ]),
+      },
+      {
+        passToPass: ["should_be_conflicted"],
+        failToPass: ["should_be_conflicted"],
+        deviceTestSuites: {
+          foldable: [
+            { suite: "ConflictSuite" },
+            { suite: "NoParsedCasesSuite" },
+          ],
+        },
+      },
+    ),
+  );
+
+  assert.match(
+    summary,
+    /\| ConflictSuite \| should_be_conflicted \| conflict \| passed \| metadata category required \| incorrect \|/,
+  );
+  assert.match(
+    summary,
+    /\| NoParsedCasesSuite \| none parsed \| unclassified \| failed, 0\/2, failures=2 \| metadata category required \| incorrect \|/,
+  );
+  assert.match(
+    summary,
+    /\| foldable \| swe \| 2 \| 0 \| 2 \| incorrect \|/,
+  );
 });

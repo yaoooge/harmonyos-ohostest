@@ -173,43 +173,32 @@ case 模式按以下优先级决定设备与 suite：
 
 ```text
 <case>/.ohostest-runs/<timestamp>/
-  result.json
-  summary.md
-  swe/
-    result.json
-    summary.md
-    commands.log
+  result.json          # case 级 JSON 报告，包含 metadata、runs.swe/runs.answer、artifacts、diagnostics
+  summary.md           # case 级 Markdown 汇总，包含 Runs、Device Results、Totals、Device Suites、Pass/Fail To Pass
+  commands.log         # case 级命令日志，记录 patch apply 等 case 编排命令；patch 失败时用于定位 stderr
+  swe/                 # 仅在执行 --run swe 或 --run all 时生成
+    result.json        # swe 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
+    summary.md         # swe 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
+    commands.log       # swe 矩阵命令日志，记录构建、安装、aa test、设备控制等命令输出
     devices/
-  answer/
-    result.json
-    summary.md
-    commands.log
+      <device>.log     # 单设备执行日志，包含该设备安装、测试、解析过程的诊断信息
+  answer/              # 仅在执行 --run answer 或 --run all 时生成
+    result.json        # answer 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
+    summary.md         # answer 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
+    commands.log       # answer 矩阵命令日志，记录构建、安装、aa test、设备控制等命令输出
     devices/
-  work/
-    project/
+      <device>.log     # 单设备执行日志，包含该设备安装、测试、解析过程的诊断信息
+  work/                # 合成工程工作目录；--keep-workdir false 时运行结束后删除
+    project/           # base_project + test_patch，answer/all 模式下还会继续应用 golden_patch
 ```
 
 `--keep-workdir false` 时，运行结束后删除 `work/`。
 
-case 级 `result.json` 使用 `ohostest-case-v1` schema，包含：
-
-- `caseId`
-- `caseDir`
-- `baseProject`
-- `status`
-- `metadata.passToPass`
-- `metadata.failToPass`
-- `metadata.deviceTestSuites`
-- `runs.swe`
-- `runs.answer`
-- `artifacts`
-- `diagnostics`
-
 case 级 `summary.md` 包含：
 
 - `Runs`：swe 和 answer 两侧总体统计，未执行的一侧显示 `not run`
-- `Device Results`：每台设备分别列出 `pass_to_pass` 和 `fail_to_pass`
-- `Totals`：按 `pass_to_pass` 和 `fail_to_pass` 汇总 swe/answer 的通过与失败数量
+- `Device Results`：每台设备按 test case 列出执行结果，并通过 `Suite` 列辅助定位
+- `Totals`：按设备和运行侧汇总整体判定；`--run all` 时每台设备分别输出 swe 和 answer
 - `Device Suites`：metadata 中的设备 suite 列表
 - `Pass To Pass`：metadata 中的 pass-to-pass 用例名
 - `Fail To Pass`：metadata 中的 fail-to-pass 用例名
@@ -217,23 +206,70 @@ case 级 `summary.md` 包含：
 
 `Device Results` 的表格结构：
 
+单独运行 `--run swe`：
+
 ```markdown
 ### foldable
 
-#### pass_to_pass
+#### SWE Results
 
-| Suite | SWE | Answer | Expected | Verdict |
-| --- | --- | --- | --- | --- |
-| CommonPassToPassTest | passed, 8/8 | passed, 8/8 | SWE pass, Answer pass | correct |
-
-#### fail_to_pass
-
-| Suite | SWE | Answer | Expected | Verdict |
-| --- | --- | --- | --- | --- |
-| MdFailToPassTest | failed, 0/2, failures=2 | passed, 2/2 | SWE fail, Answer pass | correct |
+| Suite | Test Case | Category | SWE Actual | Expected | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| CommonPassToPassTest | should_start_ability_successfully | pass_to_pass | passed | SWE pass | correct |
+| MdAdaptiveTest | should_use_two_columns_on_foldable | fail_to_pass | failed | SWE fail | correct |
+| MdAdaptiveTest | should_keep_card_width_adaptive | fail_to_pass | passed | SWE fail | incorrect |
+| MdAdaptiveTest | should_have_metadata_entry | unclassified | passed | metadata category required | incorrect |
 ```
 
-suite class 名称包含 `FailToPass` 时归入 `fail_to_pass`。其他 suite class 归入 `pass_to_pass`。
+单独运行 `--run answer`：
+
+```markdown
+### foldable
+
+#### Answer Results
+
+| Suite | Test Case | Category | Answer Actual | Expected | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| CommonPassToPassTest | should_start_ability_successfully | pass_to_pass | passed | Answer pass | correct |
+| MdAdaptiveTest | should_use_two_columns_on_foldable | fail_to_pass | passed | Answer pass | correct |
+| MdAdaptiveTest | should_keep_card_width_adaptive | fail_to_pass | failed | Answer pass | incorrect |
+```
+
+运行 `--run all`：
+
+```markdown
+### foldable
+
+#### Comparison Results
+
+| Suite | Test Case | Category | SWE Actual | Answer Actual | Expected | Verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| CommonPassToPassTest | should_start_ability_successfully | pass_to_pass | passed | passed | SWE pass, Answer pass | correct |
+| MdAdaptiveTest | should_use_two_columns_on_foldable | fail_to_pass | failed | passed | SWE fail, Answer pass | correct |
+| MdAdaptiveTest | should_keep_card_width_adaptive | fail_to_pass | passed | passed | SWE fail, Answer pass | incorrect |
+```
+
+test case 分类只来自 `metadata.json`：
+
+- `metadata.pass_to_pass` 中的 test case 归为 `pass_to_pass`。
+- `metadata.fail_to_pass` 中的 test case 归为 `fail_to_pass`。
+- 同时出现在两边时归为 `conflict`，固定判为 `incorrect`。
+- 未出现在任一数组中时归为 `unclassified`，固定判为 `incorrect`。
+
+当 suite 没有解析到 test case 明细时，输出 `none parsed` 行，并用 suite 级状态作为 actual，但分类为 `unclassified`。
+
+`Totals` 的表格结构：
+
+```markdown
+## Totals
+
+| Device | Run | Tests | Correct | Incorrect | Verdict |
+| --- | --- | ---: | ---: | ---: | --- |
+| foldable | swe | 13 | 13 | 0 | correct |
+| foldable | answer | 13 | 13 | 0 | correct |
+| tablet | swe | 11 | 11 | 0 | correct |
+| tablet | answer | 11 | 11 | 0 | correct |
+```
 
 ## 状态
 
