@@ -56,7 +56,7 @@ export function buildGitApplyCommand(input: {
   const platform = input.platform ?? process.platform;
   const quotedPatch = shellQuote(input.patchFile, platform);
   const checkArg = input.check ? " --check" : "";
-  const gitApply = `git apply${checkArg} ${quotedPatch}`;
+  const gitApply = `git apply --ignore-whitespace${checkArg} ${quotedPatch}`;
   const ceiling =
     platform === "win32"
       ? path.win32.dirname(input.project)
