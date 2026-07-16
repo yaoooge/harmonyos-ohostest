@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the runner uninstall the configured application bundle from each target device before installing its app and test HAPs.
+**Goal:** Make the runner uninstall the configured application bundle from each target device before installing its app and test HAPs, then publish the fix as runner version `0.1.1` with a changelog entry.
 
 **Architecture:** Keep the behavior inside the existing `installHaps` device operation. Issue an HDC uninstall command using the existing target-specific command prefix and resolved bundle name, ignore its result, then retain the current install command and install-failure handling.
 
@@ -14,6 +14,8 @@
 
 - Modify `harmonyos-ohostest-runner/tests/device.test.ts`: add a focused regression test for uninstall/install ordering and ignored uninstall failure.
 - Modify `harmonyos-ohostest-runner/src/matrix/device.ts`: add the pre-install uninstall command to `installHaps`.
+- Modify `harmonyos-ohostest-runner/package.json`: bump the runner patch version to `0.1.1`.
+- Create `harmonyos-ohostest-runner/CHANGELOG.md`: document the `0.1.1` fix.
 
 ### Task 1: Uninstall the Existing Bundle Before HAP Installation
 
@@ -35,6 +37,10 @@ import {
 
 test("installHaps ignores uninstall failure and uninstalls the bundle before installing HAPs", async () => {
   const config = makeConfig();
+  config.artifacts = {
+    appHap: "/tmp/app.hap",
+    testHap: "/tmp/test.hap",
+  };
   const device: DeviceConfig = {
     id: "phone",
     target: "127.0.0.1:15001",
@@ -60,7 +66,7 @@ test("installHaps ignores uninstall failure and uninstalls the bundle before ins
 
   assert.deepEqual(commands, [
     "hdc -t 127.0.0.1:15001 uninstall zhsc.1.xxxxxx",
-    "hdc -t 127.0.0.1:15001 install -r 'D:\\Projects\\ResponsiveRepeatLayout\\entry-default-unsigned.hap' 'D:\\Projects\\ResponsiveRepeatLayout\\entry-ohosTest-unsigned.hap'",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/app.hap /tmp/test.hap",
   ]);
 });
 ```
@@ -119,4 +125,68 @@ Expected: all tests pass, ESLint reports no errors, and TypeScript compilation e
 ```bash
 git add harmonyos-ohostest-runner/tests/device.test.ts harmonyos-ohostest-runner/src/matrix/device.ts
 git commit -m "fix: uninstall bundle before installing haps"
+```
+
+### Task 2: Publish Runner Version 0.1.1 Metadata
+
+**Files:**
+- Modify: `harmonyos-ohostest-runner/package.json:3`
+- Create: `harmonyos-ohostest-runner/CHANGELOG.md`
+
+- [ ] **Step 1: Bump the runner patch version**
+
+Change the version field in `harmonyos-ohostest-runner/package.json`:
+
+```json
+"version": "0.1.1"
+```
+
+- [ ] **Step 2: Add the changelog**
+
+Create `harmonyos-ohostest-runner/CHANGELOG.md` with:
+
+```markdown
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.1] - 2026-07-16
+
+### Fixed
+
+- Uninstall the configured application bundle before installing app and test HAPs, preventing HDC error `9568267` (`install entry already exist`) when the same bundle is installed repeatedly on one device.
+- Ignore pre-install uninstall failures so first-time installation continues when the bundle is not present.
+```
+
+- [ ] **Step 3: Verify release metadata**
+
+Run from `harmonyos-ohostest-runner`:
+
+```bash
+node -p "require('./package.json').version"
+rg -F "## [0.1.1] - 2026-07-16" CHANGELOG.md
+```
+
+Expected output contains `0.1.1` and `## [0.1.1] - 2026-07-16`.
+
+- [ ] **Step 4: Re-run full verification after metadata changes**
+
+Run from `harmonyos-ohostest-runner`:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+Expected: all tests pass, ESLint reports no errors, and TypeScript compilation exits with code 0.
+
+- [ ] **Step 5: Commit release metadata**
+
+```bash
+git add harmonyos-ohostest-runner/package.json harmonyos-ohostest-runner/CHANGELOG.md docs/superpowers/plans/2026-07-16-runner-uninstall-before-install.md
+git commit -m "chore: release runner 0.1.1"
 ```
