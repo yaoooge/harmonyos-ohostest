@@ -47,6 +47,7 @@ case 允许的设备集合继续按现有优先级生成：
 - `src/case/config.ts`：在现有 metadata/machine 设备选择之后应用 CLI 过滤。
 - `src/case/runner.ts`：把输入设备列表传给设备选择函数；底层 matrix runner 保持不变。
 - README 与 case 使用文档：删除“不支持 `--device`”的说明并增加单设备、多设备示例。
+- `package.json` 与 `CHANGELOG.md`：发布补丁版本 `0.1.2`，记录 case 模式设备过滤能力。
 
 不改变 metadata 格式、machine 配置格式、suite 选择规则、报告 schema 或 matrix 模式行为。
 
@@ -65,5 +66,7 @@ case 允许的设备集合继续按现有优先级生成：
 3. case config 测试验证顺序、去重、suite 覆盖裁剪和非法设备错误。
 4. case runner 测试验证 SWE 与 Answer 均只把筛选后的设备传给 matrix runner 所产生的结果。
 5. 运行 runner 的单元测试、类型构建和 lint，确认没有回归。
+
+实现和验证完成后，将 runner 版本从 `0.1.1` 更新为 `0.1.2`，并在 changelog 中增加 `2026-07-16` 的功能条目。
 
 本功能不要求真实模拟器验证：它只改变 runner 的参数解析和纯配置选择，设备命令执行路径仍由现有 matrix 测试覆盖。
