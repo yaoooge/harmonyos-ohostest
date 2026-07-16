@@ -33,6 +33,16 @@ Regression tests verify that:
 3. A non-zero uninstall exit code does not prevent installation.
 4. Existing matrix-runner tests continue to pass.
 
+## Release Metadata
+
+The runner package version changes from `0.1.0` to `0.1.1`. A new
+`harmonyos-ohostest-runner/CHANGELOG.md` follows the Keep a Changelog layout and
+adds a `0.1.1` entry dated `2026-07-16` describing the pre-install uninstall fix
+and the intentionally ignored uninstall failure.
+
 ## Scope
 
-The change is limited to the device HAP installation flow and its tests. It does not add installation retries, installed-package discovery, or new configuration fields.
+The code change is limited to the device HAP installation flow and its tests.
+The only other changes are the runner package version and changelog. It does not
+add installation retries, installed-package discovery, or new configuration
+fields.
