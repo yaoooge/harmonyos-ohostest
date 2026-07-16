@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Temporarily add `tablet` to the entry module's `module.deviceTypes` while a case-mode SWE tablet matrix runs, restore the original file before Answer, and release runner version `0.1.3`.
+**Goal:** Temporarily add `tablet` to the entry module's `module.deviceTypes` while a case-mode SWE tablet matrix runs, restore the original file before Answer, and document the verified fix in the current `0.1.2` changelog.
 
 **Architecture:** Add a case-scoped wrapper that discovers the entry module, validates and temporarily rewrites its main `module.json5`, executes a callback, and restores the exact original content in `finally`. The case runner enables the wrapper only for SWE selections containing device ID `tablet`; Answer and the matrix runner remain unchanged.
 
@@ -17,8 +17,7 @@
 - `harmonyos-ohostest-runner/src/case/deviceCompatibility.ts`: isolated temporary module-config wrapper.
 - `harmonyos-ohostest-runner/tests/case-runner.test.ts`: orchestration tests for SWE/tablet, SWE/phone, Answer-only, and `all` restoration order.
 - `harmonyos-ohostest-runner/src/case/runner.ts`: wrap only SWE matrix execution.
-- `harmonyos-ohostest-runner/CHANGELOG.md`: record the compatibility-mode fix.
-- `harmonyos-ohostest-runner/package.json`: bump `0.1.2` to `0.1.3`.
+- `harmonyos-ohostest-runner/CHANGELOG.md`: after verification, append the compatibility-mode fix to the current `0.1.2` entry.
 
 ### Task 1: Reuse entry-module discovery
 
@@ -280,63 +279,63 @@ Run: `cd harmonyos-ohostest-runner && node --import tsx --test tests/case-runner
 
 Expected: all case runner tests pass.
 
-### Task 4: Release version 0.1.3
+### Task 4: Full implementation verification
 
 **Files:**
-- Modify: `harmonyos-ohostest-runner/package.json`
-- Modify: `harmonyos-ohostest-runner/CHANGELOG.md`
+- Verify every source and test file changed in Tasks 1-3.
 
-- [ ] **Step 1: Bump the package version**
+- [ ] **Step 1: Format all changed TypeScript and test files**
 
-Change `package.json` from `0.1.2` to `0.1.3`.
-
-- [ ] **Step 2: Add the changelog entry above 0.1.2**
-
-```md
-## [0.1.3] - 2026-07-16
-
-### 修复
-
-- case 模式在平板执行 SWE 时，临时为入口模块的 `module.deviceTypes` 增加 `tablet`，避免应用进入兼容模式而影响 UI 测试准确性。
-- SWE 执行结束或异常后恢复原始 `module.json5`，确保 Answer 和 golden patch 不受临时配置影响。
-```
-
-- [ ] **Step 3: Format all changed TypeScript, test, and JSON files**
-
-Run: `cd harmonyos-ohostest-runner && npx prettier --write src/matrix/utils/projectDiscovery.ts src/case/deviceCompatibility.ts src/case/runner.ts tests/device-compatibility.test.ts tests/case-runner.test.ts package.json`
+Run: `cd harmonyos-ohostest-runner && npx prettier --write src/matrix/utils/projectDiscovery.ts src/case/deviceCompatibility.ts src/case/runner.ts tests/device-compatibility.test.ts tests/case-runner.test.ts`
 
 Expected: Prettier exits 0.
 
-### Task 5: Full verification and commit
-
-**Files:**
-- Verify every file changed in Tasks 1-4.
-
-- [ ] **Step 1: Run all unit tests**
+- [ ] **Step 2: Run all unit tests**
 
 Run: `cd harmonyos-ohostest-runner && npm test`
 
 Expected: exit 0 with no failing tests.
 
-- [ ] **Step 2: Run the TypeScript build**
+- [ ] **Step 3: Run the TypeScript build**
 
 Run: `cd harmonyos-ohostest-runner && npm run build`
 
 Expected: exit 0 with no TypeScript diagnostics.
 
-- [ ] **Step 3: Run lint**
+- [ ] **Step 4: Run lint**
 
 Run: `cd harmonyos-ohostest-runner && npm run lint`
 
 Expected: exit 0 with no ESLint errors.
 
-- [ ] **Step 4: Verify release metadata and diff hygiene**
+- [ ] **Step 5: Check implementation diff hygiene**
 
-Run: `rg -n '0\.1\.3|tablet|兼容模式' harmonyos-ohostest-runner/package.json harmonyos-ohostest-runner/CHANGELOG.md && git diff --check && git status --short`
+Run: `git diff --check && git status --short`
 
-Expected: version and changelog entries are present, diff check is silent, and status lists only planned files.
+Expected: diff check is silent and status lists only planned source and test files. Do not edit `CHANGELOG.md` until Steps 1-5 have passed.
 
-- [ ] **Step 5: Commit the implementation**
+### Task 5: Append the verified fix to the current changelog and commit
+
+**Files:**
+- Modify: `harmonyos-ohostest-runner/CHANGELOG.md`
+- Verify every file changed in Tasks 1-4 plus the changelog.
+
+- [ ] **Step 1: Append bullets under the existing 0.1.2 Fixes section**
+
+Keep `package.json` at `0.1.2`. Under the existing `## [0.1.2] - 2026-07-16` → `### 修复` section, append:
+
+```md
+- case 模式在平板执行 SWE 时，临时为入口模块的 `module.deviceTypes` 增加 `tablet`，避免应用进入兼容模式而影响 UI 测试准确性。
+- SWE 执行结束或异常后恢复原始 `module.json5`，确保 Answer 和 golden patch 不受临时配置影响。
+```
+
+- [ ] **Step 2: Verify version, changelog, and final diff hygiene**
+
+Run: `rg -n '"version": "0\.1\.2"|兼容模式|恢复原始' harmonyos-ohostest-runner/package.json harmonyos-ohostest-runner/CHANGELOG.md && git diff --check && git status --short`
+
+Expected: package version remains `0.1.2`, both changelog bullets are present, diff check is silent, and status lists only planned files.
+
+- [ ] **Step 3: Commit the implementation**
 
 ```bash
 git add harmonyos-ohostest-runner/src/matrix/utils/projectDiscovery.ts \
@@ -344,7 +343,6 @@ git add harmonyos-ohostest-runner/src/matrix/utils/projectDiscovery.ts \
   harmonyos-ohostest-runner/src/case/runner.ts \
   harmonyos-ohostest-runner/tests/device-compatibility.test.ts \
   harmonyos-ohostest-runner/tests/case-runner.test.ts \
-  harmonyos-ohostest-runner/package.json \
   harmonyos-ohostest-runner/CHANGELOG.md
 git commit -m "fix: avoid SWE tablet compatibility mode"
 ```
