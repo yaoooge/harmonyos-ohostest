@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildStartEmulatorCommand, ensureTargetReady, waitForTargetDisconnected } from "../src/matrix/device.js";
+import {
+  buildStartEmulatorCommand,
+  ensureTargetReady,
+  installHaps,
+  waitForTargetDisconnected,
+} from "../src/matrix/device.js";
 import type { DeviceConfig, MatrixConfig } from "../src/matrix/types/index.js";
 
 function makeConfig(): MatrixConfig {
@@ -32,6 +37,41 @@ function makeConfig(): MatrixConfig {
     devices: [],
   };
 }
+
+test("installHaps ignores uninstall failure and uninstalls the bundle before installing HAPs", async () => {
+  const config = makeConfig();
+  config.artifacts = {
+    appHap: "/tmp/app.hap",
+    testHap: "/tmp/test.hap",
+  };
+  const device: DeviceConfig = {
+    id: "phone",
+    target: "127.0.0.1:15001",
+    startEmulator: false,
+  };
+  const commands: string[] = [];
+
+  await installHaps({
+    config,
+    device,
+    cwd: config.project,
+    outDir: "out",
+    runCommand: async (command) => {
+      commands.push(command);
+      return {
+        stdout: "",
+        stderr: command.includes(" uninstall ") ? "bundle not found" : "",
+        exitCode: command.includes(" uninstall ") ? 1 : 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.deepEqual(commands, [
+    "hdc -t 127.0.0.1:15001 uninstall zhsc.1.xxxxxx",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/app.hap /tmp/test.hap",
+  ]);
+});
 
 test("buildStartEmulatorCommand quotes Windows profile and instance path with double quotes", () => {
   const device: DeviceConfig = {

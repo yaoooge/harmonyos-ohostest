@@ -60,6 +60,7 @@ export async function prepareDevice(ctx: DeviceCommandContext): Promise<void> {
 
 export async function installHaps(ctx: DeviceCommandContext): Promise<void> {
   const hdc = hdcFor(ctx.config, ctx.device);
+  await ctx.runCommand(`${hdc} uninstall ${shellQuote(ctx.config.bundleName)}`);
   const result = await ctx.runCommand(
     `${hdc} install -r ${shellQuote(ctx.config.artifacts.appHap)} ${shellQuote(ctx.config.artifacts.testHap)}`,
   );
