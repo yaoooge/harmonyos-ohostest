@@ -5,6 +5,7 @@ export type CaseRunMode = "answer" | "swe" | "all";
 
 export interface RunCaseInput {
   caseDir: string;
+  devices?: string[];
   machineConfigPath?: string;
   out?: string;
   runMode?: CaseRunMode;

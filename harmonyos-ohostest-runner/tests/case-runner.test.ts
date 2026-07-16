@@ -325,7 +325,10 @@ test("runOhosTestCase defaults to answer run only", async (t) => {
     ),
     /answer/,
   );
-  assert.match(await fs.readFile(path.join(out, "summary.md"), "utf-8"), /\| swe \| not run \|/);
+  assert.match(
+    await fs.readFile(path.join(out, "summary.md"), "utf-8"),
+    /\| swe \| not run \|/,
+  );
 });
 
 test("runOhosTestCase can run swe without applying golden patch", async (t) => {
@@ -372,8 +375,7 @@ test("runOhosTestCase can run swe without applying golden patch", async (t) => {
     1,
   );
   assert.equal(
-    commands.filter((command) => command.includes("golden_patch.patch"))
-      .length,
+    commands.filter((command) => command.includes("golden_patch.patch")).length,
     0,
   );
   assert.match(
@@ -520,10 +522,7 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     }),
   });
 
-  const commandLog = await fs.readFile(
-    path.join(out, "commands.log"),
-    "utf-8",
-  );
+  const commandLog = await fs.readFile(path.join(out, "commands.log"), "utf-8");
   const summary = await fs.readFile(path.join(out, "summary.md"), "utf-8");
 
   assert.equal(result.status, "failed");
@@ -540,4 +539,85 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
   assert.match(summary, /patch_apply_failed: golden_patch/);
   assert.match(summary, /Command Log: \.\.\/runs\/commands\.log/);
   assert.doesNotMatch(summary, /stderr:\n/);
+});
+
+test("runOhosTestCase filters both swe and answer runs by requested device", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-device-filter-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  await fs.writeFile(
+    path.join(caseDir, "metadata.json"),
+    JSON.stringify({
+      case_id: "responsive-repeat-layout",
+      base_project: "base",
+      test_patch: "test_patch.patch",
+      golden_patch: "golden_patch.patch",
+      fail_to_pass: ["should_adapt"],
+      pass_to_pass: ["should_launch"],
+      device_test_suites: {
+        phone: [{ suite: "PhoneSuite" }],
+        tablet: [{ suite: "TabletSuite" }],
+      },
+    }),
+    "utf-8",
+  );
+  const machineConfigPath = await writeMachineConfig(root);
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: [
+        { id: "phone", target: "127.0.0.1:15001" },
+        { id: "tablet", target: "127.0.0.1:15003" },
+      ],
+    }),
+    "utf-8",
+  );
+  const commands: string[] = [];
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out: path.join(root, "runs"),
+    runMode: "all",
+    devices: ["tablet"],
+    commandExecutor: async (command) => {
+      commands.push(command);
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : command.includes("list targets")
+            ? "127.0.0.1:15001\tConnected\n127.0.0.1:15003\tConnected\n"
+            : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.deepEqual(
+    result.runs.swe?.devices.map((device) => device.id),
+    ["tablet"],
+  );
+  assert.deepEqual(
+    result.runs.answer?.devices.map((device) => device.id),
+    ["tablet"],
+  );
+  assert.equal(
+    commands.filter((command) => command.includes("-s class TabletSuite"))
+      .length,
+    2,
+  );
+  assert.ok(commands.every((command) => !command.includes("PhoneSuite")));
 });

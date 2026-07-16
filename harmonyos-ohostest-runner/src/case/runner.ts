@@ -73,6 +73,7 @@ async function runCaseComparisons(
   const deviceSelection = buildCaseDeviceSelection(
     context.metadata,
     matrixConfig,
+    input.devices,
   );
   if (runMode === "swe" || runMode === "all") {
     context.runs.swe = await runCaseMatrix(

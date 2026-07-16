@@ -5,6 +5,13 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.2] - 2026-07-16
+
+### 新增
+
+- case 模式支持可重复的 `--device <id>` 参数，可只执行 case 配置允许的指定设备，例如 `phone` 或 `tablet`。
+- 指定不属于 case 设备集合的 ID 时，在执行设备矩阵前返回明确错误。
+
 ## [0.1.1] - 2026-07-16
 
 ### 修复

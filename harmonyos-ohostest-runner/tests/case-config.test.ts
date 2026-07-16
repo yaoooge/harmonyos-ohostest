@@ -170,3 +170,98 @@ test("buildCaseDeviceSelection falls back to enabled devices or machine devices 
     /metadata device watch is missing in machine config/,
   );
 });
+
+test("buildCaseDeviceSelection filters metadata suites in requested device order", () => {
+  const matrixConfig = {
+    devices: [
+      { id: "phone", target: "127.0.0.1:15001", startEmulator: false },
+      { id: "tablet", target: "127.0.0.1:15003", startEmulator: false },
+    ],
+  } as MatrixConfig;
+
+  const selection = buildCaseDeviceSelection(
+    {
+      caseId: "case",
+      caseDir: "/tmp/case",
+      baseProject: "/tmp/base",
+      testPatch: "/tmp/case/test_patch.patch",
+      goldenPatch: "/tmp/case/golden_patch.patch",
+      failToPass: [],
+      passToPass: [],
+      deviceTestSuites: {
+        phone: [{ suite: "PhoneSuite" }],
+        tablet: [{ suite: "TabletSuite" }],
+      },
+    },
+    matrixConfig,
+    ["tablet", "phone", "tablet"],
+  );
+
+  assert.deepEqual(selection, {
+    devices: ["tablet", "phone"],
+    deviceSuiteOverrides: {
+      tablet: ["TabletSuite"],
+      phone: ["PhoneSuite"],
+    },
+    runAllTests: false,
+  });
+});
+
+test("buildCaseDeviceSelection filters full test device selections", () => {
+  const matrixConfig = {
+    devices: [
+      { id: "phone", target: "127.0.0.1:15001", startEmulator: false },
+      { id: "tablet", target: "127.0.0.1:15003", startEmulator: false },
+    ],
+  } as MatrixConfig;
+  const metadata = {
+    caseId: "case",
+    caseDir: "/tmp/case",
+    baseProject: "/tmp/base",
+    testPatch: "/tmp/case/test_patch.patch",
+    goldenPatch: "/tmp/case/golden_patch.patch",
+    failToPass: [],
+    passToPass: [],
+  };
+
+  assert.deepEqual(
+    buildCaseDeviceSelection(
+      { ...metadata, enabledDevices: ["phone", "tablet"] },
+      matrixConfig,
+      ["tablet"],
+    ),
+    { devices: ["tablet"], runAllTests: true },
+  );
+  assert.deepEqual(
+    buildCaseDeviceSelection(metadata, matrixConfig, ["phone"]),
+    { devices: ["phone"], runAllTests: true },
+  );
+});
+
+test("buildCaseDeviceSelection rejects devices outside the case selection", () => {
+  const matrixConfig = {
+    devices: [
+      { id: "phone", target: "127.0.0.1:15001", startEmulator: false },
+      { id: "tablet", target: "127.0.0.1:15003", startEmulator: false },
+    ],
+  } as MatrixConfig;
+
+  assert.throws(
+    () =>
+      buildCaseDeviceSelection(
+        {
+          caseId: "case",
+          caseDir: "/tmp/case",
+          baseProject: "/tmp/base",
+          testPatch: "/tmp/case/test_patch.patch",
+          goldenPatch: "/tmp/case/golden_patch.patch",
+          failToPass: [],
+          passToPass: [],
+          enabledDevices: ["phone"],
+        },
+        matrixConfig,
+        ["tablet"],
+      ),
+    /case device tablet is not enabled by metadata or machine config/,
+  );
+});

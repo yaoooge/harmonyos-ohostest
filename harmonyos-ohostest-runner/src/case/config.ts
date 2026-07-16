@@ -70,6 +70,7 @@ export async function loadCaseMetadata(
 export function buildCaseDeviceSelection(
   metadata: CaseMetadata,
   matrixConfig: Pick<MatrixConfig, "devices">,
+  requestedDevices?: string[],
 ): CaseDeviceSelection {
   const machineDeviceIds = new Set(
     matrixConfig.devices.map((device) => device.id),
@@ -93,11 +94,14 @@ export function buildCaseDeviceSelection(
       overrides[deviceId] = deduped;
     }
 
-    return {
-      devices: metadataDeviceIds,
-      deviceSuiteOverrides: overrides,
-      runAllTests: false,
-    };
+    return filterCaseDeviceSelection(
+      {
+        devices: metadataDeviceIds,
+        deviceSuiteOverrides: overrides,
+        runAllTests: false,
+      },
+      requestedDevices,
+    );
   }
 
   const devices =
@@ -110,9 +114,44 @@ export function buildCaseDeviceSelection(
     }
   }
 
+  return filterCaseDeviceSelection(
+    {
+      devices,
+      runAllTests: true,
+    },
+    requestedDevices,
+  );
+}
+
+function filterCaseDeviceSelection(
+  selection: CaseDeviceSelection,
+  requestedDevices?: string[],
+): CaseDeviceSelection {
+  if (!requestedDevices || requestedDevices.length === 0) {
+    return selection;
+  }
+
+  const allowedDevices = new Set(selection.devices);
+  const devices = dedupe(requestedDevices);
+  for (const deviceId of devices) {
+    if (!allowedDevices.has(deviceId)) {
+      throw new Error(
+        `case device ${deviceId} is not enabled by metadata or machine config.`,
+      );
+    }
+  }
+
+  const overrides = selection.deviceSuiteOverrides;
+  if (!overrides) {
+    return { ...selection, devices };
+  }
+
   return {
+    ...selection,
     devices,
-    runAllTests: true,
+    deviceSuiteOverrides: Object.fromEntries(
+      devices.map((deviceId) => [deviceId, overrides[deviceId] ?? []]),
+    ),
   };
 }
 

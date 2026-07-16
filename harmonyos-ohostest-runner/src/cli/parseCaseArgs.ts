@@ -8,20 +8,17 @@ const knownCaseArgs = new Set([
   "--keep-emulators",
   "--keep-workdir",
   "--run",
+  "--device",
 ]);
 
 export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
   const values = new Map<string, string>();
+  const devices: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg?.startsWith("--")) {
       continue;
-    }
-    if (arg === "--device") {
-      throw new Error(
-        "case_device_cli_not_supported: case 模式不支持 --device。",
-      );
     }
     if (!knownCaseArgs.has(arg)) {
       throw new Error(`未知参数 ${arg}。`);
@@ -30,7 +27,11 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
     if (!value || value.startsWith("--")) {
       throw new Error(`参数 ${arg} 缺少取值。`);
     }
-    values.set(arg, value);
+    if (arg === "--device") {
+      devices.push(value);
+    } else {
+      values.set(arg, value);
+    }
     index += 1;
   }
 
@@ -43,6 +44,7 @@ export function parseOhosTestCaseArgs(args: string[]): RunCaseInput {
 
   return {
     caseDir,
+    ...(devices.length > 0 ? { devices } : {}),
     ...(machineConfigPath ? { machineConfigPath } : {}),
     ...(values.has("--out") ? { out: values.get("--out") } : {}),
     runMode,

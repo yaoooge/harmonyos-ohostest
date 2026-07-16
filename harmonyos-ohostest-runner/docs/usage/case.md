@@ -22,11 +22,25 @@ npm run ohostest:case -- \
   --run all
 ```
 
+只执行 phone，或同时执行 phone 和 tablet：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case \
+  --device phone
+
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case \
+  --device phone \
+  --device tablet
+```
+
 参数：
 
 ```text
 --case <path>                 case 目录，必填
 --run answer|swe|all          运行范围，默认 answer
+--device <id>                 只执行指定设备，可重复传入
 --machine-config <path>       设备矩阵配置文件，默认 config/machine.json
 --out <path>                  指定 case 级输出目录，目录下写入 result.json
 --skip-build true|false       是否跳过构建
@@ -34,7 +48,9 @@ npm run ohostest:case -- \
 --keep-workdir true|false     是否保留合成工程目录，默认 false
 ```
 
-case 模式不接收 `--device` 和 `--test-class`。设备和 suite 选择只来自 case 配置与 `machine.json`。
+`--device` 的 ID 必须属于 case 配置按 metadata 与 `machine.json` 选出的设备集合。指定非法 ID 时，
+运行器会在执行设备矩阵前报错；未传入时仍执行 case 选择的全部设备。case 模式不接收
+`--test-class`，suite 选择只来自 case 配置。
 
 ## 输入目录
 
@@ -153,6 +169,9 @@ case 模式按以下优先级决定设备与 suite：
 1. 有 `metadata.device_test_suites` 时，按该字段选择设备和 suite class。
 2. 无 `device_test_suites`、有 `metadata.enabled_devices` 时，按 enabled 设备执行全量测试。
 3. 两者都没有时，按 `machine.json.devices` 中全部设备执行全量测试。
+
+传入一个或多个 `--device` 后，运行器按 CLI 顺序从上述结果中筛选设备并去重；SWE 和 Answer
+两轮复用同一筛选结果。
 
 `machine.json` 中的 `devices[].testSuites` 不参与 case 模式的全量测试选择。
 

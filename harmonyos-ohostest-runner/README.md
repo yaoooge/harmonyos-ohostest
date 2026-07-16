@@ -46,6 +46,14 @@ npm run ohostest:case -- \
   --case /path/to/ResponsiveRepeatLayout/case
 ```
 
+只在 phone 模拟器执行：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case \
+  --device phone
+```
+
 默认会读取 `case/metadata.json`，在 `base_project + test_patch` 基础上继续应用 `golden_patch`，
 只执行 `answer` 轮。需要完整 SWE/Answer 双轮比较时传入 `--run all`；只验证题目工程时传入
 `--run swe`。设备连接、模拟器和工具路径仍来自
@@ -67,10 +75,12 @@ case 模式额外支持：
 ```text
 --case <path>                 指定 case 目录
 --run answer|swe|all          运行范围，默认 answer
+--device <id>                 只执行指定设备，可重复传入
 --keep-workdir true|false     是否保留合成工程目录，默认 false
 ```
 
-case 模式不支持 `--device` 和 `--test-class`，以保证 SWE/Answer 两轮报告的设备与 suite 选择只由 case 配置决定。
+`--device` 必须属于 case 配置选择出的设备集合；可重复传入，例如 `--device phone --device tablet`。
+SWE 和 Answer 两轮使用相同的筛选结果。case 模式仍不支持 `--test-class`，suite 选择只由 case 配置决定。
 
 ## 配置入口
 

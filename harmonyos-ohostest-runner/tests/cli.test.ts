@@ -99,10 +99,21 @@ test("parseOhosTestCaseArgs rejects unknown run mode", () => {
   );
 });
 
-test("parseOhosTestCaseArgs rejects device filtering", () => {
-  assert.throws(
-    () => parseOhosTestCaseArgs(["--case", "/tmp/case", "--device", "phone"]),
-    /case_device_cli_not_supported/,
+test("parseOhosTestCaseArgs parses repeatable device filters", () => {
+  assert.deepEqual(
+    parseOhosTestCaseArgs([
+      "--case",
+      "/tmp/case",
+      "--device",
+      "phone",
+      "--device",
+      "tablet",
+    ]),
+    {
+      caseDir: "/tmp/case",
+      devices: ["phone", "tablet"],
+      runMode: "answer",
+    },
   );
 });
 
