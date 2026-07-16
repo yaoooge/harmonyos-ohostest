@@ -1,13 +1,13 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project will be documented in this file.
+本项目的所有重要变更都会记录在此文件中。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
+本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
 ## [0.1.1] - 2026-07-16
 
-### Fixed
+### 修复
 
-- Uninstall the configured application bundle before installing app and test HAPs, preventing HDC error `9568267` (`install entry already exist`) when the same bundle is installed repeatedly on one device.
-- Ignore pre-install uninstall failures so first-time installation continues when the bundle is not present.
+- 安装应用和测试 HAP 前，先卸载配置中指定的应用包，避免在同一设备上重复安装相同包名应用时出现 HDC 错误 `9568267`（`install entry already exist`）。
+- 忽略安装前卸载失败，确保设备上尚未安装对应应用时仍能继续执行首次安装。
