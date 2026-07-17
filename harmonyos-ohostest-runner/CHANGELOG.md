@@ -12,6 +12,11 @@
 - case 模式支持可重复的 `--device <id>` 参数，可只执行 case 配置允许的指定设备，例如 `phone` 或 `tablet`。
 - 指定不属于 case 设备集合的 ID 时，在执行设备矩阵前返回明确错误。
 
+### 修复
+
+- case 模式在平板执行 SWE 时，临时为入口模块的 `module.deviceTypes` 增加 `tablet`，避免应用进入兼容模式而影响 UI 测试准确性。
+- SWE 执行结束或异常后恢复原始 `module.json5`，确保 Answer 和 golden patch 不受临时配置影响。
+
 ## [0.1.1] - 2026-07-16
 
 ### 修复

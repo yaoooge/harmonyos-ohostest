@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runOhosTestCase } from "../src/index.js";
+import { parseJson5ish } from "../src/matrix/utils/json5ish.js";
 
 async function makeProject(root: string): Promise<string> {
   const project = path.join(root, "base");
@@ -28,6 +29,11 @@ async function makeProject(root: string): Promise<string> {
   await fs.writeFile(
     path.join(project, "products", "entry", "src", "main", "ets", "Index.ets"),
     "export const state = 'base';\n",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(project, "products", "entry", "src", "main", "module.json5"),
+    JSON.stringify({ module: { name: "entry", deviceTypes: ["phone"] } }),
     "utf-8",
   );
   await fs.mkdir(path.join(project, "products", "entry", "src", "ohosTest"), {
@@ -281,14 +287,24 @@ test("runOhosTestCase defaults to answer run only", async (t) => {
   const machineConfigPath = await writeMachineConfig(root);
   const out = path.join(root, "runs");
   const commands: string[] = [];
+  const buildDeviceTypes: string[][] = [];
 
   const result = await runOhosTestCase({
     caseDir,
     machineConfigPath,
     out,
     keepWorkdir: true,
-    commandExecutor: async (command) => {
+    commandExecutor: async (command, cwd) => {
       commands.push(command);
+      if (command.includes("assembleApp")) {
+        const config = parseJson5ish(
+          await fs.readFile(
+            path.join(cwd, "products/entry/src/main/module.json5"),
+            "utf-8",
+          ),
+        ) as { module: { deviceTypes: string[] } };
+        buildDeviceTypes.push(config.module.deviceTypes);
+      }
       return {
         stdout: command.includes("aa test")
           ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
@@ -315,6 +331,7 @@ test("runOhosTestCase defaults to answer run only", async (t) => {
     commands.filter((command) => command === "ohpm install").length,
     1,
   );
+  assert.deepEqual(buildDeviceTypes, [["phone"]]);
   assert.match(
     await fs.readFile(
       path.join(
@@ -343,6 +360,7 @@ test("runOhosTestCase can run swe without applying golden patch", async (t) => {
   const machineConfigPath = await writeMachineConfig(root);
   const out = path.join(root, "runs");
   const commands: string[] = [];
+  const buildDeviceTypes: string[][] = [];
 
   const result = await runOhosTestCase({
     caseDir,
@@ -350,8 +368,17 @@ test("runOhosTestCase can run swe without applying golden patch", async (t) => {
     out,
     runMode: "swe",
     keepWorkdir: true,
-    commandExecutor: async (command) => {
+    commandExecutor: async (command, cwd) => {
       commands.push(command);
+      if (command.includes("assembleApp")) {
+        const config = parseJson5ish(
+          await fs.readFile(
+            path.join(cwd, "products/entry/src/main/module.json5"),
+            "utf-8",
+          ),
+        ) as { module: { deviceTypes: string[] } };
+        buildDeviceTypes.push(config.module.deviceTypes);
+      }
       return {
         stdout: command.includes("aa test")
           ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
@@ -378,6 +405,7 @@ test("runOhosTestCase can run swe without applying golden patch", async (t) => {
     commands.filter((command) => command.includes("golden_patch.patch")).length,
     0,
   );
+  assert.deepEqual(buildDeviceTypes, [["phone"]]);
   assert.match(
     await fs.readFile(
       path.join(
@@ -541,7 +569,7 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
   assert.doesNotMatch(summary, /stderr:\n/);
 });
 
-test("runOhosTestCase filters both swe and answer runs by requested device", async (t) => {
+test("runOhosTestCase temporarily enables tablet only for swe", async (t) => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "ohostest-case-device-filter-"),
   );
@@ -584,15 +612,27 @@ test("runOhosTestCase filters both swe and answer runs by requested device", asy
     "utf-8",
   );
   const commands: string[] = [];
+  const buildDeviceTypes: string[][] = [];
+  const out = path.join(root, "runs");
 
   const result = await runOhosTestCase({
     caseDir,
     machineConfigPath,
-    out: path.join(root, "runs"),
+    out,
     runMode: "all",
     devices: ["tablet"],
-    commandExecutor: async (command) => {
+    keepWorkdir: true,
+    commandExecutor: async (command, cwd) => {
       commands.push(command);
+      if (command.includes("assembleApp")) {
+        const config = parseJson5ish(
+          await fs.readFile(
+            path.join(cwd, "products/entry/src/main/module.json5"),
+            "utf-8",
+          ),
+        ) as { module: { deviceTypes: string[] } };
+        buildDeviceTypes.push(config.module.deviceTypes);
+      }
       return {
         stdout: command.includes("aa test")
           ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
@@ -620,4 +660,12 @@ test("runOhosTestCase filters both swe and answer runs by requested device", asy
     2,
   );
   assert.ok(commands.every((command) => !command.includes("PhoneSuite")));
+  assert.deepEqual(buildDeviceTypes, [["phone", "tablet"], ["phone"]]);
+  const finalConfig = parseJson5ish(
+    await fs.readFile(
+      path.join(out, "work/project/products/entry/src/main/module.json5"),
+      "utf-8",
+    ),
+  ) as { module: { deviceTypes: string[] } };
+  assert.deepEqual(finalConfig.module.deviceTypes, ["phone"]);
 });

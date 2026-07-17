@@ -17,6 +17,7 @@ import type {
   CaseResult,
   RunCaseInput,
 } from "./types/index.js";
+import { withSweTabletCompatibility } from "./deviceCompatibility.js";
 
 interface CaseRunContext {
   startedTime: number;
@@ -76,12 +77,11 @@ async function runCaseComparisons(
     input.devices,
   );
   if (runMode === "swe" || runMode === "all") {
-    context.runs.swe = await runCaseMatrix(
-      input,
-      context,
-      deviceSelection,
-      "swe",
-    );
+    context.runs.swe = await withSweTabletCompatibility({
+      project: context.workProject,
+      enabled: deviceSelection.devices.includes("tablet"),
+      run: () => runCaseMatrix(input, context, deviceSelection, "swe"),
+    });
   }
 
   if (runMode === "answer" || runMode === "all") {
