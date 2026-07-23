@@ -25,27 +25,26 @@ runner 不得启动未过滤的设备全量 hilog 采集。
 
 每次 suite 执行时，runner 只采集当前工程 `bundleName` 对应的进程：
 
-1. 启动 `aa test` 后轮询设备进程列表。
-2. 只选择进程名等于 `bundleName`，或以 `<bundleName>:` 开头的进程。
-3. 对每个匹配 PID 启动带 PID 过滤条件的 hilog 流。
-4. suite 执行期间继续检测新出现的匹配 PID，并加入采集。
-5. 不匹配包名的 PID 不得进入采集命令，也不得写入任何日志文件。
-6. 如果无法解析 PID、设备 hilog 不支持 PID 过滤，或过滤命令启动失败，则记录诊断并跳过该 suite 的 hilog；不得降级为设备全量采集。
+1. 在设备端使用 hilog 的 `-e` 正则过滤，只传输包含当前 `bundleName` 的候选日志。
+2. runner 对每条候选日志再次解析进程名，只接受进程名等于 `bundleName`，或以 `<bundleName>:` 开头的日志。
+3. 不匹配包名的日志不得写入 suite、用例或命令日志。
+4. 正则参数必须对 `bundleName` 中的元字符转义，防止包名被解释为宽泛表达式。
+5. 如果设备 hilog 不支持正则过滤、日志格式无法验证进程名，或过滤命令启动失败，则记录诊断并跳过该 suite 的 hilog；不得降级为设备全量采集。
 
-进程列表仅用于发现当前包 PID，不作为日志来源。
+`-e` 在设备端执行过滤；runner 不启动未带过滤条件的 hilog，再在主机端从设备全量日志中筛选。
 
 ## 方案比较
 
 ### 方案一：`aa test` 与过滤后的 hilog 双流实时关联
 
-将 `aa test` stdout/stderr 改为流式读取，同时只为当前包匹配到的 PID 启动 hilog 流。收到 `OHOS_REPORT_STATUS_CODE: 1` 时打开用例窗口，收到该用例终态状态码时关闭窗口，窗口内的 hilog 归入对应用例。
+将 `aa test` stdout/stderr 改为流式读取，同时启动带当前包名正则条件的 hilog 流。收到 `OHOS_REPORT_STATUS_CODE: 1` 时打开用例窗口，收到该用例终态状态码时关闭窗口，窗口内通过包进程名复核的 hilog 归入对应用例。
 
 优点：
 
 - 保持现有按 suite 执行的效率。
 - 能输出单用例日志。
 - 不要求修改所有测试代码。
-- 可以严格限制为当前包进程。
+- 设备端和 runner 两层过滤可以严格限制为当前包进程。
 
 缺点：
 
@@ -88,16 +87,16 @@ interface RunningCommand {
 
 测试可以注入流式执行器，真实运行使用 `child_process.spawn`。命令日志在进程结束后仍通过 `CommandLogger` 记录完整结果。
 
-### 包进程发现
+### 包进程过滤
 
-suite 启动 `aa test` 后立即开始轮询设备进程：
+suite 启动时先构造经过正则转义的包名过滤条件，再启动一个 hilog 子进程：
 
-- 匹配 `bundleName` 或 `<bundleName>:` 前缀。
-- 保存已经启动采集的 PID，避免重复。
-- 对新 PID 启动独立、带 PID 过滤条件的 hilog 子进程。
-- suite 完成后停止轮询并关闭所有 hilog 子进程。
+- 设备端命令必须包含 `-e <escaped-bundle-name>`。
+- runner 解析 hilog 标准输出中的进程字段。
+- 只接受进程名等于 `bundleName` 或以 `<bundleName>:` 开头的日志。
+- suite 完成后关闭 hilog 子进程。
 
-PID 过滤命令必须先经过真实目标环境能力探测。若当前 HarmonyOS 版本使用的参数与预期不同，应把命令构造封装在独立函数中并以测试覆盖；能力探测失败时遵循“不降级全量日志”的约束。
+hilog 正则过滤能力必须先经过真实目标环境能力探测。若当前 HarmonyOS 版本不支持 `-e`，应记录诊断并跳过采集；能力探测失败时遵循“不降级全量日志”的约束。
 
 ### 用例边界状态机
 
@@ -112,13 +111,13 @@ PID 过滤命令必须先经过真实目标环境能力探测。若当前 Harmon
    - `0`：passed
    - `-3`：ignored
    - 其他非 `1` 状态：failed
-5. 窗口打开期间收到的、已经通过包 PID 过滤的 hilog 行写入该用例。
+5. 窗口打开期间收到的、已经通过包名双层过滤的 hilog 行写入该用例。
 
 如果 hilog 在没有活动用例时到达，只写入 suite 完整日志，不归入任何用例。runner 不猜测其归属。
 
 ### 时间与并发
 
-每条 hilog 在 runner 收到时附加单调递增序号，并保留设备原始时间戳。多个匹配 PID 的流按接收序号合并，保证文件输出稳定。
+每条 hilog 在 runner 收到时附加单调递增序号，并保留设备原始时间戳，保证文件输出稳定。
 
 本 runner 当前按设备和 suite 串行执行，因此同一设备上最多只有一个活动 suite。若未来支持 suite 并行，必须为每个 suite 保持独立采集器，不得共享全局活动用例状态。
 
@@ -157,7 +156,7 @@ interface TestCaseRunResult {
           <test-case>.hilog.log
 ```
 
-- `<suite>.hilog.log`：该 suite 中所有经过当前包 PID 过滤的完整 hilog。
+- `<suite>.hilog.log`：该 suite 中所有经过当前包名双层过滤的完整 hilog。
 - 单用例文件：只包含用例活动窗口内的过滤后 hilog。
 - 文件名继续使用现有 `sanitizeName()` 规则，防止非法路径字符。
 
@@ -180,15 +179,14 @@ case 模式复用矩阵结果，不另建第二套采集逻辑。SWE 和 Answer 
 
 下列问题只追加到 `MatrixResult.diagnostics`，不改变 suite 或用例状态：
 
-- 包 PID 在等待窗口内未出现。
-- PID 查询命令失败或输出不可解析。
-- hilog PID 过滤能力不可用。
+- hilog 包名正则过滤能力不可用。
+- hilog 输出无法解析或进程字段不属于当前包。
 - hilog 子进程意外退出。
 - 单个日志文件写入失败。
 
 `aa test` 自身的启动、超时、退出码和输出解析仍沿用现有 blocked/failed 规则。
 
-关闭 suite 时必须在 `finally` 中停止 PID 轮询和所有 hilog 子进程，避免残留后台采集。
+关闭 suite 时必须在 `finally` 中停止 hilog 子进程，避免残留后台采集。
 
 ## 测试策略
 
@@ -199,7 +197,7 @@ case 模式复用矩阵结果，不另建第二套采集逻辑。SWE 和 Answer 
 3. 相邻用例的日志不串用。
 4. ignored、failed、passed 状态都能正确关闭窗口。
 5. 进程名只接受 `bundleName` 和 `<bundleName>:` 前缀。
-6. PID 过滤不可用时不会构造或启动全量 hilog 命令。
+6. 包名正则会转义，过滤不可用时不会构造或启动全量 hilog 命令。
 7. 日志文件路径经过清理并写入结果。
 8. summary 只为存在日志的用例生成链接。
 9. CLI 只打印失败用例摘录。
@@ -216,7 +214,7 @@ OHOSTEST_HILOG_PROBE MdFailToPassTest should_show_home_waterflow_as_multi_column
 
 1. suite 完整日志包含唯一标记。
 2. 标记只出现在目标用例日志，不出现在相邻用例日志。
-3. 日志行的 PID 属于当前工程 `bundleName` 对应进程。
+3. 日志行的进程名属于当前工程 `bundleName` 或其子进程。
 4. 采集产物不包含其他设备进程的日志。
 5. 目标用例失败时终端打印摘录；若 Answer 轮通过，则另使用受控失败或单元测试验证失败打印路径。
 6. `result.json` 和 `summary.md` 指向实际存在的日志文件。
