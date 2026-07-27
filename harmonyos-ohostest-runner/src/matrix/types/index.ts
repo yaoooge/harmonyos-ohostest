@@ -122,6 +122,17 @@ export interface BuildResult {
   blockedReason?: string;
 }
 
+export interface InstallArtifacts {
+  hspPaths: string[];
+  appHap: string;
+  testHap: string;
+}
+
+export interface BuildOutcome {
+  result: BuildResult;
+  installArtifacts?: InstallArtifacts;
+}
+
 export type SuiteRunStatus = "passed" | "failed" | "blocked";
 
 export type TestCaseRunStatus = "passed" | "failed" | "ignored" | "running";
