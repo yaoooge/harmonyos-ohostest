@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { CommandExecutor, CommandResult, DeviceConfig, MatrixConfig } from "./types/index.js";
+import type {
+  CommandExecutor,
+  CommandResult,
+  DeviceConfig,
+  InstallArtifacts,
+  MatrixConfig,
+} from "./types/index.js";
 import { verifyFileExists } from "../shared/utils/file.js";
 import { sanitizeName } from "../shared/utils/names.js";
 import { shellQuote } from "../shared/utils/shellQuote.js";
@@ -58,15 +64,35 @@ export async function prepareDevice(ctx: DeviceCommandContext): Promise<void> {
   await ctx.runCommand(`${hdc} shell uitest uiInput keyEvent Home`);
 }
 
-export async function installHaps(ctx: DeviceCommandContext): Promise<void> {
+export async function installHaps(
+  ctx: DeviceCommandContext,
+  artifacts: InstallArtifacts,
+): Promise<void> {
   const hdc = hdcFor(ctx.config, ctx.device);
   await ctx.runCommand(`${hdc} uninstall ${shellQuote(ctx.config.bundleName)}`);
+  const packages = [
+    ...artifacts.hspPaths,
+    artifacts.appHap,
+    artifacts.testHap,
+  ]
+    .map((artifact) => shellQuote(artifact))
+    .join(" ");
   const result = await ctx.runCommand(
-    `${hdc} install -r ${shellQuote(ctx.config.artifacts.appHap)} ${shellQuote(ctx.config.artifacts.testHap)}`,
+    `${hdc} install -r ${packages}`,
   );
-  if (result.exitCode !== 0) {
+  if (isInstallFailure(result)) {
     throw new Error("install_failed");
   }
+}
+
+export function isInstallFailure(result: CommandResult): boolean {
+  if (result.exitCode !== 0) {
+    return true;
+  }
+  const output = `${result.stdout}\n${result.stderr}`;
+  return /msg:error:|error:\s*failed to install|failed to install the HAP or HSP/i.test(
+    output,
+  );
 }
 
 export async function ensureTargetReady(ctx: DeviceCommandContext): Promise<void> {
