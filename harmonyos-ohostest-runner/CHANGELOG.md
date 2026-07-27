@@ -5,12 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
-## [Unreleased]
+## [0.1.3] - 2026-07-27
 
 ### 修复
 
 - 主构建开始时先执行一次 `hvigorw clean --no-daemon`，避免上一轮 Hvigor 缓存影响当前矩阵结果。
-- 自动发现并安装当前 product 下的 shared 模块 HSP，支持应用或测试 HAP 依赖 HSP 的工程。
+- 自动发现当前 product 下的 shared 模块 HSP，按模块依赖顺序逐个安装后再安装应用和测试 HAP，支持 HAP 依赖 HSP 的工程。
 - 检查 HDC AppMod 输出中的安装错误；即使进程退出码为 `0`，安装失败也会阻断设备且不再执行测试。
 
 ## [0.1.2] - 2026-07-16
