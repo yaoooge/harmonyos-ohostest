@@ -4,7 +4,7 @@
 
 **Goal:** Make matrix and case runs clean the main Hvigor build, discover and validate all applicable HSP artifacts, install them with the app/test HAPs, and stop before `aa test` when HDC reports an install error with exit code zero.
 
-**Architecture:** Project discovery records product-applicable shared modules without exposing them in reports. `runBuild` returns the unchanged report `BuildResult` plus an internal, validated `InstallArtifacts`; runner passes that internal value into device execution, where one HDC command installs HSPs before the two HAPs and validates both process status and AppMod output.
+**Architecture:** Project discovery records and dependency-orders product-applicable shared modules without exposing them in reports. `runBuild` returns the unchanged report `BuildResult` plus an internal, validated `InstallArtifacts`; runner passes that internal value into device execution, which installs HSPs one-by-one in dependency order before installing the two HAPs and validates both process status and AppMod output.
 
 **Tech Stack:** TypeScript 6, Node.js `node:test`, filesystem APIs, existing command executor and HarmonyOS Hvigor/HDC tooling.
 
@@ -297,10 +297,11 @@ await installHaps(context, {
   testHap: "/tmp/test.hap",
 });
 
-assert.equal(
-  commands[1],
-  "hdc -t 127.0.0.1:15001 install -r /tmp/common.hsp /tmp/styles.hsp /tmp/app.hap /tmp/test.hap",
-);
+assert.deepEqual(commands.slice(1), [
+  "hdc -t 127.0.0.1:15001 install -r /tmp/common.hsp",
+  "hdc -t 127.0.0.1:15001 install -r /tmp/styles.hsp",
+  "hdc -t 127.0.0.1:15001 install -r /tmp/app.hap /tmp/test.hap",
+]);
 ```
 
 Keep a separate empty-HSP test proving the original two-HAP command.
@@ -352,11 +353,13 @@ export async function installHaps(
 Build the package list with:
 
 ```typescript
-const packages = [
-  ...artifacts.hspPaths,
+for (const hspPath of artifacts.hspPaths) {
+  await runInstallCommand(ctx, hdc, [hspPath]);
+}
+await runInstallCommand(ctx, hdc, [
   artifacts.appHap,
   artifacts.testHap,
-].map((artifact) => shellQuote(artifact));
+]);
 ```
 
 Add and use:

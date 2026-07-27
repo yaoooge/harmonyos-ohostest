@@ -90,6 +90,8 @@ export interface SharedModuleInfo {
   name: string;
   srcPath: string;
   outputDir: string;
+  packageName: string;
+  dependencies: string[];
 }
 
 export interface DeviceConfig {

@@ -70,16 +70,22 @@ export async function installHaps(
 ): Promise<void> {
   const hdc = hdcFor(ctx.config, ctx.device);
   await ctx.runCommand(`${hdc} uninstall ${shellQuote(ctx.config.bundleName)}`);
-  const packages = [
-    ...artifacts.hspPaths,
+  for (const hspPath of artifacts.hspPaths) {
+    await runInstallCommand(ctx, hdc, [hspPath]);
+  }
+  await runInstallCommand(ctx, hdc, [
     artifacts.appHap,
     artifacts.testHap,
-  ]
-    .map((artifact) => shellQuote(artifact))
-    .join(" ");
-  const result = await ctx.runCommand(
-    `${hdc} install -r ${packages}`,
-  );
+  ]);
+}
+
+async function runInstallCommand(
+  ctx: DeviceCommandContext,
+  hdc: string,
+  artifacts: string[],
+): Promise<void> {
+  const packages = artifacts.map((artifact) => shellQuote(artifact)).join(" ");
+  const result = await ctx.runCommand(`${hdc} install -r ${packages}`);
   if (isInstallFailure(result)) {
     throw new Error("install_failed");
   }

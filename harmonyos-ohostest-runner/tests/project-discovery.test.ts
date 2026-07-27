@@ -10,6 +10,8 @@ interface ModuleFixture {
   srcPath: string;
   type: string;
   applyToProducts?: string[];
+  packageName?: string;
+  dependencies?: Record<string, string>;
 }
 
 async function makeProject(
@@ -62,6 +64,14 @@ async function makeProject(
       }),
       "utf-8",
     );
+    await fs.writeFile(
+      path.join(project, module.srcPath, "oh-package.json5"),
+      JSON.stringify({
+        name: module.packageName ?? module.name,
+        dependencies: module.dependencies ?? {},
+      }),
+      "utf-8",
+    );
   }
 
   const entry = modules.find((module) => module.name === "entry");
@@ -102,6 +112,8 @@ test("discoverProjectInfo finds shared modules in build-profile order", async (t
     {
       name: "common",
       srcPath: "commons/common",
+      packageName: "common",
+      dependencies: [],
       outputDir: path.join(
         project,
         "commons/common/build/default/outputs/default",
@@ -110,6 +122,8 @@ test("discoverProjectInfo finds shared modules in build-profile order", async (t
     {
       name: "styles",
       srcPath: "commons/styles",
+      packageName: "styles",
+      dependencies: [],
       outputDir: path.join(
         project,
         "commons/styles/build/default/outputs/default",
@@ -163,5 +177,35 @@ test("discoverProjectInfo reports the module when module.json5 is missing", asyn
   await assert.rejects(
     discoverProjectInfo(project),
     /module common.*module\.json5/i,
+  );
+});
+
+test("discoverProjectInfo orders shared modules after their shared dependencies", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "entry",
+      srcPath: "products/entry",
+      type: "entry",
+    },
+    {
+      name: "common",
+      srcPath: "commons/common",
+      type: "shared",
+      packageName: "@example/common",
+      dependencies: { "@example/utils": "1.0.0" },
+    },
+    {
+      name: "utils",
+      srcPath: "commons/utils",
+      type: "shared",
+      packageName: "@example/utils",
+    },
+  ]);
+
+  const info = await discoverProjectInfo(project);
+
+  assert.deepEqual(
+    info.sharedModules.map((moduleInfo) => moduleInfo.name),
+    ["utils", "common"],
   );
 });

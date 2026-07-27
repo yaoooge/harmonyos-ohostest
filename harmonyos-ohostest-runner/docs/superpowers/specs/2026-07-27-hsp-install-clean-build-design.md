@@ -34,7 +34,7 @@ entry's dependent module: common does not exist
 
 1. 自动发现当前 product 下所有适用的 shared 模块。
 2. 在主构建结束后解析并校验这些模块的 HSP 产物。
-3. 在同一次 `hdc install` 中安装全部 HSP、应用 HAP 和 ohosTest HAP。
+3. 按 shared 模块依赖顺序逐个安装 HSP，再安装应用 HAP 和 ohosTest HAP。
 4. 在 `hdc` 退出码为 `0` 时仍能识别 AppMod 输出中的安装失败。
 5. 安装失败后将设备阻断为 `install_failed`，不得继续执行 `aa test`。
 6. 每次主构建开始时执行一次 `hvigorw clean`，消除上一轮构建缓存影响。
@@ -110,6 +110,8 @@ interface SharedModuleInfo {
   name: string;
   srcPath: string;
   outputDir: string;
+  packageName: string;
+  dependencies: string[];
 }
 ```
 
@@ -127,6 +129,7 @@ interface SharedModuleInfo {
 5. 模块声明了 targets 时，只要任一 target 的 `applyToProducts` 包含当前 product，
    即视为适用。
 6. targets 存在但没有任何 target 适用于当前 product 时跳过该模块。
+7. 读取模块根目录的 `oh-package.json5`，记录 package name 和 dependencies。
 
 缺失或无法解析 `src/main/module.json5` 时，项目发现直接失败并指出模块名和文件路径；
 runner 不应猜测模块类型。
@@ -159,7 +162,9 @@ runner 不应猜测模块类型。
 5. 候选为空时阻断构建，diagnostics 记录模块名、输出目录和预期签名后缀。
 6. 候选多于一个时阻断构建，diagnostics 记录模块名和全部候选路径。
 
-解析结果保持根 build profile 的 shared 模块顺序，使安装命令和日志稳定。
+shared 模块按 `oh-package.json5.dependencies` 做稳定拓扑排序：被依赖的 shared 模块排在
+依赖方之前；没有依赖关系的模块保持根 build profile 的相对顺序。依赖环会在项目发现
+阶段明确失败。HSP 解析结果使用该顺序，使安装命令和日志稳定。
 
 ## 构建流程
 
@@ -232,14 +237,19 @@ interface BuildOutcome {
 
 ## 安装流程
 
-`installHaps()` 调整为接受 `InstallArtifacts`，并按以下顺序构造单次安装命令：
+真实设备验证表明，HDC 对一个包含多个 HSP/HAP 的 `install -r` 命令按反向参数顺序
+逐包处理，不会在整批文件之间解析依赖。因此 `installHaps()` 调整为接受
+`InstallArtifacts`，并按以下顺序执行多个安装命令：
 
 ```text
-hdc install -r <hsp-1> ... <hsp-n> <app-hap> <test-hap>
+hdc install -r <dependency-hsp-1>
+hdc install -r <dependent-hsp-2>
+...
+hdc install -r <app-hap> <test-hap>
 ```
 
-HSP 排在两个 HAP 之前，所有文件仍在同一个 `hdc install` 调用中提交。纯 HAP
-工程的命令保持为：
+每个 HSP 成功后才安装下一个；任一 HSP 失败立即停止。全部 HSP 安装成功后，应用 HAP
+和测试 HAP 在同一个命令中提交。纯 HAP 工程的命令保持为：
 
 ```text
 hdc install -r <app-hap> <test-hap>
@@ -337,7 +347,8 @@ HSP 缺失或歧义使用现有 `diagnostics` 和 `BuildResult.blockedReason` �
 6. targets 包含当前 product 时保留模块。
 7. targets 不包含当前 product 时跳过模块。
 8. shared 模块的 module.json5 缺失或无法解析时给出明确错误。
-9. 多个 shared 模块保持根 build profile 中的声明顺序。
+9. 多个 shared 模块按依赖拓扑顺序返回，无依赖关系时保持根 build profile 相对顺序。
+10. shared 模块依赖环会给出明确错误。
 
 ### 构建与产物测试
 
@@ -357,8 +368,8 @@ HSP 缺失或歧义使用现有 `diagnostics` 和 `BuildResult.blockedReason` �
 ### 设备安装单元测试
 
 1. 纯 HAP 工程保持原安装命令。
-2. 一个 HSP 时命令顺序为 HSP、app HAP、test HAP。
-3. 多个 HSP 按输入顺序安装，所有路径经过 shellQuote。
+2. 一个 HSP 时先单独安装 HSP，再安装 app HAP 和 test HAP。
+3. 多个 HSP 按依赖顺序逐个安装，所有路径经过 shellQuote。
 4. install 退出码非零时抛出 `install_failed`。
 5. install 退出码为零但 stdout 包含 `msg:error:` 时抛出
    `install_failed`。
@@ -400,7 +411,7 @@ npm run ohostest:case -- \
 
 1. commands.log 的主构建第一条 Hvigor 命令是 clean。
 2. assembleApp 日志包含 shared 模块 HSP 构建。
-3. install 命令包含所有当前 product 的 HSP，并以 app HAP、test HAP 结束。
+3. install 命令按依赖顺序逐个安装所有当前 product 的 HSP，最后安装 app HAP 和 test HAP。
 4. install 输出不包含 `9568305` 或 dependent module missing。
 5. `aa test` 实际执行。
 6. `SmPassToPass` 用例能够解析，不再出现 `none parsed`。

@@ -119,10 +119,12 @@ test("installHaps installs HSPs before the app and test HAPs", async () => {
     artifacts,
   );
 
-  assert.equal(
-    commands[1],
-    "hdc -t 127.0.0.1:15001 install -r /tmp/common.hsp /tmp/styles.hsp /tmp/app.hap /tmp/test.hap",
-  );
+  assert.deepEqual(commands, [
+    "hdc -t 127.0.0.1:15001 uninstall zhsc.1.xxxxxx",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/common.hsp",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/styles.hsp",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/app.hap /tmp/test.hap",
+  ]);
 });
 
 test("installHaps rejects AppMod install errors even when hdc exits zero", async () => {
@@ -137,6 +139,7 @@ test("installHaps rejects AppMod install errors even when hdc exits zero", async
     appHap: "/tmp/app.hap",
     testHap: "/tmp/test.hap",
   };
+  const commands: string[] = [];
 
   await assert.rejects(
     installHaps(
@@ -145,19 +148,26 @@ test("installHaps rejects AppMod install errors even when hdc exits zero", async
         device,
         cwd: config.project,
         outDir: "out",
-        runCommand: async (command) => ({
-          stdout: command.includes(" install ")
-            ? "[Info]App install path:/tmp/app.hap msg:error: failed to install bundle. code:9568305 error: Failed to install the HAP or HSP because the dependent module does not exist. entry's dependent module: common does not exist"
-            : "",
-          stderr: "",
-          exitCode: 0,
-          durationMs: 1,
-        }),
+        runCommand: async (command) => {
+          commands.push(command);
+          return {
+            stdout: command.includes(" install ")
+              ? "[Info]App install path:/tmp/app.hap msg:error: failed to install bundle. code:9568305 error: Failed to install the HAP or HSP because the dependent module does not exist. entry's dependent module: common does not exist"
+              : "",
+            stderr: "",
+            exitCode: 0,
+            durationMs: 1,
+          };
+        },
       },
       artifacts,
     ),
     /install_failed/,
   );
+  assert.deepEqual(commands, [
+    "hdc -t 127.0.0.1:15001 uninstall zhsc.1.xxxxxx",
+    "hdc -t 127.0.0.1:15001 install -r /tmp/common.hsp",
+  ]);
 });
 
 test("isInstallFailure checks stderr and preserves normal zero-exit output", () => {

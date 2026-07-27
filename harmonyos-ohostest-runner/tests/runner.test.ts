@@ -50,6 +50,11 @@ async function makeProject(
       JSON.stringify({ module: { name: "common", type: "shared" } }),
       "utf-8",
     );
+    await fs.writeFile(
+      path.join(root, "commons", "common", "oh-package.json5"),
+      JSON.stringify({ name: "common", dependencies: {} }),
+      "utf-8",
+    );
     const commonOutput = path.join(
       root,
       "commons/common/build/default/outputs/default",
@@ -136,7 +141,15 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
   assert.equal(commands[1], "/fake/ohpm install");
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode project -p product=default assembleApp/);
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap/);
-  assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 install -r .*common-default-unsigned\.hsp .*entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap/);
+  const installCommands = commands.filter((command) =>
+    command.includes(" install -r "),
+  );
+  assert.equal(installCommands.length, 2);
+  assert.match(installCommands[0]!, /common-default-unsigned\.hsp$/);
+  assert.match(
+    installCommands[1]!,
+    /entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap$/,
+  );
   assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 shell aa test -b zhsc\.1\.xxxxxx -m entry_test/);
   assert.equal("hspPaths" in result.build, false);
   assert.ok(await fs.readFile(out, "utf-8"));

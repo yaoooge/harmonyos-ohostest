@@ -33,8 +33,8 @@ npm run ohostest:matrix -- \
 构建完成后，应用 HAP 和测试 HAP 路径会根据 entry module 的源码路径自动推导。
 
 运行器也会读取 `build-profile.json5` 中适用于当前 product 的模块及其
-`src/main/module.json5`。`module.type` 为 `shared` 的模块会在构建后解析对应 HSP，
-并在同一次 `hdc install` 中按“HSP、应用 HAP、测试 HAP”的顺序安装。
+`src/main/module.json5` 和 `oh-package.json5`。`module.type` 为 `shared` 的模块会在
+构建后解析对应 HSP，按模块依赖顺序逐个安装；全部 HSP 成功后再安装应用 HAP和测试 HAP。
 
 ## 构建与安装
 

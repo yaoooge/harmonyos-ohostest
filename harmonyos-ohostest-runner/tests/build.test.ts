@@ -107,11 +107,15 @@ test("runBuild resolves unsigned HSPs in shared-module order without exposing th
     {
       name: "common",
       srcPath: "commons/common",
+      packageName: "common",
+      dependencies: [],
       outputDir: commonOutput,
     },
     {
       name: "styles",
       srcPath: "commons/styles",
+      packageName: "styles",
+      dependencies: [],
       outputDir: stylesOutput,
     },
   ];
@@ -148,7 +152,13 @@ test("runBuild selects signed HSPs when the configured app HAP is signed", async
     "commons/common/build/default/outputs/default",
   );
   config.sharedModules = [
-    { name: "common", srcPath: "commons/common", outputDir },
+    {
+      name: "common",
+      srcPath: "commons/common",
+      packageName: "common",
+      dependencies: [],
+      outputDir,
+    },
   ];
   await fs.mkdir(outputDir, { recursive: true });
   const signedHsp = path.join(outputDir, "common-default-signed.hsp");
@@ -178,7 +188,13 @@ test("runBuild blocks with a diagnostic when a shared HSP is missing", async (t)
     "commons/common/build/default/outputs/default",
   );
   config.sharedModules = [
-    { name: "common", srcPath: "commons/common", outputDir },
+    {
+      name: "common",
+      srcPath: "commons/common",
+      packageName: "common",
+      dependencies: [],
+      outputDir,
+    },
   ];
   await fs.mkdir(outputDir, { recursive: true });
   const diagnostics: string[] = [];
@@ -206,7 +222,13 @@ test("runBuild blocks and lists ambiguous shared HSP candidates", async (t) => {
     "commons/common/build/default/outputs/default",
   );
   config.sharedModules = [
-    { name: "common", srcPath: "commons/common", outputDir },
+    {
+      name: "common",
+      srcPath: "commons/common",
+      packageName: "common",
+      dependencies: [],
+      outputDir,
+    },
   ];
   await fs.mkdir(outputDir, { recursive: true });
   const first = path.join(outputDir, "common-a-unsigned.hsp");

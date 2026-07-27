@@ -40,6 +40,11 @@ interface MainModuleConfig {
   module?: { type?: string };
 }
 
+interface ModulePackageConfig {
+  name?: string;
+  dependencies?: Record<string, unknown>;
+}
+
 export async function discoverProjectInfo(
   project: string,
 ): Promise<ProjectInfo> {
@@ -91,46 +96,114 @@ async function discoverSharedModules(
 ): Promise<SharedModuleInfo[]> {
   const sharedModules: SharedModuleInfo[] = [];
   for (const moduleInfo of modules) {
-    const name = moduleInfo.name?.trim();
-    const rawSrcPath = moduleInfo.srcPath?.trim();
-    if (!name || !rawSrcPath || !appliesToProduct(moduleInfo, product)) {
-      continue;
-    }
-    const srcPath = normalizeModuleSrcPath(rawSrcPath);
-    const moduleConfigPath = path.join(
+    const sharedModule = await discoverSharedModule(
+      project,
+      product,
+      moduleInfo,
+    );
+    if (sharedModule) sharedModules.push(sharedModule);
+  }
+  return orderSharedModules(sharedModules);
+}
+
+async function discoverSharedModule(
+  project: string,
+  product: string,
+  moduleInfo: ProjectModuleInfo,
+): Promise<SharedModuleInfo | undefined> {
+  const name = moduleInfo.name?.trim();
+  const rawSrcPath = moduleInfo.srcPath?.trim();
+  if (!name || !rawSrcPath || !appliesToProduct(moduleInfo, product)) {
+    return undefined;
+  }
+  const srcPath = normalizeModuleSrcPath(rawSrcPath);
+  const moduleConfig = await readMainModuleConfig(project, name, srcPath);
+  if (moduleConfig.module?.type !== "shared") return undefined;
+  const packageConfig = await readModulePackageConfig(
+    name,
+    path.join(project, srcPath, "oh-package.json5"),
+  );
+  return {
+    name,
+    srcPath,
+    packageName: packageConfig.name ?? name,
+    dependencies: Object.keys(packageConfig.dependencies ?? {}),
+    outputDir: path.join(
       project,
       srcPath,
-      "src",
-      "main",
-      "module.json5",
+      "build",
+      product,
+      "outputs",
+      product,
+    ),
+  };
+}
+
+async function readMainModuleConfig(
+  project: string,
+  moduleName: string,
+  srcPath: string,
+): Promise<MainModuleConfig> {
+  const moduleConfigPath = path.join(
+    project,
+    srcPath,
+    "src",
+    "main",
+    "module.json5",
+  );
+  try {
+    return await readJson5ish<MainModuleConfig>(moduleConfigPath);
+  } catch (error) {
+    throw new Error(
+      `module ${moduleName} module.json5 could not be read at ${moduleConfigPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     );
-    let moduleConfig: MainModuleConfig;
-    try {
-      moduleConfig = await readJson5ish<MainModuleConfig>(moduleConfigPath);
-    } catch (error) {
+  }
+}
+
+async function readModulePackageConfig(
+  moduleName: string,
+  packageConfigPath: string,
+): Promise<ModulePackageConfig> {
+  try {
+    return await readJson5ish<ModulePackageConfig>(packageConfigPath);
+  } catch (error) {
+    throw new Error(
+      `module ${moduleName} oh-package.json5 could not be read at ${packageConfigPath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
+function orderSharedModules(
+  modules: SharedModuleInfo[],
+): SharedModuleInfo[] {
+  const byPackageName = new Map(
+    modules.map((moduleInfo) => [moduleInfo.packageName, moduleInfo]),
+  );
+  const ordered: SharedModuleInfo[] = [];
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (moduleInfo: SharedModuleInfo): void => {
+    if (visited.has(moduleInfo.packageName)) return;
+    if (visiting.has(moduleInfo.packageName)) {
       throw new Error(
-        `module ${name} module.json5 could not be read at ${moduleConfigPath}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        `shared module dependency cycle includes ${moduleInfo.packageName}`,
       );
     }
-    if (moduleConfig.module?.type !== "shared") {
-      continue;
+    visiting.add(moduleInfo.packageName);
+    for (const dependency of moduleInfo.dependencies) {
+      const sharedDependency = byPackageName.get(dependency);
+      if (sharedDependency) visit(sharedDependency);
     }
-    sharedModules.push({
-      name,
-      srcPath,
-      outputDir: path.join(
-        project,
-        srcPath,
-        "build",
-        product,
-        "outputs",
-        product,
-      ),
-    });
-  }
-  return sharedModules;
+    visiting.delete(moduleInfo.packageName);
+    visited.add(moduleInfo.packageName);
+    ordered.push(moduleInfo);
+  };
+  for (const moduleInfo of modules) visit(moduleInfo);
+  return ordered;
 }
 
 function appliesToProduct(
