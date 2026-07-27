@@ -27,6 +27,7 @@ import type { FoldServerInstance } from "../fold/server.js";
 import type {
   CommandResult,
   DeviceRunResult,
+  InstallArtifacts,
   MatrixConfig,
   MatrixResult,
   RunMatrixInput,
@@ -49,6 +50,7 @@ interface MatrixRunContext {
 
 interface DeviceRunInput {
   config: MatrixConfig;
+  installArtifacts: InstallArtifacts;
   device: MatrixConfig["devices"][number];
   outDir: string;
   keepEmulators: boolean;
@@ -63,7 +65,7 @@ export async function runOhosTestMatrix(
 
   await deployDefaultFoldTriggerIfNeeded(context);
 
-  const build = await runBuild({
+  const buildOutcome = await runBuild({
     config: context.config,
     skipBuild: input.skipBuild ?? false,
     runCommand: context.runCommand,
@@ -71,10 +73,22 @@ export async function runOhosTestMatrix(
   });
 
   const devices =
-    build.status === "passed" ? await runSelectedDevices(context, input) : [];
+    buildOutcome.result.status === "passed" &&
+    buildOutcome.installArtifacts
+      ? await runSelectedDevices(
+          context,
+          input,
+          buildOutcome.installArtifacts,
+        )
+      : [];
 
   const status = deriveMatrixStatus(devices);
-  const result = buildMatrixResult(context, build, devices, status);
+  const result = buildMatrixResult(
+    context,
+    buildOutcome.result,
+    devices,
+    status,
+  );
   await writeMatrixArtifacts(context, result);
   return result;
 }
@@ -173,6 +187,7 @@ async function deployDefaultFoldTriggerIfNeeded(
 async function runSelectedDevices(
   context: MatrixRunContext,
   input: RunMatrixInput,
+  installArtifacts: InstallArtifacts,
 ): Promise<DeviceRunResult[]> {
   const devices: DeviceRunResult[] = [];
   for (let index = 0; index < context.selectedDevices.length; index += 1) {
@@ -181,6 +196,7 @@ async function runSelectedDevices(
       await runDevice({
         ...context,
         device,
+        installArtifacts,
         keepEmulators: input.keepEmulators ?? false,
       }),
     );
@@ -358,13 +374,16 @@ async function deployDeviceFoldTrigger(
 }
 
 async function installRunHaps(input: DeviceRunInput): Promise<void> {
-  await installHaps({
-    config: input.config,
-    device: input.device,
-    cwd: input.config.project,
-    outDir: input.outDir,
-    runCommand: input.runCommand,
-  });
+  await installHaps(
+    {
+      config: input.config,
+      device: input.device,
+      cwd: input.config.project,
+      outDir: input.outDir,
+      runCommand: input.runCommand,
+    },
+    input.installArtifacts,
+  );
 }
 
 async function runDeviceSuites(

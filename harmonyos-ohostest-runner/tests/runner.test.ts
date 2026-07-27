@@ -5,7 +5,10 @@ import path from "node:path";
 import test from "node:test";
 import { runOhosTestMatrix } from "../src/matrix/runner.js";
 
-async function makeProject(t: test.TestContext): Promise<string> {
+async function makeProject(
+  t: test.TestContext,
+  options: { withSharedModule?: boolean } = {},
+): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-runner-"));
   t.after(async () => {
     await fs.rm(root, { recursive: true, force: true });
@@ -21,10 +24,43 @@ async function makeProject(t: test.TestContext): Promise<string> {
     path.join(root, "build-profile.json5"),
     JSON.stringify({
       app: { products: [{ name: "default" }] },
-      modules: [{ name: "entry", srcPath: "./products/entry" }],
+      modules: [
+        { name: "entry", srcPath: "./products/entry" },
+        ...(options.withSharedModule
+          ? [{ name: "common", srcPath: "./commons/common" }]
+          : []),
+      ],
     }),
     "utf-8",
   );
+  await fs.mkdir(path.join(root, "products", "entry", "src", "main"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(root, "products", "entry", "src", "main", "module.json5"),
+    JSON.stringify({ module: { name: "entry", type: "entry" } }),
+    "utf-8",
+  );
+  if (options.withSharedModule) {
+    await fs.mkdir(path.join(root, "commons", "common", "src", "main"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(root, "commons", "common", "src", "main", "module.json5"),
+      JSON.stringify({ module: { name: "common", type: "shared" } }),
+      "utf-8",
+    );
+    const commonOutput = path.join(
+      root,
+      "commons/common/build/default/outputs/default",
+    );
+    await fs.mkdir(commonOutput, { recursive: true });
+    await fs.writeFile(
+      path.join(commonOutput, "common-default-unsigned.hsp"),
+      "",
+      "utf-8",
+    );
+  }
   await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), { recursive: true });
   await fs.writeFile(
     path.join(root, "products", "entry", "src", "ohosTest", "module.json5"),
@@ -66,7 +102,7 @@ async function makeMachineConfig(project: string): Promise<string> {
 }
 
 test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", async (t) => {
-  const project = await makeProject(t);
+  const project = await makeProject(t, { withSharedModule: true });
   const machineConfigPath = await makeMachineConfig(project);
   const out = path.join(project, ".ohostest-runs/latest/result.json");
   await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
@@ -96,13 +132,79 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
 
   assert.equal(result.status, "completed");
   assert.deepEqual(result.devices.map((item) => item.status), ["passed"]);
-  assert.equal(commands[0], "/fake/ohpm install");
+  assert.equal(commands[0], "/fake/hvigorw clean --no-daemon");
+  assert.equal(commands[1], "/fake/ohpm install");
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode project -p product=default assembleApp/);
   assert.match(commands.join("\n"), /\/fake\/hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap/);
-  assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 install -r .*entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap/);
+  assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 install -r .*common-default-unsigned\.hsp .*entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap/);
   assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 shell aa test -b zhsc\.1\.xxxxxx -m entry_test/);
+  assert.equal("hspPaths" in result.build, false);
   assert.ok(await fs.readFile(out, "utf-8"));
   assert.match(await fs.readFile(path.join(path.dirname(out), "summary.md"), "utf-8"), /Status: completed/);
+});
+
+test("runOhosTestMatrix blocks install output errors before aa test", async (t) => {
+  const project = await makeProject(t, { withSharedModule: true });
+  const machineConfigPath = await makeMachineConfig(project);
+  const out = path.join(project, "install-error/result.json");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  const commands: string[] = [];
+
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out,
+    commandExecutor: async (command) => {
+      commands.push(command);
+      if (command.includes(" install -r ")) {
+        return {
+          stdout:
+            "[Info]App install path:entry.hap msg:error: failed to install bundle. code:9568305 error: Failed to install the HAP or HSP because the dependent module does not exist. entry's dependent module: common does not exist",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+        };
+      }
+      return {
+        stdout: command.includes("list targets")
+          ? "127.0.0.1:15001\tConnected\n"
+          : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.devices[0]?.status, "blocked");
+  assert.equal(result.devices[0]?.blockedReason, "install_failed");
+  assert.equal(
+    commands.some((command) => command.includes("aa test")),
+    false,
+  );
 });
 
 test("runOhosTestMatrix uses configured hvigorw path when project wrapper is absent", async (t) => {

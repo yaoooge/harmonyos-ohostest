@@ -6,48 +6,35 @@ import type { BuildOutcome, CommandResult, MatrixConfig } from "./types/index.js
 
 const BUILD_STDERR_TAIL_LINES = 15;
 
-export async function runBuild(input: {
+interface RunBuildInput {
   config: MatrixConfig;
   skipBuild: boolean;
   runCommand: (command: string) => Promise<CommandResult>;
   diagnostics: string[];
-}): Promise<BuildOutcome> {
-  const started = Date.now();
-  if (!input.skipBuild) {
-    for (const command of buildCommands(input.config)) {
-      const result = await input.runCommand(command);
-      if (result.exitCode !== 0) {
-        input.diagnostics.push(`构建命令失败：${command}`);
-        input.diagnostics.push(...tailOfStderr(result.stderr));
-        return {
-          result: {
-            status: "blocked",
-            appHap: input.config.artifacts.appHap,
-            testHap: input.config.artifacts.testHap,
-            durationMs: Date.now() - started,
-            blockedReason: "build_failed",
-          },
-        };
-      }
-    }
-  }
+}
 
+export async function runBuild(
+  input: RunBuildInput,
+): Promise<BuildOutcome> {
+  const started = Date.now();
+  const commandFailure = await runBuildCommands(input, started);
+  if (commandFailure) {
+    return commandFailure;
+  }
+  return verifyBuildArtifacts(input, started);
+}
+
+async function verifyBuildArtifacts(
+  input: RunBuildInput,
+  started: number,
+): Promise<BuildOutcome> {
   try {
     await verifyFileExists(input.config.artifacts.appHap);
     await verifyFileExists(input.config.artifacts.testHap);
   } catch (error) {
     input.diagnostics.push(`HAP 文件不存在：${error instanceof Error ? error.message : String(error)}`);
-    return {
-      result: {
-        status: "blocked",
-        appHap: input.config.artifacts.appHap,
-        testHap: input.config.artifacts.testHap,
-        durationMs: Date.now() - started,
-        blockedReason: "hap_missing",
-      },
-    };
+    return blockedBuild(input.config, started, "hap_missing");
   }
-
   let hspPaths: string[];
   try {
     hspPaths = await resolveHspPaths(input.config);
@@ -55,17 +42,8 @@ export async function runBuild(input: {
     input.diagnostics.push(
       `HSP 产物解析失败：${error instanceof Error ? error.message : String(error)}`,
     );
-    return {
-      result: {
-        status: "blocked",
-        appHap: input.config.artifacts.appHap,
-        testHap: input.config.artifacts.testHap,
-        durationMs: Date.now() - started,
-        blockedReason: "hap_missing",
-      },
-    };
+    return blockedBuild(input.config, started, "hap_missing");
   }
-
   return {
     result: {
       status: "passed",
@@ -77,6 +55,40 @@ export async function runBuild(input: {
       hspPaths,
       appHap: input.config.artifacts.appHap,
       testHap: input.config.artifacts.testHap,
+    },
+  };
+}
+
+async function runBuildCommands(
+  input: RunBuildInput,
+  started: number,
+): Promise<BuildOutcome | undefined> {
+  if (input.skipBuild) {
+    return undefined;
+  }
+  for (const command of buildCommands(input.config)) {
+    const result = await input.runCommand(command);
+    if (result.exitCode !== 0) {
+      input.diagnostics.push(`构建命令失败：${command}`);
+      input.diagnostics.push(...tailOfStderr(result.stderr));
+      return blockedBuild(input.config, started, "build_failed");
+    }
+  }
+  return undefined;
+}
+
+function blockedBuild(
+  config: MatrixConfig,
+  started: number,
+  blockedReason: string,
+): BuildOutcome {
+  return {
+    result: {
+      status: "blocked",
+      appHap: config.artifacts.appHap,
+      testHap: config.artifacts.testHap,
+      durationMs: Date.now() - started,
+      blockedReason,
     },
   };
 }
