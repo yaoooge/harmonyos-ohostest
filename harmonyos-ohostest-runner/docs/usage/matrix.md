@@ -32,6 +32,28 @@ npm run ohostest:matrix -- \
 
 构建完成后，应用 HAP 和测试 HAP 路径会根据 entry module 的源码路径自动推导。
 
+运行器也会读取 `build-profile.json5` 中适用于当前 product 的模块及其
+`src/main/module.json5`。`module.type` 为 `shared` 的模块会在构建后解析对应 HSP，
+并在同一次 `hdc install` 中按“HSP、应用 HAP、测试 HAP”的顺序安装。
+
+## 构建与安装
+
+默认主构建按以下顺序执行：
+
+```text
+hvigorw clean --no-daemon
+ohpm install
+assembleApp
+ohosTest@PackageHap
+```
+
+每次矩阵主构建只 clean 一次。`--skip-build true` 会跳过 clean 和全部构建命令，
+但仍校验已有的 HAP/HSP 产物。折叠屏流程修改测试源码后单独重打 test HAP 时不会再次
+clean，避免删除主构建生成的应用和 shared 模块产物。
+
+设备安装不仅检查 HDC 退出码，也检查 AppMod 输出。若输出包含安装失败信息，即使 HDC
+返回退出码 `0`，设备也会以 `install_failed` 阻断，不再执行 `aa test`。
+
 ## 设备矩阵配置
 
 默认配置文件：

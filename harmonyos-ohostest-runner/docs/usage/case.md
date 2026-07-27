@@ -52,6 +52,13 @@ npm run ohostest:case -- \
 运行器会在执行设备矩阵前报错；未传入时仍执行 case 选择的全部设备。case 模式不接收
 `--test-class`，suite 选择只来自 case 配置。
 
+每个实际执行的矩阵轮次都会在主构建开始时单独执行一次 `hvigorw clean --no-daemon`。
+因此 `--run all` 的 SWE 和 Answer 分别 clean，Answer 不会复用 SWE 的 Hvigor 构建缓存。
+`--skip-build true` 时两轮都跳过 clean 和构建，但仍校验已有 HAP/HSP 产物。
+
+case 合成工程中适用于当前 product 的 shared 模块会被自动识别；其 HSP 与应用 HAP、
+测试 HAP 在同一次设备安装中提交，不需要在 metadata 或 `machine.json` 中配置 HSP 路径。
+
 ## 输入目录
 
 case 目录包含：
