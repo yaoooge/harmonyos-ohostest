@@ -14,6 +14,7 @@ function makeConfig(): MatrixConfig {
     product: "default",
     module: "entry",
     moduleSrcPath: "entry",
+    sharedModules: [],
     bundleName: "zhsc.1.xxxxxx",
     testModule: "entry_test",
     testRunner: "OpenHarmonyTestRunner",

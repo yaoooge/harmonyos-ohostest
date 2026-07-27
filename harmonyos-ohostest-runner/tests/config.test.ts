@@ -33,6 +33,14 @@ async function makeTempProject(t: test.TestContext): Promise<string> {
   await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), {
     recursive: true,
   });
+  await fs.mkdir(path.join(root, "products", "entry", "src", "main"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(root, "products", "entry", "src", "main", "module.json5"),
+    JSON.stringify({ module: { name: "entry", type: "entry" } }),
+    "utf-8",
+  );
   await fs.writeFile(
     path.join(root, "products", "entry", "src", "ohosTest", "module.json5"),
     JSON.stringify({ module: { name: "entry_test" } }),
@@ -74,6 +82,7 @@ test("loadMatrixConfig infers project information and reads machine devices", as
 
   assert.equal(config.product, "default");
   assert.equal(config.module, "entry");
+  assert.deepEqual(config.sharedModules, []);
   assert.equal(config.bundleName, "zhsc.1.xxxxxx");
   assert.equal(config.testModule, "entry_test");
   assert.equal(config.testRunner, "OpenHarmonyTestRunner");

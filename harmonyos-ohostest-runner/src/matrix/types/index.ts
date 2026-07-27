@@ -60,6 +60,7 @@ export interface MatrixConfig {
   product: string;
   module: string;
   moduleSrcPath: string;
+  sharedModules: SharedModuleInfo[];
   bundleName: string;
   testModule: string;
   testRunner: string;
@@ -83,6 +84,12 @@ export interface MatrixConfig {
     testHap: string;
   };
   devices: DeviceConfig[];
+}
+
+export interface SharedModuleInfo {
+  name: string;
+  srcPath: string;
+  outputDir: string;
 }
 
 export interface DeviceConfig {

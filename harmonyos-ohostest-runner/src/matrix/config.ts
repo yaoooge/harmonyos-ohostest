@@ -128,6 +128,7 @@ function buildMatrixConfig(input: {
     product: raw.product ?? projectInfo.product,
     module: raw.module ?? projectInfo.moduleName,
     moduleSrcPath: projectInfo.moduleSrcPath,
+    sharedModules: projectInfo.sharedModules,
     bundleName: raw.bundleName ?? projectInfo.bundleName,
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
