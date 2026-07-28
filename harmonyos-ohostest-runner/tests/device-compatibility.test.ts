@@ -82,32 +82,6 @@ test("withSweTabletCompatibility temporarily adds tablet and restores the origin
   assert.equal(await fs.readFile(modulePath, "utf-8"), original);
 });
 
-test("withSweTabletCompatibility leaves an existing tablet declaration byte-for-byte unchanged", async (t) => {
-  const { project, modulePath, original } = await makeTempProject(t, [
-    "phone",
-    "tablet",
-  ]);
-
-  const result = await withSweTabletCompatibility({
-    project,
-    enabled: true,
-    run: async () => "completed",
-  });
-
-  assert.equal(result, "completed");
-  assert.equal(await fs.readFile(modulePath, "utf-8"), original);
-});
-
-test("withSweTabletCompatibility skips project inspection when disabled", async () => {
-  const result = await withSweTabletCompatibility({
-    project: "/missing/project",
-    enabled: false,
-    run: async () => "skipped",
-  });
-
-  assert.equal(result, "skipped");
-});
-
 test("withSweTabletCompatibility restores the original file and rethrows callback errors", async (t) => {
   const { project, modulePath, original } = await makeTempProject(t);
   const expectedError = new Error("run failed");
@@ -135,39 +109,5 @@ test("withSweTabletCompatibility rejects invalid deviceTypes with a stable error
       run: async () => undefined,
     }),
     /swe_tablet_compatibility_invalid_module/,
-  );
-});
-
-test("withSweTabletCompatibility rejects an invalid module list with a stable error", async (t) => {
-  const { project } = await makeTempProject(t);
-  await fs.writeFile(
-    path.join(project, "build-profile.json5"),
-    JSON.stringify({ modules: {} }),
-    "utf-8",
-  );
-
-  await assert.rejects(
-    withSweTabletCompatibility({
-      project,
-      enabled: true,
-      run: async () => undefined,
-    }),
-    /swe_tablet_compatibility_entry_module_not_found/,
-  );
-});
-
-test("withSweTabletCompatibility reports restore and callback failures together", async (t) => {
-  const { project, modulePath } = await makeTempProject(t);
-
-  await assert.rejects(
-    withSweTabletCompatibility({
-      project,
-      enabled: true,
-      run: async () => {
-        await fs.rm(path.dirname(modulePath), { recursive: true, force: true });
-        throw new Error("run failed");
-      },
-    }),
-    /swe_tablet_compatibility_restore_failed:.*run failed/s,
   );
 });

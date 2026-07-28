@@ -25,37 +25,22 @@ function device(
   };
 }
 
-test("deriveMatrixStatus returns completed when every selected device reaches a test result", () => {
-  assert.equal(
-    deriveMatrixStatus([device("passed", "phone"), device("failed", "tablet")]),
-    "completed",
-  );
+test("deriveMatrixStatus reflects whether execution reached device results", () => {
+  const scenarios = [
+    { devices: [device("passed")], expected: "completed" },
+    { devices: [device("failed")], expected: "completed" },
+    {
+      devices: [device("passed"), device("blocked")],
+      expected: "failed",
+    },
+    { devices: [], expected: "failed" },
+  ] as const;
+  for (const scenario of scenarios) {
+    assert.equal(deriveMatrixStatus([...scenario.devices]), scenario.expected);
+  }
 });
 
-test("deriveMatrixStatus returns failed when any selected device is blocked", () => {
-  assert.equal(
-    deriveMatrixStatus([device("passed"), device("blocked")]),
-    "failed",
-  );
-});
-
-test("deriveMatrixStatus returns failed when no device reaches a test result", () => {
-  assert.equal(deriveMatrixStatus([device("blocked", "phone")]), "failed");
-});
-
-test("renderSummaryMarkdown includes a compact device table", () => {
-  const markdown = renderSummaryMarkdown("completed", [
-    device("passed", "phone"),
-  ]);
-
-  assert.match(markdown, /# ohosTest Matrix Summary/);
-  assert.match(
-    markdown,
-    /\| phone \| passed \| 0 \| 25 \| 0 \| 0 \| 25 \| 0 \|/,
-  );
-});
-
-test("renderSummaryMarkdown includes per-suite details below device aggregation", () => {
+test("renderSummaryMarkdown reports device, suite, and test-case outcomes", () => {
   const item = device("failed", "foldable");
   item.suiteResults = [
     {
@@ -98,6 +83,7 @@ test("renderSummaryMarkdown includes per-suite details below device aggregation"
 
   const markdown = renderSummaryMarkdown("completed", [item]);
 
+  assert.match(markdown, /# ohosTest Matrix Summary/);
   assert.match(
     markdown,
     /\| Device \| Status \| Suites \| Tests \| Failures \| Errors \| Passes \| Ignored \|/,

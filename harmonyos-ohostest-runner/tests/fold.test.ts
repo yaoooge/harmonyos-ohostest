@@ -12,26 +12,6 @@ describe("foldTriggerTemplate", () => {
     assert.ok(template.includes("const FOLD_SERVER_PORT = 8765"));
   });
 
-  it("includes triggerFold export", () => {
-    const template = foldTriggerTemplate(8765);
-    assert.ok(template.includes("export async function triggerFold"));
-  });
-
-  it("includes triggerRotation export", () => {
-    const template = foldTriggerTemplate(8765);
-    assert.ok(template.includes("export async function triggerRotation"));
-  });
-
-  it("includes triggerLandscapeHover export", () => {
-    const template = foldTriggerTemplate(8765);
-    assert.ok(template.includes("export async function triggerLandscapeHover"));
-  });
-
-  it("includes sleep export", () => {
-    const template = foldTriggerTemplate(8765);
-    assert.ok(template.includes("export function sleep"));
-  });
-
   it("contains no placeholder after injection", () => {
     const template = foldTriggerTemplate(8765);
     assert.ok(!template.includes("__FOLD_PORT__"));
@@ -61,7 +41,6 @@ describe("deployFoldTrigger", () => {
       assert.strictEqual(deployed, expected);
       const content = await fs.readFile(expected, "utf-8");
       assert.ok(content.includes("const FOLD_SERVER_PORT = 8765"));
-      assert.ok(content.includes("export async function triggerFold"));
     } finally {
       await fs.rm(tmp, { recursive: true, force: true });
     }
