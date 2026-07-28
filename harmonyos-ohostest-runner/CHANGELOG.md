@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.5] - 2026-07-28
+
+### 修复
+
+- 设备连接后通过 `const.product.devicetype` 自动识别 HarmonyOS PC/2in1，并使用 Enter 键码 `2054` 解锁；其他设备及探测失败场景继续使用 Home 键，不依赖用户自定义设备 ID。
+
 ## [0.1.4] - 2026-07-28
 
 ### 新增
