@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../matrix/ohostest.js";
 import type { MatrixConfig } from "../matrix/types/index.js";
 import type {
   CaseDeviceSelection,
@@ -12,6 +13,7 @@ interface RawCaseMetadata {
   base_project?: string;
   test_patch?: string;
   golden_patch?: string;
+  test_case_timeout_ms?: unknown;
   fail_to_pass?: unknown;
   pass_to_pass?: unknown;
   device_test_suites?: unknown;
@@ -57,6 +59,7 @@ export async function loadCaseMetadata(
     baseProject,
     testPatch,
     goldenPatch,
+    testCaseTimeoutMs: readTestCaseTimeoutMs(raw.test_case_timeout_ms),
     failToPass: readStringArray(raw.fail_to_pass, "metadata.fail_to_pass"),
     passToPass: readStringArray(raw.pass_to_pass, "metadata.pass_to_pass"),
     deviceTestSuites: readDeviceTestSuites(raw.device_test_suites),
@@ -198,6 +201,22 @@ function readRequiredString(value: unknown, label: string): string {
     throw new Error(`${label} is required.`);
   }
   return value.trim();
+}
+
+function readTestCaseTimeoutMs(value: unknown): number {
+  if (value === undefined) {
+    return AA_TEST_CASE_TIMEOUT_MS;
+  }
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value <= 0
+  ) {
+    throw new Error(
+      "metadata.test_case_timeout_ms must be a positive integer.",
+    );
+  }
+  return value;
 }
 
 function readStringArray(value: unknown, label: string): string[] {

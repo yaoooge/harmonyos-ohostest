@@ -27,6 +27,11 @@ async function makeProject(root: string): Promise<string> {
     { recursive: true },
   );
   await fs.writeFile(
+    path.join(project, "products", "entry", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  await fs.writeFile(
     path.join(project, "products", "entry", "src", "main", "ets", "Index.ets"),
     "export const state = 'base';\n",
     "utf-8",
@@ -105,6 +110,7 @@ async function writeCase(root: string): Promise<string> {
       base_project: "base",
       test_patch: "test_patch.patch",
       golden_patch: "golden_patch.patch",
+      test_case_timeout_ms: 30000,
       fail_to_pass: ["should_adapt"],
       pass_to_pass: ["should_launch"],
       device_test_suites: {
@@ -263,6 +269,8 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
       .length,
     2,
   );
+  assert.match(commands.join("\n"), /-s timeout 30000 -w 120000/);
+  assert.equal(result.metadata.testCaseTimeoutMs, 30000);
   assert.match(
     await fs.readFile(
       path.join(

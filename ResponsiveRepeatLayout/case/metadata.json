@@ -3,6 +3,7 @@
   "golden_patch": "golden_patch.patch",
   "test_patch": "test_patch.patch",
   "base_project": "task",
+  "test_case_timeout_ms": 30000,
   "fail_to_pass": [
     "should_show_home_waterflow_as_multi_column_layout_on_medium_breakpoint",
     "should_show_category_products_as_four_columns_on_medium_breakpoint",
@@ -27,35 +28,35 @@
     "phone": [
       {
         "suite": "CommonPassToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets"
       },
       {
         "suite": "SmPassToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/SmPassToPass.test.ets"
       }
     ],
     "foldable": [
       {
         "suite": "CommonPassToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets"
       },
       {
         "suite": "SmPassToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/SmPassToPass.test.ets"
       },
       {
         "suite": "MdFailToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/MdFailToPass.test.ets"
       }
     ],
     "tablet": [
       {
         "suite": "CommonPassToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets"
       },
       {
         "suite": "LgFailToPassTest",
-        "file": "products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets"
+        "file": "products/phone/src/ohosTest/ets/test/LgFailToPass.test.ets"
       }
     ]
   }

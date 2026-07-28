@@ -55,7 +55,11 @@ export async function discoverProjectInfo(
     path.join(project, "AppScope", "app.json5"),
   );
   const product = buildProfile.app?.products?.[0]?.name ?? "default";
-  const moduleInfo = selectEntryModule(buildProfile.modules ?? []);
+  const moduleInfo = await selectHapModule(
+    project,
+    product,
+    buildProfile.modules ?? [],
+  );
   const moduleName = moduleInfo.name ?? "entry";
   const moduleSrcPath = normalizeModuleSrcPath(
     moduleInfo.srcPath ?? moduleName,
@@ -242,15 +246,40 @@ function buildArtifactPaths(
   };
 }
 
-export function selectEntryModule(
+export async function selectHapModule(
+  project: string,
+  product: string,
   modules: ProjectModuleInfo[],
-): ProjectModuleInfo {
-  return (
-    modules.find((item) => item.name === "entry") ??
-    modules.find((item) => item.srcPath?.includes("entry")) ??
-    modules[0] ??
-    {}
-  );
+): Promise<ProjectModuleInfo> {
+  const matches: ProjectModuleInfo[] = [];
+  for (const moduleInfo of modules) {
+    if (!appliesToProduct(moduleInfo, product)) continue;
+    const name = moduleInfo.name?.trim();
+    const rawSrcPath = moduleInfo.srcPath?.trim();
+    if (!name || !rawSrcPath) continue;
+    const hvigorfile = await fs.readFile(
+      path.join(
+        project,
+        normalizeModuleSrcPath(rawSrcPath),
+        "hvigorfile.ts",
+      ),
+      "utf-8",
+    );
+    if (/\bhapTasks\b/.test(hvigorfile)) {
+      matches.push(moduleInfo);
+    }
+  }
+  if (matches.length === 0) {
+    throw new Error(`project_hap_module_not_found: ${project}`);
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `project_hap_module_ambiguous: ${matches
+        .map((moduleInfo) => moduleInfo.name)
+        .join(", ")}`,
+    );
+  }
+  return matches[0]!;
 }
 
 export function normalizeModuleSrcPath(value: string): string {

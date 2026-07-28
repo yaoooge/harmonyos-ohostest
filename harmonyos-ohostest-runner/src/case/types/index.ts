@@ -26,6 +26,7 @@ export interface CaseMetadata {
   baseProject: string;
   testPatch: string;
   goldenPatch: string;
+  testCaseTimeoutMs: number;
   failToPass: string[];
   passToPass: string[];
   deviceTestSuites?: Record<string, CaseDeviceSuite[]>;
@@ -50,6 +51,7 @@ export interface CaseResult {
   durationMs: number;
   status: CaseStatus;
   metadata: {
+    testCaseTimeoutMs: number;
     failToPass: string[];
     passToPass: string[];
     deviceTestSuites: Record<string, CaseDeviceSuite[]>;

@@ -1,6 +1,6 @@
 {
   "module": {
-    "name": "entry",
+    "name": "phone",
     "type": "entry",
     "mainElement": "EntryAbility",
     "deviceTypes": [

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadMatrixConfig } from "../src/matrix/config.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../src/matrix/ohostest.js";
 
 async function makeTempProject(t: test.TestContext): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-config-"));
@@ -36,6 +37,11 @@ async function makeTempProject(t: test.TestContext): Promise<string> {
   await fs.mkdir(path.join(root, "products", "entry", "src", "main"), {
     recursive: true,
   });
+  await fs.writeFile(
+    path.join(root, "products", "entry", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
   await fs.writeFile(
     path.join(root, "products", "entry", "src", "main", "module.json5"),
     JSON.stringify({ module: { name: "entry", type: "entry" } }),
@@ -91,6 +97,7 @@ test("loadMatrixConfig infers project information and reads machine devices", as
   assert.equal(config.paths.emulatorBin, "Emulator");
   assert.equal(config.paths.emulatorDeployedDir, "/fake/deployed");
   assert.equal(config.timeoutMs, 120000);
+  assert.equal(config.testCaseTimeoutMs, AA_TEST_CASE_TIMEOUT_MS);
   assert.equal(config.build.appTask, "assembleApp");
   assert.equal(config.build.testTask, "ohosTest@PackageHap");
   assert.equal(
@@ -109,6 +116,19 @@ test("loadMatrixConfig infers project information and reads machine devices", as
   );
   assert.equal(config.devices[0]?.hdcPort, 15001);
   assert.equal(config.devices[0]?.startEmulator, false);
+});
+
+test("loadMatrixConfig accepts an in-memory test case timeout override", async (t) => {
+  const project = await makeTempProject(t);
+  const machineConfigPath = await writeMachineConfig(project);
+
+  const config = await loadMatrixConfig({
+    project,
+    machineConfigPath,
+    testCaseTimeoutMs: 30000,
+  });
+
+  assert.equal(config.testCaseTimeoutMs, 30000);
 });
 
 test("loadMatrixConfig accepts explicit machine paths", async (t) => {

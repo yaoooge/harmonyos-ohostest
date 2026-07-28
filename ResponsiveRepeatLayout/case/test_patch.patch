@@ -1,7 +1,7 @@
-diff --git a/products/entry/build-profile.json5 b/products/entry/build-profile.json5
+diff --git a/products/phone/build-profile.json5 b/products/phone/build-profile.json5
 index 4cae967..4d61187 100644
---- a/products/entry/build-profile.json5
-+++ b/products/entry/build-profile.json5
+--- a/products/phone/build-profile.json5
++++ b/products/phone/build-profile.json5
 @@ -20,6 +20,9 @@
    "targets": [
      {
@@ -14,11 +14,11 @@ index 4cae967..4d61187 100644
 -}
 +}
 \ No newline at end of file
-diff --git a/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets b/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets
+diff --git a/products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets b/products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets
 new file mode 100644
 index 0000000..fade962
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/CommonPassToPass.test.ets
++++ b/products/phone/src/ohosTest/ets/test/CommonPassToPass.test.ets
 @@ -0,0 +1,85 @@
 +import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
 +import { Driver } from '@kit.TestKit';
@@ -105,11 +105,11 @@ index 0000000..fade962
 +
 +  });
 +}
-diff --git a/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets b/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets
+diff --git a/products/phone/src/ohosTest/ets/test/LgFailToPass.test.ets b/products/phone/src/ohosTest/ets/test/LgFailToPass.test.ets
 new file mode 100644
 index 0000000..b4fcc75
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/LgFailToPass.test.ets
++++ b/products/phone/src/ohosTest/ets/test/LgFailToPass.test.ets
 @@ -0,0 +1,64 @@
 +import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
 +import { Driver, ON } from '@kit.TestKit';
@@ -175,11 +175,11 @@ index 0000000..b4fcc75
 +    });
 +  });
 +}
-diff --git a/products/entry/src/ohosTest/ets/test/List.test.ets b/products/entry/src/ohosTest/ets/test/List.test.ets
+diff --git a/products/phone/src/ohosTest/ets/test/List.test.ets b/products/phone/src/ohosTest/ets/test/List.test.ets
 new file mode 100644
 index 0000000..c664d46
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/List.test.ets
++++ b/products/phone/src/ohosTest/ets/test/List.test.ets
 @@ -0,0 +1,11 @@
 +import commonPassToPassTest from './CommonPassToPass.test';
 +import smPassToPassTest from './SmPassToPass.test';
@@ -192,11 +192,11 @@ index 0000000..c664d46
 +  mdFailToPassTest();
 +  lgFailToPassTest();
 +}
-diff --git a/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets b/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets
+diff --git a/products/phone/src/ohosTest/ets/test/MdFailToPass.test.ets b/products/phone/src/ohosTest/ets/test/MdFailToPass.test.ets
 new file mode 100644
 index 0000000..37859a7
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/MdFailToPass.test.ets
++++ b/products/phone/src/ohosTest/ets/test/MdFailToPass.test.ets
 @@ -0,0 +1,49 @@
 +import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
 +import { Driver } from '@kit.TestKit';
@@ -247,11 +247,11 @@ index 0000000..37859a7
 +
 +  });
 +}
-diff --git a/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets b/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets
+diff --git a/products/phone/src/ohosTest/ets/test/SmPassToPass.test.ets b/products/phone/src/ohosTest/ets/test/SmPassToPass.test.ets
 new file mode 100644
 index 0000000..093f6a8
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/SmPassToPass.test.ets
++++ b/products/phone/src/ohosTest/ets/test/SmPassToPass.test.ets
 @@ -0,0 +1,63 @@
 +import { describe, beforeAll, it, expect, Level } from '@ohos/hypium';
 +import { Driver } from '@kit.TestKit';
@@ -316,11 +316,11 @@ index 0000000..093f6a8
 +    });
 +  });
 +}
-diff --git a/products/entry/src/ohosTest/ets/test/TestHelper.ets b/products/entry/src/ohosTest/ets/test/TestHelper.ets
+diff --git a/products/phone/src/ohosTest/ets/test/TestHelper.ets b/products/phone/src/ohosTest/ets/test/TestHelper.ets
 new file mode 100644
 index 0000000..acba252
 --- /dev/null
-+++ b/products/entry/src/ohosTest/ets/test/TestHelper.ets
++++ b/products/phone/src/ohosTest/ets/test/TestHelper.ets
 @@ -0,0 +1,189 @@
 +import { Want } from '@kit.AbilityKit';
 +import { abilityDelegatorRegistry, Driver, ON, UiWindow } from '@kit.TestKit';
@@ -511,15 +511,15 @@ index 0000000..acba252
 +    expect(itemBounds.right <= containerBounds.right + 1).assertTrue();
 +  }
 +}
-diff --git a/products/entry/src/ohosTest/module.json5 b/products/entry/src/ohosTest/module.json5
+diff --git a/products/phone/src/ohosTest/module.json5 b/products/phone/src/ohosTest/module.json5
 new file mode 100644
 index 0000000..6902687
 --- /dev/null
-+++ b/products/entry/src/ohosTest/module.json5
++++ b/products/phone/src/ohosTest/module.json5
 @@ -0,0 +1,12 @@
 +{
 +  "module": {
-+    "name": "entry_test",
++    "name": "phone_test",
 +    "type": "feature",
 +    "deviceTypes": [
 +      "default",

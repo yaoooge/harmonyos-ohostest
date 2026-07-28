@@ -103,6 +103,7 @@ async function createMatrixRunContext(
     testClass: input.testClass,
     deviceSuiteOverrides: input.deviceSuiteOverrides,
     ignoreMachineDeviceSuites: input.ignoreMachineDeviceSuites,
+    testCaseTimeoutMs: input.testCaseTimeoutMs,
   });
   const selectedDevices = selectDevices(config, input);
   const out = resolveMatrixOut(input, config, startedTime);
@@ -601,6 +602,7 @@ function buildTestCommand(
     bundleName: config.bundleName,
     testModule: config.testModule,
     testRunner: config.testRunner,
+    testCaseTimeoutMs: config.testCaseTimeoutMs,
     timeoutMs: config.timeoutMs,
     ...(testClass ? { testClass } : {}),
   });

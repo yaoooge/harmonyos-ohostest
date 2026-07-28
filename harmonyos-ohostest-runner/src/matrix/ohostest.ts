@@ -7,6 +7,7 @@ export interface BuildAaTestCommandInput {
   bundleName: string;
   testModule: string;
   testRunner: string;
+  testCaseTimeoutMs?: number;
   timeoutMs: number;
   testClass?: string;
 }
@@ -27,7 +28,7 @@ export function buildAaTestCommand(input: BuildAaTestCommandInput): string {
     shellQuote(input.testRunner),
     ...(input.testClass ? ["-s class", shellQuote(input.testClass)] : []),
     "-s timeout",
-    String(AA_TEST_CASE_TIMEOUT_MS),
+    String(input.testCaseTimeoutMs ?? AA_TEST_CASE_TIMEOUT_MS),
     "-w",
     String(input.timeoutMs),
   ].join(" ");

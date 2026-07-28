@@ -9,6 +9,7 @@ interface ModuleFixture {
   name: string;
   srcPath: string;
   type: string;
+  packageType: "hap" | "har" | "hsp";
   applyToProducts?: string[];
   packageName?: string;
   dependencies?: Record<string, string>;
@@ -72,16 +73,25 @@ async function makeProject(
       }),
       "utf-8",
     );
+    await fs.writeFile(
+      path.join(project, module.srcPath, "hvigorfile.ts"),
+      [
+        `import { ${module.packageType}Tasks } from '@ohos/hvigor-ohos-plugin';`,
+        `export default { system: ${module.packageType}Tasks, plugins: [] };`,
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
   }
 
-  const entry = modules.find((module) => module.name === "entry");
-  assert.ok(entry);
-  await fs.mkdir(path.join(project, entry.srcPath, "src", "ohosTest"), {
+  const hap = modules.find((module) => module.packageType === "hap");
+  if (!hap) return project;
+  await fs.mkdir(path.join(project, hap.srcPath, "src", "ohosTest"), {
     recursive: true,
   });
   await fs.writeFile(
-    path.join(project, entry.srcPath, "src", "ohosTest", "module.json5"),
-    JSON.stringify({ module: { name: "entry_test" } }),
+    path.join(project, hap.srcPath, "src", "ohosTest", "module.json5"),
+    JSON.stringify({ module: { name: `${hap.name}_test` } }),
     "utf-8",
   );
   return project;
@@ -93,16 +103,19 @@ test("discoverProjectInfo finds shared modules in build-profile order", async (t
       name: "entry",
       srcPath: "products/entry",
       type: "entry",
+      packageType: "hap",
     },
     {
       name: "common",
       srcPath: "commons/common",
       type: "shared",
+      packageType: "hsp",
     },
     {
       name: "styles",
       srcPath: "commons/styles",
       type: "shared",
+      packageType: "hsp",
     },
   ]);
 
@@ -138,16 +151,19 @@ test("discoverProjectInfo excludes non-shared and other-product modules", async 
       name: "entry",
       srcPath: "products/entry",
       type: "entry",
+      packageType: "hap",
     },
     {
       name: "feature",
       srcPath: "features/feature",
       type: "feature",
+      packageType: "har",
     },
     {
       name: "tablet_common",
       srcPath: "commons/tablet_common",
       type: "shared",
+      packageType: "hsp",
       applyToProducts: ["tablet"],
     },
   ]);
@@ -163,11 +179,13 @@ test("discoverProjectInfo reports the module when module.json5 is missing", asyn
       name: "entry",
       srcPath: "products/entry",
       type: "entry",
+      packageType: "hap",
     },
     {
       name: "common",
       srcPath: "commons/common",
       type: "shared",
+      packageType: "hsp",
     },
   ]);
   await fs.rm(
@@ -186,11 +204,13 @@ test("discoverProjectInfo orders shared modules after their shared dependencies"
       name: "entry",
       srcPath: "products/entry",
       type: "entry",
+      packageType: "hap",
     },
     {
       name: "common",
       srcPath: "commons/common",
       type: "shared",
+      packageType: "hsp",
       packageName: "@example/common",
       dependencies: { "@example/utils": "1.0.0" },
     },
@@ -198,6 +218,7 @@ test("discoverProjectInfo orders shared modules after their shared dependencies"
       name: "utils",
       srcPath: "commons/utils",
       type: "shared",
+      packageType: "hsp",
       packageName: "@example/utils",
     },
   ]);
@@ -207,5 +228,70 @@ test("discoverProjectInfo orders shared modules after their shared dependencies"
   assert.deepEqual(
     info.sharedModules.map((moduleInfo) => moduleInfo.name),
     ["utils", "common"],
+  );
+});
+
+test("discoverProjectInfo selects a renamed HAP module instead of the first module", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "library",
+      srcPath: "commons/library",
+      type: "har",
+      packageType: "har",
+    },
+    {
+      name: "phone",
+      srcPath: "products/phone",
+      type: "entry",
+      packageType: "hap",
+    },
+  ]);
+
+  const info = await discoverProjectInfo(project);
+
+  assert.equal(info.moduleName, "phone");
+  assert.equal(info.moduleSrcPath, "products/phone");
+  assert.equal(info.testModuleName, "phone_test");
+  assert.match(
+    info.appHap,
+    /products\/phone\/build\/default\/outputs\/default\/phone-default-unsigned\.hap$/,
+  );
+});
+
+test("discoverProjectInfo rejects a project without a HAP module", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "library",
+      srcPath: "commons/library",
+      type: "har",
+      packageType: "har",
+    },
+  ]);
+
+  await assert.rejects(
+    discoverProjectInfo(project),
+    /project_hap_module_not_found/,
+  );
+});
+
+test("discoverProjectInfo rejects multiple HAP modules", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "phone",
+      srcPath: "products/phone",
+      type: "entry",
+      packageType: "hap",
+    },
+    {
+      name: "tablet",
+      srcPath: "products/tablet",
+      type: "feature",
+      packageType: "hap",
+    },
+  ]);
+
+  await assert.rejects(
+    discoverProjectInfo(project),
+    /project_hap_module_ambiguous: phone, tablet/,
   );
 });

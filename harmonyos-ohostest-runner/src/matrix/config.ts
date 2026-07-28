@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { MatrixConfig, RawMatrixConfig } from "./types/index.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "./ohostest.js";
 import { discoverProjectInfo } from "./utils/projectDiscovery.js";
 
 export interface LoadMatrixConfigInput {
@@ -9,6 +10,7 @@ export interface LoadMatrixConfigInput {
   testClass?: string;
   deviceSuiteOverrides?: Record<string, string[]>;
   ignoreMachineDeviceSuites?: boolean;
+  testCaseTimeoutMs?: number;
 }
 
 export async function loadMatrixConfig(
@@ -133,6 +135,8 @@ function buildMatrixConfig(input: {
     testModule: raw.testModule ?? projectInfo.testModuleName,
     testRunner: raw.testRunner ?? "OpenHarmonyTestRunner",
     ...(testClass ? { testClass } : {}),
+    testCaseTimeoutMs:
+      input.input.testCaseTimeoutMs ?? AA_TEST_CASE_TIMEOUT_MS,
     timeoutMs: raw.timeoutMs ?? 120000,
     build: readBuildConfig(raw),
     paths: readResolvedPaths(paths),

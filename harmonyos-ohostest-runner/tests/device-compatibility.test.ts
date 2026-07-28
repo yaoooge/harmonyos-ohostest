@@ -19,11 +19,28 @@ async function makeTempProject(
   await fs.writeFile(
     path.join(project, "build-profile.json5"),
     JSON.stringify({
+      app: { products: [{ name: "default" }] },
       modules: [
         { name: "library", srcPath: "./commons/library" },
         { name: "entry", srcPath: "./products/entry" },
       ],
     }),
+    "utf-8",
+  );
+  await fs.mkdir(path.join(project, "commons", "library"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(project, "commons", "library", "hvigorfile.ts"),
+    "import { harTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: harTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  await fs.mkdir(path.join(project, "products", "entry"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(project, "products", "entry", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
     "utf-8",
   );
   const modulePath = path.join(

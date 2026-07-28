@@ -165,6 +165,7 @@ async function runCaseMatrix(
     commandExecutor: input.commandExecutor,
     deviceSuiteOverrides: deviceSelection.deviceSuiteOverrides,
     ignoreMachineDeviceSuites: deviceSelection.runAllTests,
+    testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
   });
 }
 

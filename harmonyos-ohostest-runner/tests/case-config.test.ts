@@ -7,6 +7,7 @@ import {
   buildCaseDeviceSelection,
   loadCaseMetadata,
 } from "../src/case/config.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../src/matrix/ohostest.js";
 import type { MatrixConfig } from "../src/index.js";
 
 async function makeTempCase(t: test.TestContext): Promise<string> {
@@ -33,6 +34,7 @@ test("loadCaseMetadata reads metadata and resolves patch and base paths", async 
       base_project: "base",
       test_patch: "test_patch.patch",
       golden_patch: "golden_patch.patch",
+      test_case_timeout_ms: 30000,
       fail_to_pass: ["should_adapt"],
       pass_to_pass: ["should_launch"],
       device_test_suites: {
@@ -48,6 +50,7 @@ test("loadCaseMetadata reads metadata and resolves patch and base paths", async 
   assert.equal(metadata.baseProject, path.resolve(caseDir, "..", "base"));
   assert.equal(metadata.testPatch, path.join(caseDir, "test_patch.patch"));
   assert.equal(metadata.goldenPatch, path.join(caseDir, "golden_patch.patch"));
+  assert.equal(metadata.testCaseTimeoutMs, 30000);
   assert.ok(metadata.deviceTestSuites);
   assert.deepEqual(
     metadata.deviceTestSuites.phone?.map((suite) => suite.suite),
@@ -70,6 +73,7 @@ test("buildCaseDeviceSelection uses metadata device suites when present", () => 
       baseProject: "/tmp/base",
       testPatch: "/tmp/case/test_patch.patch",
       goldenPatch: "/tmp/case/golden_patch.patch",
+      testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
       failToPass: [],
       passToPass: [],
       deviceTestSuites: {
@@ -96,6 +100,7 @@ test("buildCaseDeviceSelection uses metadata device suites when present", () => 
           baseProject: "/tmp/base",
           testPatch: "/tmp/case/test_patch.patch",
           goldenPatch: "/tmp/case/golden_patch.patch",
+          testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
           failToPass: [],
           passToPass: [],
           deviceTestSuites: { foldable: [{ suite: "MdFailToPassTest" }] },
@@ -127,6 +132,33 @@ test("loadCaseMetadata accepts enabled devices without device test suites", asyn
 
   assert.equal(metadata.deviceTestSuites, undefined);
   assert.deepEqual(metadata.enabledDevices, ["phone", "foldable"]);
+  assert.equal(metadata.testCaseTimeoutMs, AA_TEST_CASE_TIMEOUT_MS);
+});
+
+test("loadCaseMetadata rejects invalid test case timeouts", async (t) => {
+  const caseDir = await makeTempCase(t);
+  await fs.mkdir(path.join(caseDir, "..", "base"), { recursive: true });
+  await fs.writeFile(path.join(caseDir, "test_patch.patch"), "", "utf-8");
+  await fs.writeFile(path.join(caseDir, "golden_patch.patch"), "", "utf-8");
+
+  for (const value of [0, -1, 1.5, "30000"]) {
+    await fs.writeFile(
+      path.join(caseDir, "metadata.json"),
+      JSON.stringify({
+        case_id: "responsive-repeat-layout",
+        base_project: "base",
+        test_patch: "test_patch.patch",
+        golden_patch: "golden_patch.patch",
+        test_case_timeout_ms: value,
+      }),
+      "utf-8",
+    );
+
+    await assert.rejects(
+      loadCaseMetadata(caseDir),
+      /metadata\.test_case_timeout_ms must be a positive integer/,
+    );
+  }
 });
 
 test("buildCaseDeviceSelection falls back to enabled devices or machine devices for full test runs", () => {
@@ -143,6 +175,7 @@ test("buildCaseDeviceSelection falls back to enabled devices or machine devices 
     baseProject: "/tmp/base",
     testPatch: "/tmp/case/test_patch.patch",
     goldenPatch: "/tmp/case/golden_patch.patch",
+    testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
     failToPass: [],
     passToPass: [],
   };
@@ -186,6 +219,7 @@ test("buildCaseDeviceSelection filters metadata suites in requested device order
       baseProject: "/tmp/base",
       testPatch: "/tmp/case/test_patch.patch",
       goldenPatch: "/tmp/case/golden_patch.patch",
+      testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
       failToPass: [],
       passToPass: [],
       deviceTestSuites: {
@@ -220,6 +254,7 @@ test("buildCaseDeviceSelection filters full test device selections", () => {
     baseProject: "/tmp/base",
     testPatch: "/tmp/case/test_patch.patch",
     goldenPatch: "/tmp/case/golden_patch.patch",
+    testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
     failToPass: [],
     passToPass: [],
   };
@@ -255,6 +290,7 @@ test("buildCaseDeviceSelection rejects devices outside the case selection", () =
           baseProject: "/tmp/base",
           testPatch: "/tmp/case/test_patch.patch",
           goldenPatch: "/tmp/case/golden_patch.patch",
+          testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
           failToPass: [],
           passToPass: [],
           enabledDevices: ["phone"],

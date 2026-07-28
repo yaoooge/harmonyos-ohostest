@@ -148,10 +148,10 @@ index 0000000..25e9c1b
 +const breakpointSystem = new BreakpointSystem();
 +
 +export { breakpointSystem as BreakpointSystem };
-diff --git a/products/entry/src/main/ets/components/CartCard.ets b/products/entry/src/main/ets/components/CartCard.ets
+diff --git a/products/phone/src/main/ets/components/CartCard.ets b/products/phone/src/main/ets/components/CartCard.ets
 index 5c2680e..ca79f53 100644
---- a/products/entry/src/main/ets/components/CartCard.ets
-+++ b/products/entry/src/main/ets/components/CartCard.ets
+--- a/products/phone/src/main/ets/components/CartCard.ets
++++ b/products/phone/src/main/ets/components/CartCard.ets
 @@ -181,4 +181,4 @@ export struct CartCard {
      .justifyContent(FlexAlign.SpaceBetween)
      .alignItems(HorizontalAlign.Start)
@@ -159,10 +159,10 @@ index 5c2680e..ca79f53 100644
 -}
 +}
 \ No newline at end of file
-diff --git a/products/entry/src/main/ets/components/CartListView.ets b/products/entry/src/main/ets/components/CartListView.ets
+diff --git a/products/phone/src/main/ets/components/CartListView.ets b/products/phone/src/main/ets/components/CartListView.ets
 index c196012..37ebbab 100644
---- a/products/entry/src/main/ets/components/CartListView.ets
-+++ b/products/entry/src/main/ets/components/CartListView.ets
+--- a/products/phone/src/main/ets/components/CartListView.ets
++++ b/products/phone/src/main/ets/components/CartListView.ets
 @@ -1,3 +1,4 @@
 +import { BreakpointStorage, BreakpointSystem, BreakpointTypeEnum } from 'lib_foundation';
  import { PriceType } from 'lib_network';
@@ -186,10 +186,10 @@ index c196012..37ebbab 100644
      .edgeEffect(EdgeEffect.None)
      .margin({ top: 10 })
      .padding({ left: 8, right: 8 })
-diff --git a/products/entry/src/main/ets/components/CartPageHeader.ets b/products/entry/src/main/ets/components/CartPageHeader.ets
+diff --git a/products/phone/src/main/ets/components/CartPageHeader.ets b/products/phone/src/main/ets/components/CartPageHeader.ets
 index b2a5802..10c63a8 100644
---- a/products/entry/src/main/ets/components/CartPageHeader.ets
-+++ b/products/entry/src/main/ets/components/CartPageHeader.ets
+--- a/products/phone/src/main/ets/components/CartPageHeader.ets
++++ b/products/phone/src/main/ets/components/CartPageHeader.ets
 @@ -42,4 +42,4 @@ export struct CartPageHeader {
        }
      }
@@ -197,10 +197,10 @@ index b2a5802..10c63a8 100644
 -}
 +}
 \ No newline at end of file
-diff --git a/products/entry/src/main/ets/components/HomePageContent.ets b/products/entry/src/main/ets/components/HomePageContent.ets
+diff --git a/products/phone/src/main/ets/components/HomePageContent.ets b/products/phone/src/main/ets/components/HomePageContent.ets
 index 4575128..ff36970 100644
---- a/products/entry/src/main/ets/components/HomePageContent.ets
-+++ b/products/entry/src/main/ets/components/HomePageContent.ets
+--- a/products/phone/src/main/ets/components/HomePageContent.ets
++++ b/products/phone/src/main/ets/components/HomePageContent.ets
 @@ -1,7 +1,18 @@
 +import {
 +  BreakpointStorage,
@@ -248,10 +248,10 @@ index 4575128..ff36970 100644
        }
        .scrollable(ScrollDirection.Horizontal)
        .scrollBar(BarState.Off)
-diff --git a/products/entry/src/main/ets/components/NumberStepper.ets b/products/entry/src/main/ets/components/NumberStepper.ets
+diff --git a/products/phone/src/main/ets/components/NumberStepper.ets b/products/phone/src/main/ets/components/NumberStepper.ets
 index 141b932..03322af 100644
---- a/products/entry/src/main/ets/components/NumberStepper.ets
-+++ b/products/entry/src/main/ets/components/NumberStepper.ets
+--- a/products/phone/src/main/ets/components/NumberStepper.ets
++++ b/products/phone/src/main/ets/components/NumberStepper.ets
 @@ -135,4 +135,4 @@ export struct NumberStepper {
        this.handleClickStepperBtn(type);
      })
@@ -259,10 +259,10 @@ index 141b932..03322af 100644
 -}
 +}
 \ No newline at end of file
-diff --git a/products/entry/src/main/ets/components/ProductCategory.ets b/products/entry/src/main/ets/components/ProductCategory.ets
+diff --git a/products/phone/src/main/ets/components/ProductCategory.ets b/products/phone/src/main/ets/components/ProductCategory.ets
 index 46961a3..5eb399c 100644
---- a/products/entry/src/main/ets/components/ProductCategory.ets
-+++ b/products/entry/src/main/ets/components/ProductCategory.ets
+--- a/products/phone/src/main/ets/components/ProductCategory.ets
++++ b/products/phone/src/main/ets/components/ProductCategory.ets
 @@ -74,6 +74,7 @@ export struct ProductCategory {
          }, (item: CategoryItem, index: number) => index + JSON.stringify(item));
        }
@@ -283,10 +283,10 @@ index 46961a3..5eb399c 100644
          gutter: { x: 12, y: 12 },
        }) {
          if (this.isLoading) {
-diff --git a/products/entry/src/main/ets/tabviews/HomePage.ets b/products/entry/src/main/ets/tabviews/HomePage.ets
+diff --git a/products/phone/src/main/ets/tabviews/HomePage.ets b/products/phone/src/main/ets/tabviews/HomePage.ets
 index 237bfa1..348a9fa 100644
---- a/products/entry/src/main/ets/tabviews/HomePage.ets
-+++ b/products/entry/src/main/ets/tabviews/HomePage.ets
+--- a/products/phone/src/main/ets/tabviews/HomePage.ets
++++ b/products/phone/src/main/ets/tabviews/HomePage.ets
 @@ -20,14 +20,15 @@ export struct HomePage {
        }) {
          Scroll(this.scroller) {
@@ -321,10 +321,10 @@ index 237bfa1..348a9fa 100644
      .expandSafeArea()
      .padding({
        left: $r('app.float.space_l'),
-diff --git a/products/entry/src/main/ets/viewmodels/HomePageVM.ets b/products/entry/src/main/ets/viewmodels/HomePageVM.ets
+diff --git a/products/phone/src/main/ets/viewmodels/HomePageVM.ets b/products/phone/src/main/ets/viewmodels/HomePageVM.ets
 index 1600355..5580bb2 100644
---- a/products/entry/src/main/ets/viewmodels/HomePageVM.ets
-+++ b/products/entry/src/main/ets/viewmodels/HomePageVM.ets
+--- a/products/phone/src/main/ets/viewmodels/HomePageVM.ets
++++ b/products/phone/src/main/ets/viewmodels/HomePageVM.ets
 @@ -1,6 +1,8 @@
  import {
    GlobalStateMgr,
@@ -346,20 +346,20 @@ index 1600355..5580bb2 100644
    public onRefreshStateChange(state: RefreshStatus): void {
      this.refreshStatus = state;
      if (state === RefreshStatus.Refresh) {
-diff --git a/products/entry/src/main/ets/viewmodels/MainEntryVM.ets b/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
+diff --git a/products/phone/src/main/ets/viewmodels/MainEntryVM.ets b/products/phone/src/main/ets/viewmodels/MainEntryVM.ets
 index f5d0252..685287c 100644
---- a/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
-+++ b/products/entry/src/main/ets/viewmodels/MainEntryVM.ets
+--- a/products/phone/src/main/ets/viewmodels/MainEntryVM.ets
++++ b/products/phone/src/main/ets/viewmodels/MainEntryVM.ets
 @@ -1,3 +1,5 @@
 +import { iData } from 'lib_foundation';
 +
  @ObservedV2
  export class MainEntryVM {
    @Trace curIndex: number = 0;
-diff --git a/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets b/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
+diff --git a/products/phone/src/main/ets/viewmodels/ProductWaterFlowVM.ets b/products/phone/src/main/ets/viewmodels/ProductWaterFlowVM.ets
 index d3689f9..3eefeb8 100644
---- a/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
-+++ b/products/entry/src/main/ets/viewmodels/ProductWaterFlowVM.ets
+--- a/products/phone/src/main/ets/viewmodels/ProductWaterFlowVM.ets
++++ b/products/phone/src/main/ets/viewmodels/ProductWaterFlowVM.ets
 @@ -1,5 +1,5 @@
  import { util } from '@kit.ArkTS';
 -import { WindowUtil } from 'lib_foundation';
@@ -386,10 +386,10 @@ index d3689f9..3eefeb8 100644
    }
  
    async refreshList() {
-diff --git a/products/entry/src/main/ets/views/Index.ets b/products/entry/src/main/ets/views/Index.ets
+diff --git a/products/phone/src/main/ets/views/Index.ets b/products/phone/src/main/ets/views/Index.ets
 index efb2e8b..581cc84 100644
---- a/products/entry/src/main/ets/views/Index.ets
-+++ b/products/entry/src/main/ets/views/Index.ets
+--- a/products/phone/src/main/ets/views/Index.ets
++++ b/products/phone/src/main/ets/views/Index.ets
 @@ -1,5 +1,5 @@
  import { common } from '@kit.AbilityKit';
 -import { routerStack, WindowUtil } from 'lib_foundation';
@@ -405,10 +405,10 @@ index efb2e8b..581cc84 100644
      WindowUtil.setUIContext(abilityName, uiContext)
      routerStack.registerStack(abilityName, this.stack, uiContext)
      this.stack.pushPath({ name: 'MainEntry' }, false)
-diff --git a/products/entry/src/main/ets/views/MainEntry.ets b/products/entry/src/main/ets/views/MainEntry.ets
+diff --git a/products/phone/src/main/ets/views/MainEntry.ets b/products/phone/src/main/ets/views/MainEntry.ets
 index 45db008..8f0cc08 100644
---- a/products/entry/src/main/ets/views/MainEntry.ets
-+++ b/products/entry/src/main/ets/views/MainEntry.ets
+--- a/products/phone/src/main/ets/views/MainEntry.ets
++++ b/products/phone/src/main/ets/views/MainEntry.ets
 @@ -1,4 +1,5 @@
  import { UtilLog } from '@hw-agconnect/util-log';
 +import { BreakpointSystem } from 'lib_foundation';

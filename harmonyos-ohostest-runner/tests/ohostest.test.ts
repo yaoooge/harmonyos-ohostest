@@ -33,6 +33,20 @@ test("buildAaTestCommand includes class filter when configured", () => {
   assert.match(command, /-s timeout 15000/);
 });
 
+test("buildAaTestCommand uses an explicit per-test timeout", () => {
+  const command = buildAaTestCommand({
+    hdc: "/fake/hdc",
+    target: "127.0.0.1:15001",
+    bundleName: "zhsc.1.xxxxxx",
+    testModule: "phone_test",
+    testRunner: "OpenHarmonyTestRunner",
+    testCaseTimeoutMs: 30000,
+    timeoutMs: 120000,
+  });
+
+  assert.match(command, /-s timeout 30000 -w 120000$/);
+});
+
 test("parseAaTestOutput extracts summary and report code", () => {
   const parsed = parseAaTestOutput(
     [

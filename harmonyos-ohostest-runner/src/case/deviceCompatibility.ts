@@ -2,12 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   normalizeModuleSrcPath,
-  selectEntryModule,
+  selectHapModule,
   type ProjectModuleInfo,
 } from "../matrix/utils/projectDiscovery.js";
 import { parseJson5ish } from "../matrix/utils/json5ish.js";
 
 interface BuildProfile {
+  app?: { products?: Array<{ name?: string }> };
   modules?: ProjectModuleInfo[];
 }
 
@@ -62,7 +63,12 @@ async function resolveEntryMainModulePath(project: string): Promise<string> {
       `swe_tablet_compatibility_entry_module_not_found: ${buildProfilePath}: modules must be an array.`,
     );
   }
-  const moduleInfo = selectEntryModule(buildProfile.modules);
+  const product = buildProfile.app?.products?.[0]?.name ?? "default";
+  const moduleInfo = await selectHapModule(
+    project,
+    product,
+    buildProfile.modules,
+  );
   const srcPath = moduleInfo.srcPath ?? moduleInfo.name;
   if (typeof srcPath !== "string" || srcPath.trim().length === 0) {
     throw new Error(

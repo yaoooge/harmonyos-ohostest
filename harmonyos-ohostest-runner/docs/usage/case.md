@@ -80,10 +80,25 @@ case/
 | `base_project` | 基线工程目录名。运行器按 `<case>/<base_project>`、`<case>/../<base_project>` 顺序解析 |
 | `test_patch` | 测试 patch 文件名 |
 | `golden_patch` | 答案 patch 文件名 |
+| `test_case_timeout_ms` | 可选。单个测试用例超时，单位毫秒，必须为正整数；默认 15000 |
 | `pass_to_pass` | pass-to-pass 用例名列表 |
 | `fail_to_pass` | fail-to-pass 用例名列表 |
 | `device_test_suites` | 可选。设备到 suite class 的映射 |
 | `enabled_devices` | 可选。没有 `device_test_suites` 时，声明要执行全量测试的设备 |
+
+单个 case 可以覆盖 runner 的默认用例超时：
+
+```json
+{
+  "test_case_timeout_ms": 30000
+}
+```
+
+该值只覆盖 case 模式生成的 `aa test -s timeout` 参数；未配置时仍使用
+`AA_TEST_CASE_TIMEOUT_MS` 的默认值 15000ms。它不会改变 `aa test -w` 的整体命令等待时间。
+
+case 基线工程的模块发现规则与 matrix 模式一致：runner 通过模块 `hvigorfile.ts` 中的
+`hapTasks` 识别 HAP 模块。当前自动发现要求适用于目标 product 的 HAP 模块恰好有一个。
 
 `device_test_suites` 示例：
 

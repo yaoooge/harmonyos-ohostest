@@ -26,11 +26,14 @@ npm run ohostest:matrix -- \
 
 运行器会在目标 HarmonyOS 工程中自动读取：
 
-- `build-profile.json5`：product 名称、entry module 名称、entry module 的 `srcPath`
+- `build-profile.json5`：product 名称和模块列表
+- 各模块的 `hvigorfile.ts`：通过 `hapTasks` 识别 HAP 模块
 - `AppScope/app.json5`：bundle name
-- `<entry-srcPath>/src/ohosTest/module.json5`：ohosTest module 名称
+- `<hap-srcPath>/src/ohosTest/module.json5`：ohosTest module 名称
 
-构建完成后，应用 HAP 和测试 HAP 路径会根据 entry module 的源码路径自动推导。
+自动发现当前只支持适用于目标 product 的单 HAP 工程。找不到 HAP 或发现多个 HAP 时，
+runner 会明确报错，不会再按模块名、目录名或模块顺序猜测。构建完成后，应用 HAP 和
+测试 HAP 路径会根据该 HAP 模块的源码路径自动推导。
 
 运行器也会读取 `build-profile.json5` 中适用于当前 product 的模块及其
 `src/main/module.json5` 和 `oh-package.json5`。`module.type` 为 `shared` 的模块会在

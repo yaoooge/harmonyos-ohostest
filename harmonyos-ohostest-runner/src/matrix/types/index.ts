@@ -65,6 +65,7 @@ export interface MatrixConfig {
   testModule: string;
   testRunner: string;
   testClass?: string;
+  testCaseTimeoutMs: number;
   timeoutMs: number;
   build: {
     mode: string;
@@ -203,5 +204,6 @@ export interface RunMatrixInput {
   keepEmulators?: boolean;
   deviceSuiteOverrides?: Record<string, string[]>;
   ignoreMachineDeviceSuites?: boolean;
+  testCaseTimeoutMs?: number;
   commandExecutor?: CommandExecutor;
 }

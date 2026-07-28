@@ -24,6 +24,7 @@ async function makeBuildConfig(t: test.TestContext): Promise<MatrixConfig> {
     bundleName: "example.bundle",
     testModule: "entry_test",
     testRunner: "OpenHarmonyTestRunner",
+    testCaseTimeoutMs: 15000,
     timeoutMs: 120000,
     build: {
       mode: "project",

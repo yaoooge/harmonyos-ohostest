@@ -37,6 +37,11 @@ async function makeProject(
     recursive: true,
   });
   await fs.writeFile(
+    path.join(root, "products", "entry", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  await fs.writeFile(
     path.join(root, "products", "entry", "src", "main", "module.json5"),
     JSON.stringify({ module: { name: "entry", type: "entry" } }),
     "utf-8",
@@ -53,6 +58,11 @@ async function makeProject(
     await fs.writeFile(
       path.join(root, "commons", "common", "oh-package.json5"),
       JSON.stringify({ name: "common", dependencies: {} }),
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(root, "commons", "common", "hvigorfile.ts"),
+      "import { hspTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hspTasks, plugins: [] };\n",
       "utf-8",
     );
     const commonOutput = path.join(

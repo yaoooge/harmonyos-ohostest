@@ -88,6 +88,7 @@ function matrix(devices: DeviceRunResult[]): MatrixResult {
 function baseCaseResult(
   runs: CaseResult["runs"],
   metadata: CaseResult["metadata"] = {
+    testCaseTimeoutMs: 15000,
     passToPass: ["should_launch", "should_keep_small"],
     failToPass: ["should_adapt_medium", "should_adapt_large"],
     deviceTestSuites: {
@@ -279,6 +280,7 @@ test("renderCaseSummary marks conflicts and suites without parsed cases as incor
         ]),
       },
       {
+        testCaseTimeoutMs: 15000,
         passToPass: ["should_be_conflicted"],
         failToPass: ["should_be_conflicted"],
         deviceTestSuites: {

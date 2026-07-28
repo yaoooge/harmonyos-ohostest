@@ -5,6 +5,16 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.4] - 2026-07-28
+
+### 新增
+
+- case 模式支持读取 `metadata.json` 的 `test_case_timeout_ms`，按用例覆盖 `AA_TEST_CASE_TIMEOUT_MS`，并将生效值传递给 `aa test -s timeout`。
+
+### 修复
+
+- 根据模块 `hvigorfile.ts` 是否使用 `hapTasks` 自动发现 HAP 模块，不再依赖 `entry` 模块名或目录名；当前仅支持单 HAP 工程，并为未找到或发现多个 HAP 提供明确错误。
+
 ## [0.1.3] - 2026-07-27
 
 ### 修复
