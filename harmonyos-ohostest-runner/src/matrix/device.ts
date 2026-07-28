@@ -36,7 +36,9 @@ export function buildStartEmulatorCommand(
     shellQuote(device.profile, platform),
     "-instancePath",
     shellQuote(config.paths.emulatorDeployedDir, platform),
-    ...(device.hdcPort !== undefined ? ["-hdcport", String(device.hdcPort)] : []),
+    ...(device.hdcPort !== undefined
+      ? ["-hdcport", String(device.hdcPort)]
+      : []),
   ].join(" ");
 }
 
@@ -60,8 +62,16 @@ export function buildStopEmulatorCommand(
 export async function prepareDevice(ctx: DeviceCommandContext): Promise<void> {
   const hdc = hdcFor(ctx.config, ctx.device);
   await ensureTargetReady(ctx);
+  const deviceType = await ctx.runCommand(
+    `${hdc} shell param get const.product.devicetype`,
+  );
   await ctx.runCommand(`${hdc} shell power-shell wakeup`);
-  await ctx.runCommand(`${hdc} shell uitest uiInput keyEvent Home`);
+  const unlockKey =
+    deviceType.exitCode === 0 &&
+    deviceType.stdout.trim().toLowerCase() === "2in1"
+      ? "2054"
+      : "Home";
+  await ctx.runCommand(`${hdc} shell uitest uiInput keyEvent ${unlockKey}`);
 }
 
 export async function installHaps(
@@ -73,10 +83,7 @@ export async function installHaps(
   for (const hspPath of artifacts.hspPaths) {
     await runInstallCommand(ctx, hdc, [hspPath]);
   }
-  await runInstallCommand(ctx, hdc, [
-    artifacts.appHap,
-    artifacts.testHap,
-  ]);
+  await runInstallCommand(ctx, hdc, [artifacts.appHap, artifacts.testHap]);
 }
 
 async function runInstallCommand(
@@ -101,9 +108,13 @@ export function isInstallFailure(result: CommandResult): boolean {
   );
 }
 
-export async function ensureTargetReady(ctx: DeviceCommandContext): Promise<void> {
+export async function ensureTargetReady(
+  ctx: DeviceCommandContext,
+): Promise<void> {
   for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
-    const result = await ctx.runCommand(`${shellQuote(ctx.config.paths.hdc)} list targets`);
+    const result = await ctx.runCommand(
+      `${shellQuote(ctx.config.paths.hdc)} list targets`,
+    );
     if (isTargetConnected(result.stdout, ctx.device.target)) {
       return;
     }
@@ -112,9 +123,13 @@ export async function ensureTargetReady(ctx: DeviceCommandContext): Promise<void
   throw new Error("hdc_not_connected");
 }
 
-export async function waitForTargetDisconnected(ctx: DeviceCommandContext): Promise<boolean> {
+export async function waitForTargetDisconnected(
+  ctx: DeviceCommandContext,
+): Promise<boolean> {
   for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
-    const result = await ctx.runCommand(`${shellQuote(ctx.config.paths.hdc)} list targets`);
+    const result = await ctx.runCommand(
+      `${shellQuote(ctx.config.paths.hdc)} list targets`,
+    );
     if (!isTargetConnected(result.stdout, ctx.device.target)) {
       return true;
     }
@@ -128,7 +143,10 @@ export async function writeDeviceLog(input: {
   deviceId: string;
   lines: string[];
 }): Promise<string> {
-  const relativePath = path.join("devices", `${sanitizeName(input.deviceId)}.log`);
+  const relativePath = path.join(
+    "devices",
+    `${sanitizeName(input.deviceId)}.log`,
+  );
   const fullPath = path.join(input.outDir, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, `${input.lines.join("\n")}\n`, "utf-8");

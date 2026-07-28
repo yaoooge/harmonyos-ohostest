@@ -5,6 +5,7 @@ import {
   ensureTargetReady,
   installHaps,
   isInstallFailure,
+  prepareDevice,
   waitForTargetDisconnected,
 } from "../src/matrix/device.js";
 import type {
@@ -38,12 +39,95 @@ function makeConfig(): MatrixConfig {
       emulatorDeployedDir: "D:\\Software\\Deveco Studio\\emulator\\deployed",
     },
     artifacts: {
-      appHap: "D:\\Projects\\ResponsiveRepeatLayout\\entry-default-unsigned.hap",
-      testHap: "D:\\Projects\\ResponsiveRepeatLayout\\entry-ohosTest-unsigned.hap",
+      appHap:
+        "D:\\Projects\\ResponsiveRepeatLayout\\entry-default-unsigned.hap",
+      testHap:
+        "D:\\Projects\\ResponsiveRepeatLayout\\entry-ohosTest-unsigned.hap",
     },
     devices: [],
   };
 }
+
+test("prepareDevice selects the unlock key from the runtime device type", async (t) => {
+  const cases = [
+    {
+      name: "uses Enter for a 2in1 PC",
+      probe: {
+        stdout: "2in1\n",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      },
+      expectedKey: "2054",
+    },
+    {
+      name: "keeps Home for a phone",
+      probe: {
+        stdout: "phone\n",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      },
+      expectedKey: "Home",
+    },
+    {
+      name: "falls back to Home when the probe fails",
+      probe: {
+        stdout: "",
+        stderr: "unsupported parameter",
+        exitCode: 1,
+        durationMs: 1,
+      },
+      expectedKey: "Home",
+    },
+  ];
+
+  for (const testCase of cases) {
+    await t.test(testCase.name, async () => {
+      const config = makeConfig();
+      const device: DeviceConfig = {
+        id: "arbitrary-user-id",
+        target: "127.0.0.1:15004",
+        startEmulator: true,
+      };
+      const commands: string[] = [];
+
+      await prepareDevice({
+        config,
+        device,
+        cwd: config.project,
+        outDir: "out",
+        runCommand: async (command) => {
+          commands.push(command);
+          if (command === "hdc list targets") {
+            return {
+              stdout: "127.0.0.1:15004\tConnected\n",
+              stderr: "",
+              exitCode: 0,
+              durationMs: 1,
+            };
+          }
+          if (command.endsWith("param get const.product.devicetype")) {
+            return testCase.probe;
+          }
+          return {
+            stdout: "",
+            stderr: "",
+            exitCode: 0,
+            durationMs: 1,
+          };
+        },
+      });
+
+      assert.deepEqual(commands, [
+        "hdc list targets",
+        "hdc -t 127.0.0.1:15004 shell param get const.product.devicetype",
+        "hdc -t 127.0.0.1:15004 shell power-shell wakeup",
+        `hdc -t 127.0.0.1:15004 shell uitest uiInput keyEvent ${testCase.expectedKey}`,
+      ]);
+    });
+  }
+});
 
 test("installHaps ignores uninstall failure and uninstalls the bundle before installing HAPs", async () => {
   const config = makeConfig();
@@ -232,7 +316,8 @@ test("ensureTargetReady waits up to 120 polling attempts for slow Windows emulat
       runCommand: async () => {
         attempts += 1;
         return {
-          stdout: attempts === 120 ? "127.0.0.1:15001\tConnected\n" : "[Empty]\n",
+          stdout:
+            attempts === 120 ? "127.0.0.1:15001\tConnected\n" : "[Empty]\n",
           stderr: "",
           exitCode: 0,
           durationMs: 1,
