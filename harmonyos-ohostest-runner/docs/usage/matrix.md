@@ -117,6 +117,10 @@ config/machine.json
 | `devices[].foldControl` | 是否启用折叠屏/旋转控制 |
 | `devices[].testSuites` | 该设备要执行的 suite class 列表，按声明顺序运行，重复 class 会自动去重 |
 
+设备 ID 只用于选择和报告，不用于判断设备形态。target 连接后，runner 会读取
+`const.product.devicetype`：值为 `2in1` 时使用 PC 的 Enter 键解锁，其他值或读取失败时
+继续使用触屏设备的 Home 键。无需为 PC 使用特定 `id`，也无需增加设备类型配置。
+
 如果设备未配置 `testSuites`，且命令行未传 `--test-class`，运行器会执行完整测试模块。
 
 ## 输出结果
