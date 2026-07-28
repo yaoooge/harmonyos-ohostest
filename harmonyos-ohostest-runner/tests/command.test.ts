@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeCommandOutput, runDetachedCommand } from "../src/shared/command.js";
-import { shellQuote } from "../src/matrix/ohostest.js";
+import {
+  decodeCommandOutput,
+  runDetachedCommand,
+} from "../src/execution/command.js";
+import { shellQuote } from "../src/execution/ohostest.js";
 
 test("runDetachedCommand reports quick command failures instead of unconditional success", async () => {
   const command = `${shellQuote(process.execPath)} -e ${shellQuote("process.exit(7)")}`;
@@ -12,7 +15,10 @@ test("runDetachedCommand reports quick command failures instead of unconditional
 });
 
 test("decodeCommandOutput decodes Windows GB18030 command output", () => {
-  const output = decodeCommandOutput(Buffer.from([0xc4, 0xe3, 0xba, 0xc3]), "win32");
+  const output = decodeCommandOutput(
+    Buffer.from([0xc4, 0xe3, 0xba, 0xc3]),
+    "win32",
+  );
 
   assert.equal(output, "\u4f60\u597d");
 });

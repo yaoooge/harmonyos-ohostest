@@ -7,7 +7,7 @@ import {
   buildCaseDeviceSelection,
   loadCaseMetadata,
 } from "../src/case/config.js";
-import { AA_TEST_CASE_TIMEOUT_MS } from "../src/matrix/ohostest.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../src/execution/ohostest.js";
 import type { MatrixConfig } from "../src/index.js";
 
 async function makeTempCase(t: test.TestContext): Promise<string> {

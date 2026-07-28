@@ -181,9 +181,7 @@ async function readModulePackageConfig(
   }
 }
 
-function orderSharedModules(
-  modules: SharedModuleInfo[],
-): SharedModuleInfo[] {
+function orderSharedModules(modules: SharedModuleInfo[]): SharedModuleInfo[] {
   const byPackageName = new Map(
     modules.map((moduleInfo) => [moduleInfo.packageName, moduleInfo]),
   );
@@ -258,11 +256,7 @@ export async function selectHapModule(
     const rawSrcPath = moduleInfo.srcPath?.trim();
     if (!name || !rawSrcPath) continue;
     const hvigorfile = await fs.readFile(
-      path.join(
-        project,
-        normalizeModuleSrcPath(rawSrcPath),
-        "hvigorfile.ts",
-      ),
+      path.join(project, normalizeModuleSrcPath(rawSrcPath), "hvigorfile.ts"),
       "utf-8",
     );
     if (/\bhapTasks\b/.test(hvigorfile)) {

@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadMatrixConfig } from "../src/matrix/config.js";
-import { AA_TEST_CASE_TIMEOUT_MS } from "../src/matrix/ohostest.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../src/execution/ohostest.js";
+import { buildExecutionPlan } from "../src/execution/plan.js";
 
 async function makeTempProject(t: test.TestContext): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-config-"));
@@ -197,7 +198,7 @@ test("loadMatrixConfig reads device testSuites and deduplicates suite classes", 
   ]);
 });
 
-test("loadMatrixConfig lets case mode override device testSuites in memory", async (t) => {
+test("buildExecutionPlan overrides machine suites without coupling config to case mode", async (t) => {
   const project = await makeTempProject(t);
   const machineConfigPath = path.join(project, "suites.json");
   await fs.writeFile(
@@ -220,21 +221,20 @@ test("loadMatrixConfig lets case mode override device testSuites in memory", asy
     "utf-8",
   );
 
-  const config = await loadMatrixConfig({
-    project,
-    machineConfigPath,
-    deviceSuiteOverrides: {
+  const config = await loadMatrixConfig({ project, machineConfigPath });
+  const plan = buildExecutionPlan(config, {
+    suitesByDevice: {
       foldable: ["MetadataSuite", "MetadataSuite", "AnotherMetadataSuite"],
     },
   });
 
-  assert.deepEqual(config.devices[0]?.testClasses, [
+  assert.deepEqual(plan.devices[0]?.testClasses, [
     "MetadataSuite",
     "AnotherMetadataSuite",
   ]);
 });
 
-test("loadMatrixConfig can ignore machine device testSuites for case full test mode", async (t) => {
+test("buildExecutionPlan can ignore machine suites for a run-all plan", async (t) => {
   const project = await makeTempProject(t);
   const machineConfigPath = path.join(project, "suites.json");
   await fs.writeFile(
@@ -257,13 +257,10 @@ test("loadMatrixConfig can ignore machine device testSuites for case full test m
     "utf-8",
   );
 
-  const config = await loadMatrixConfig({
-    project,
-    machineConfigPath,
-    ignoreMachineDeviceSuites: true,
-  });
+  const config = await loadMatrixConfig({ project, machineConfigPath });
+  const plan = buildExecutionPlan(config, { runAllTests: true });
 
-  assert.equal(config.devices[0]?.testClasses, undefined);
+  assert.equal(plan.devices[0]?.testClasses, undefined);
 });
 
 test("loadMatrixConfig rejects legacy testFolders config and invalid testSuites", async (t) => {

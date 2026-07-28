@@ -1,20 +1,24 @@
-import type { CaseMetadata, CaseResult, CaseStatus } from "./types/index.js";
+import type {
+  CaseMetadata,
+  CaseResult,
+  CaseRunResult,
+  CaseStatus,
+} from "./types/index.js";
 import type {
   DeviceRunResult,
-  MatrixResult,
   SuiteRunResult,
   TestCaseRunResult,
-} from "../matrix/types/index.js";
+} from "../execution/types/index.js";
 
 export function deriveCaseStatus(
-  runs: { swe?: MatrixResult; answer?: MatrixResult },
+  runs: { swe?: CaseRunResult; answer?: CaseRunResult },
   diagnostics: string[],
 ): CaseStatus {
   if (diagnostics.length > 0) {
     return "failed";
   }
   const executedRuns = [runs.swe, runs.answer].filter(
-    (run): run is MatrixResult => Boolean(run),
+    (run): run is CaseRunResult => Boolean(run),
   );
   if (executedRuns.length === 0) {
     return "failed";
@@ -83,7 +87,7 @@ export function metadataForResult(
   };
 }
 
-function runRow(label: string, run: MatrixResult | undefined): string {
+function runRow(label: string, run: CaseRunResult | undefined): string {
   if (!run) {
     return `| ${label} | not run | 0 | 0 | 0 | 0 | 0 | 0 |`;
   }
@@ -325,7 +329,7 @@ function singleRunTestCaseRow(
 }
 
 function findSuite(
-  run: MatrixResult | undefined,
+  run: CaseRunResult | undefined,
   deviceId: string,
   suiteClass: string,
 ): SuiteRunResult | undefined {
@@ -342,17 +346,14 @@ function findTestCase(
 }
 
 function findDevice(
-  run: MatrixResult | undefined,
+  run: CaseRunResult | undefined,
   deviceId: string,
 ): DeviceRunResult | undefined {
   return run?.devices.find((device) => device.id === deviceId);
 }
 
 function formatStatus(
-  status:
-    | TestCaseRunResult["status"]
-    | SuiteRunResult["status"]
-    | undefined,
+  status: TestCaseRunResult["status"] | SuiteRunResult["status"] | undefined,
 ): string {
   return status ?? "missing";
 }
@@ -440,8 +441,9 @@ function totalsRow(
   side: RunSide,
 ): string {
   const rows = testCaseRowsForDevice(result, deviceId, side);
-  const correct = rows.filter((row) => sideVerdict(row, side) === "correct")
-    .length;
+  const correct = rows.filter(
+    (row) => sideVerdict(row, side) === "correct",
+  ).length;
   const incorrect = rows.length - correct;
   return [
     "|",

@@ -1,5 +1,5 @@
-import type { CommandExecutor } from "../../shared/types/index.js";
-import type { MatrixResult } from "../../matrix/types/index.js";
+import type { CommandExecutor } from "../../execution/types/index.js";
+import type { ExecutionResult } from "../../execution/types/index.js";
 
 export type CaseRunMode = "answer" | "swe" | "all";
 
@@ -13,6 +13,7 @@ export interface RunCaseInput {
   keepEmulators?: boolean;
   keepWorkdir?: boolean;
   commandExecutor?: CommandExecutor;
+  patchCommandExecutor?: CommandExecutor;
 }
 
 export interface CaseDeviceSuite {
@@ -41,6 +42,14 @@ export interface CaseDeviceSelection {
 
 export type CaseStatus = "completed" | "failed";
 
+export interface CaseRunResult extends ExecutionResult {
+  schemaVersion: "ohostest-matrix-v1";
+  artifacts: {
+    commandLog: string;
+    summary: string;
+  };
+}
+
 export interface CaseResult {
   schemaVersion: "ohostest-case-v1";
   caseId: string;
@@ -58,8 +67,8 @@ export interface CaseResult {
     enabledDevices?: string[];
   };
   runs: {
-    swe?: MatrixResult;
-    answer?: MatrixResult;
+    swe?: CaseRunResult;
+    answer?: CaseRunResult;
   };
   artifacts: {
     result: string;

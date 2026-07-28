@@ -1,9 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { loadMatrixConfig } from "../matrix/config.js";
-import { runOhosTestMatrix } from "../matrix/runner.js";
-import { CommandLogger, defaultCommandExecutor } from "../shared/command.js";
-import type { CommandResult } from "../shared/types/index.js";
+import { loadExecutionConfig } from "../execution/config.js";
+import { buildExecutionPlan } from "../execution/plan.js";
+import { runExecution } from "../execution/runner.js";
+import { renderSummaryMarkdown } from "../execution/summary.js";
+import { CommandLogger, defaultCommandExecutor } from "../execution/command.js";
+import type {
+  CommandResult,
+  ExecutionConfig,
+} from "../execution/types/index.js";
 import { buildCaseDeviceSelection, loadCaseMetadata } from "./config.js";
 import { applyPatch, copyBaseProject } from "./patch.js";
 import {
@@ -55,7 +60,7 @@ async function runCaseComparisons(
   context: CaseRunContext,
 ): Promise<void> {
   const runMode = input.runMode ?? "answer";
-  const runPatchCommand = loggedPatchCommand(context);
+  const runPatchCommand = loggedPatchCommand(input, context);
   await copyBaseProject({
     baseProject: context.metadata.baseProject,
     workProject: context.workProject,
@@ -67,20 +72,22 @@ async function runCaseComparisons(
     commandExecutor: runPatchCommand,
   });
 
-  const matrixConfig = await loadMatrixConfig({
-    project: context.workProject,
-    machineConfigPath: input.machineConfigPath,
-  });
-  const deviceSelection = buildCaseDeviceSelection(
-    context.metadata,
-    matrixConfig,
-    input.devices,
+  const { executionConfig, deviceSelection } = await prepareCaseExecution(
+    input,
+    context,
   );
   if (runMode === "swe" || runMode === "all") {
     context.runs.swe = await withSweTabletCompatibility({
       project: context.workProject,
       enabled: deviceSelection.devices.includes("tablet"),
-      run: () => runCaseMatrix(input, context, deviceSelection, "swe"),
+      run: () =>
+        runCaseExecution(
+          input,
+          context,
+          executionConfig,
+          deviceSelection,
+          "swe",
+        ),
     });
   }
 
@@ -91,20 +98,45 @@ async function runCaseComparisons(
       label: "golden_patch",
       commandExecutor: runPatchCommand,
     });
-    context.runs.answer = await runCaseMatrix(
+    context.runs.answer = await runCaseExecution(
       input,
       context,
+      executionConfig,
       deviceSelection,
       "answer",
     );
   }
 }
 
+async function prepareCaseExecution(
+  input: RunCaseInput,
+  context: CaseRunContext,
+): Promise<{
+  executionConfig: ExecutionConfig;
+  deviceSelection: CaseDeviceSelection;
+}> {
+  const executionConfig = await loadExecutionConfig({
+    project: context.workProject,
+    machineConfigPath: input.machineConfigPath,
+    testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
+  });
+  return {
+    executionConfig,
+    deviceSelection: buildCaseDeviceSelection(
+      context.metadata,
+      executionConfig,
+      input.devices,
+    ),
+  };
+}
+
 function loggedPatchCommand(
+  input: RunCaseInput,
   context: CaseRunContext,
 ): (command: string) => Promise<CommandResult> {
   return async (command) => {
-    const result = await defaultCommandExecutor(command, context.workProject);
+    const executor = input.patchCommandExecutor ?? defaultCommandExecutor;
+    const result = await executor(command, context.workProject);
     await context.logger.record(command, result);
     return result;
   };
@@ -149,24 +181,46 @@ function resolveOutDir(
   );
 }
 
-async function runCaseMatrix(
+async function runCaseExecution(
   input: RunCaseInput,
   context: CaseRunContext,
+  executionConfig: ExecutionConfig,
   deviceSelection: CaseDeviceSelection,
   phase: "swe" | "answer",
 ): Promise<NonNullable<CaseResult["runs"]["swe"]>> {
-  return runOhosTestMatrix({
-    project: context.workProject,
-    machineConfigPath: input.machineConfigPath,
-    out: path.join(context.outDir, phase, "result.json"),
-    devices: deviceSelection.devices,
+  const outDir = path.join(context.outDir, phase);
+  await fs.mkdir(outDir, { recursive: true });
+  const execution = await runExecution({
+    config: executionConfig,
+    plan: buildExecutionPlan(executionConfig, {
+      devices: deviceSelection.devices,
+      suitesByDevice: deviceSelection.deviceSuiteOverrides,
+      runAllTests: deviceSelection.runAllTests,
+    }),
+    outDir,
     skipBuild: input.skipBuild,
     keepEmulators: input.keepEmulators,
     commandExecutor: input.commandExecutor,
-    deviceSuiteOverrides: deviceSelection.deviceSuiteOverrides,
-    ignoreMachineDeviceSuites: deviceSelection.runAllTests,
-    testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
   });
+  const result: NonNullable<CaseResult["runs"]["swe"]> = {
+    schemaVersion: "ohostest-matrix-v1",
+    ...execution,
+    artifacts: {
+      commandLog: "commands.log",
+      summary: "summary.md",
+    },
+  };
+  await fs.writeFile(
+    path.join(outDir, "summary.md"),
+    renderSummaryMarkdown(result.status, result.devices),
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(outDir, "result.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf-8",
+  );
+  return result;
 }
 
 function buildCaseResult(

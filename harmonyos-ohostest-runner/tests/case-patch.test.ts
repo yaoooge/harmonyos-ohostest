@@ -32,7 +32,9 @@ test("copyBaseProject copies symlink targets as real files and directories", asy
 
   await copyBaseProject({ baseProject, workProject });
 
-  const copiedFileLink = await fs.lstat(path.join(workProject, "file-link.txt"));
+  const copiedFileLink = await fs.lstat(
+    path.join(workProject, "file-link.txt"),
+  );
   const copiedDirLink = await fs.lstat(path.join(workProject, "dir-link"));
   assert.equal(copiedFileLink.isSymbolicLink(), false);
   assert.equal(copiedFileLink.isFile(), true);
@@ -43,7 +45,10 @@ test("copyBaseProject copies symlink targets as real files and directories", asy
     "file target\n",
   );
   assert.equal(
-    await fs.readFile(path.join(workProject, "dir-link", "nested.txt"), "utf-8"),
+    await fs.readFile(
+      path.join(workProject, "dir-link", "nested.txt"),
+      "utf-8",
+    ),
     "directory target\n",
   );
 });

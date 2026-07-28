@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { defaultCommandExecutor } from "../shared/command.js";
-import { shellQuote } from "../shared/utils/shellQuote.js";
-import type { CommandExecutor } from "../shared/types/index.js";
+import { defaultCommandExecutor } from "../execution/command.js";
+import { shellQuote } from "../execution/utils/shellQuote.js";
+import type { CommandExecutor } from "../execution/types/index.js";
 
 export async function copyBaseProject(input: {
   baseProject: string;

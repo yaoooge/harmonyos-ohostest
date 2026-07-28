@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { discoverProjectInfo } from "../src/matrix/utils/projectDiscovery.js";
+import { discoverProjectInfo } from "../src/execution/project/discovery.js";
 
 interface ModuleFixture {
   name: string;
@@ -188,9 +188,7 @@ test("discoverProjectInfo reports the module when module.json5 is missing", asyn
       packageType: "hsp",
     },
   ]);
-  await fs.rm(
-    path.join(project, "commons/common/src/main/module.json5"),
-  );
+  await fs.rm(path.join(project, "commons/common/src/main/module.json5"));
 
   await assert.rejects(
     discoverProjectInfo(project),

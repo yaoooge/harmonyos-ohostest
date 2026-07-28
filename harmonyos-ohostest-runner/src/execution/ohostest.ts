@@ -1,5 +1,5 @@
 import type { ParsedAaTestOutput, TestCaseRunResult } from "./types/index.js";
-import { shellQuote } from "../shared/utils/shellQuote.js";
+import { shellQuote } from "./utils/shellQuote.js";
 
 export interface BuildAaTestCommandInput {
   hdc: string;

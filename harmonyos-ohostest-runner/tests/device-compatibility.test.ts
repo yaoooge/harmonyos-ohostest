@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { withSweTabletCompatibility } from "../src/case/deviceCompatibility.js";
-import { parseJson5ish } from "../src/matrix/utils/json5ish.js";
+import { parseJson5ish } from "../src/execution/project/json5ish.js";
 
 async function makeTempProject(
   t: test.TestContext,

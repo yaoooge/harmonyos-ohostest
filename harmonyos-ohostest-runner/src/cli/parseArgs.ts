@@ -1,23 +1,24 @@
 import type { RunMatrixInput } from "../matrix/types/index.js";
 
+const knownMatrixArgs = new Set([
+  "--project",
+  "--machine-config",
+  "--out",
+  "--device",
+  "--test-class",
+  "--skip-build",
+  "--keep-emulators",
+]);
+
 export function parseOhosTestMatrixArgs(args: string[]): RunMatrixInput {
   const values = new Map<string, string>();
   const devices: string[] = [];
-  const knownArgs = new Set([
-    "--project",
-    "--machine-config",
-    "--out",
-    "--device",
-    "--test-class",
-    "--skip-build",
-    "--keep-emulators",
-  ]);
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (!arg?.startsWith("--")) {
       continue;
     }
-    if (!knownArgs.has(arg)) {
+    if (!knownMatrixArgs.has(arg)) {
       throw new Error(`未知参数 ${arg}。`);
     }
     const value = args[index + 1];
@@ -43,8 +44,12 @@ export function parseOhosTestMatrixArgs(args: string[]): RunMatrixInput {
     ...(machineConfigPath ? { machineConfigPath } : {}),
     ...(values.has("--out") ? { out: values.get("--out") } : {}),
     ...(devices.length > 0 ? { devices } : {}),
-    ...(values.has("--test-class") ? { testClass: values.get("--test-class") } : {}),
-    ...(values.has("--skip-build") ? { skipBuild: readBoolean(values.get("--skip-build")) } : {}),
+    ...(values.has("--test-class")
+      ? { testClass: values.get("--test-class") }
+      : {}),
+    ...(values.has("--skip-build")
+      ? { skipBuild: readBoolean(values.get("--skip-build")) }
+      : {}),
     ...(values.has("--keep-emulators")
       ? { keepEmulators: readBoolean(values.get("--keep-emulators")) }
       : {}),

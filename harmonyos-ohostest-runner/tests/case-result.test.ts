@@ -92,10 +92,7 @@ function baseCaseResult(
     passToPass: ["should_launch", "should_keep_small"],
     failToPass: ["should_adapt_medium", "should_adapt_large"],
     deviceTestSuites: {
-      foldable: [
-        { suite: "CommonSmokeTest" },
-        { suite: "MdAdaptiveSuite" },
-      ],
+      foldable: [{ suite: "CommonSmokeTest" }, { suite: "MdAdaptiveSuite" }],
       tablet: [{ suite: "LargeScreenSuite" }],
     },
   },
@@ -179,19 +176,10 @@ test("renderCaseSummary lists comparison results by test case and classifies fro
   );
   assert.doesNotMatch(summary, /##### MdAdaptiveSuite Cases/);
   assert.doesNotMatch(summary, /\| MdAdaptiveSuite \| fail_to_pass \|/);
-  assert.match(
-    summary,
-    /\| foldable \| swe \| 4 \| 3 \| 1 \| incorrect \|/,
-  );
-  assert.match(
-    summary,
-    /\| foldable \| answer \| 4 \| 3 \| 1 \| incorrect \|/,
-  );
+  assert.match(summary, /\| foldable \| swe \| 4 \| 3 \| 1 \| incorrect \|/);
+  assert.match(summary, /\| foldable \| answer \| 4 \| 3 \| 1 \| incorrect \|/);
   assert.match(summary, /\| tablet \| swe \| 1 \| 1 \| 0 \| correct \|/);
-  assert.match(
-    summary,
-    /\| tablet \| answer \| 1 \| 1 \| 0 \| correct \|/,
-  );
+  assert.match(summary, /\| tablet \| answer \| 1 \| 1 \| 0 \| correct \|/);
 });
 
 test("renderCaseSummary classifies fail_to_pass from metadata instead of suite name", () => {
@@ -223,10 +211,7 @@ test("renderCaseSummary classifies fail_to_pass from metadata instead of suite n
     summary,
     /\| NameWithoutSpecialSuffix \| should_adapt_medium \| fail_to_pass \| failed \| SWE fail \| correct \|/,
   );
-  assert.match(
-    summary,
-    /\| foldable \| swe \| 2 \| 2 \| 0 \| correct \|/,
-  );
+  assert.match(summary, /\| foldable \| swe \| 2 \| 2 \| 0 \| correct \|/);
 });
 
 test("renderCaseSummary marks answer-only cases against answer expectations", () => {
@@ -259,10 +244,7 @@ test("renderCaseSummary marks answer-only cases against answer expectations", ()
     summary,
     /\| MdAdaptiveSuite \| should_adapt_large \| fail_to_pass \| failed \| Answer pass \| incorrect \|/,
   );
-  assert.match(
-    summary,
-    /\| foldable \| answer \| 3 \| 2 \| 1 \| incorrect \|/,
-  );
+  assert.match(summary, /\| foldable \| answer \| 3 \| 2 \| 1 \| incorrect \|/);
   assert.doesNotMatch(summary, /SWE Actual/);
 });
 
@@ -301,8 +283,5 @@ test("renderCaseSummary marks conflicts and suites without parsed cases as incor
     summary,
     /\| NoParsedCasesSuite \| none parsed \| unclassified \| failed, 0\/2, failures=2 \| metadata category required \| incorrect \|/,
   );
-  assert.match(
-    summary,
-    /\| foldable \| swe \| 2 \| 0 \| 2 \| incorrect \|/,
-  );
+  assert.match(summary, /\| foldable \| swe \| 2 \| 0 \| 2 \| incorrect \|/);
 });

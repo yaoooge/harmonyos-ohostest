@@ -3,14 +3,19 @@ import http from "node:http";
 const HEALTH_CHECK_INTERVAL_MS = 500;
 const HEALTH_CHECK_TIMEOUT_MS = 10000;
 
-export async function healthCheck(port: number, timeoutMs: number = HEALTH_CHECK_TIMEOUT_MS): Promise<boolean> {
+export async function healthCheck(
+  port: number,
+  timeoutMs: number = HEALTH_CHECK_TIMEOUT_MS,
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const ok = await checkHealthOnce(port);
     if (ok) {
       return true;
     }
-    await new Promise((resolve) => setTimeout(resolve, HEALTH_CHECK_INTERVAL_MS));
+    await new Promise((resolve) =>
+      setTimeout(resolve, HEALTH_CHECK_INTERVAL_MS),
+    );
   }
   return false;
 }

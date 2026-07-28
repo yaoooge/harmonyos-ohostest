@@ -4,8 +4,8 @@ import {
   normalizeModuleSrcPath,
   selectHapModule,
   type ProjectModuleInfo,
-} from "../matrix/utils/projectDiscovery.js";
-import { parseJson5ish } from "../matrix/utils/json5ish.js";
+} from "../execution/project/discovery.js";
+import { parseJson5ish } from "../execution/project/json5ish.js";
 
 interface BuildProfile {
   app?: { products?: Array<{ name?: string }> };

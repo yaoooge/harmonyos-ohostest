@@ -1,4 +1,7 @@
-export function shellQuote(value: string, platform: NodeJS.Platform = process.platform): string {
+export function shellQuote(
+  value: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (/^[A-Za-z0-9_./:=@+-]+$/.test(value)) {
     return value;
   }

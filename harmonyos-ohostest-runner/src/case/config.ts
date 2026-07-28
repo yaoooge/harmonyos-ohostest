@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { AA_TEST_CASE_TIMEOUT_MS } from "../matrix/ohostest.js";
-import type { MatrixConfig } from "../matrix/types/index.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../execution/ohostest.js";
+import type { ExecutionConfig } from "../execution/types/index.js";
 import type {
   CaseDeviceSelection,
   CaseDeviceSuite,
@@ -72,7 +72,7 @@ export async function loadCaseMetadata(
 
 export function buildCaseDeviceSelection(
   metadata: CaseMetadata,
-  matrixConfig: Pick<MatrixConfig, "devices">,
+  matrixConfig: Pick<ExecutionConfig, "devices">,
   requestedDevices?: string[],
 ): CaseDeviceSelection {
   const machineDeviceIds = new Set(
@@ -207,11 +207,7 @@ function readTestCaseTimeoutMs(value: unknown): number {
   if (value === undefined) {
     return AA_TEST_CASE_TIMEOUT_MS;
   }
-  if (
-    typeof value !== "number" ||
-    !Number.isInteger(value) ||
-    value <= 0
-  ) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
     throw new Error(
       "metadata.test_case_timeout_ms must be a positive integer.",
     );

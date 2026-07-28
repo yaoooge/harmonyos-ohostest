@@ -76,21 +76,33 @@ async function makeProject(
       "utf-8",
     );
   }
-  await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), { recursive: true });
+  await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), {
+    recursive: true,
+  });
   await fs.writeFile(
     path.join(root, "products", "entry", "src", "ohosTest", "module.json5"),
     JSON.stringify({ module: { name: "entry_test" } }),
     "utf-8",
   );
-  await fs.mkdir(path.join(root, "entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(root, "entry/build/default/outputs/ohosTest"), { recursive: true });
+  await fs.mkdir(path.join(root, "entry/build/default/outputs/default"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(root, "entry/build/default/outputs/ohosTest"), {
+    recursive: true,
+  });
   await fs.writeFile(
-    path.join(root, "entry/build/default/outputs/default/entry-default-unsigned.hap"),
+    path.join(
+      root,
+      "entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
     "",
     "utf-8",
   );
   await fs.writeFile(
-    path.join(root, "entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"),
+    path.join(
+      root,
+      "entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
     "",
     "utf-8",
   );
@@ -109,7 +121,14 @@ async function makeMachineConfig(project: string): Promise<string> {
         emulatorBin: "/fake/Emulator",
         emulatorDeployedDir: "/fake/deployed",
       },
-      devices: [{ id: "phone", target: "127.0.0.1:15001", profile: "Mate 80 Pro", hdcPort: 15001 }],
+      devices: [
+        {
+          id: "phone",
+          target: "127.0.0.1:15001",
+          profile: "Mate 80 Pro",
+          hdcPort: 15001,
+        },
+      ],
     }),
     "utf-8",
   );
@@ -120,10 +139,30 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
   const project = await makeProject(t, { withSharedModule: true });
   const machineConfigPath = await makeMachineConfig(project);
   const out = path.join(project, ".ohostest-runs/latest/result.json");
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
   const commands: string[] = [];
 
   const result = await runOhosTestMatrix({
@@ -141,16 +180,32 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
           durationMs: 10,
         };
       }
-      return { stdout: command.includes("list targets") ? "127.0.0.1:15001\tConnected\n" : "", stderr: "", exitCode: 0, durationMs: 5 };
+      return {
+        stdout: command.includes("list targets")
+          ? "127.0.0.1:15001\tConnected\n"
+          : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 5,
+      };
     },
   });
 
   assert.equal(result.status, "completed");
-  assert.deepEqual(result.devices.map((item) => item.status), ["passed"]);
+  assert.deepEqual(
+    result.devices.map((item) => item.status),
+    ["passed"],
+  );
   assert.equal(commands[0], "/fake/hvigorw clean --no-daemon");
   assert.equal(commands[1], "/fake/ohpm install");
-  assert.match(commands.join("\n"), /\/fake\/hvigorw --mode project -p product=default assembleApp/);
-  assert.match(commands.join("\n"), /\/fake\/hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap/);
+  assert.match(
+    commands.join("\n"),
+    /\/fake\/hvigorw --mode project -p product=default assembleApp/,
+  );
+  assert.match(
+    commands.join("\n"),
+    /\/fake\/hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap/,
+  );
   const installCommands = commands.filter((command) =>
     command.includes(" install -r "),
   );
@@ -160,10 +215,16 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
     installCommands[1]!,
     /entry-default-unsigned\.hap .*entry-ohosTest-unsigned\.hap$/,
   );
-  assert.match(commands.join("\n"), /\/fake\/hdc -t 127\.0\.0\.1:15001 shell aa test -b zhsc\.1\.xxxxxx -m entry_test/);
+  assert.match(
+    commands.join("\n"),
+    /\/fake\/hdc -t 127\.0\.0\.1:15001 shell aa test -b zhsc\.1\.xxxxxx -m entry_test/,
+  );
   assert.equal("hspPaths" in result.build, false);
   assert.ok(await fs.readFile(out, "utf-8"));
-  assert.match(await fs.readFile(path.join(path.dirname(out), "summary.md"), "utf-8"), /Status: completed/);
+  assert.match(
+    await fs.readFile(path.join(path.dirname(out), "summary.md"), "utf-8"),
+    /Status: completed/,
+  );
 });
 
 test("runOhosTestMatrix blocks install output errors before aa test", async (t) => {
@@ -234,10 +295,30 @@ test("runOhosTestMatrix uses configured hvigorw path when project wrapper is abs
   const project = await makeProject(t);
   await fs.rm(path.join(project, "hvigorw"));
   const machineConfigPath = await makeMachineConfig(project);
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
   const commands: string[] = [];
 
   await runOhosTestMatrix({
@@ -259,7 +340,10 @@ test("runOhosTestMatrix uses configured hvigorw path when project wrapper is abs
     },
   });
 
-  assert.match(commands.join("\n"), /(?:^|\n)\/fake\/hvigorw --mode project -p product=default assembleApp/);
+  assert.match(
+    commands.join("\n"),
+    /(?:^|\n)\/fake\/hvigorw --mode project -p product=default assembleApp/,
+  );
 });
 
 test("runOhosTestMatrix waits five seconds after stopping one emulator before starting the next", async (t) => {
@@ -295,10 +379,30 @@ test("runOhosTestMatrix waits five seconds after stopping one emulator before st
     }),
     "utf-8",
   );
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
 
   let aaTestCount = 0;
   let returnedDisconnectedAfterFirstStop = false;
@@ -353,16 +457,40 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
           target: "127.0.0.1:15002",
           profile: "Mate X7",
           hdcPort: 15002,
-          testSuites: ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest"],
+          testSuites: [
+            "CommonPassToPassTest",
+            "SmPassToPassTest",
+            "MdFailToPassTest",
+          ],
         },
       ],
     }),
     "utf-8",
   );
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
   const commands: string[] = [];
 
   const result = await runOhosTestMatrix({
@@ -399,7 +527,9 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
         };
       }
       return {
-        stdout: command.includes("list targets") ? "127.0.0.1:15002\tConnected\n" : "",
+        stdout: command.includes("list targets")
+          ? "127.0.0.1:15002\tConnected\n"
+          : "",
         stderr: "",
         exitCode: 0,
         durationMs: 1,
@@ -418,7 +548,12 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
   assert.equal(result.devices[0]?.passes, 18);
   assert.equal(result.devices[0]?.ignored, 1);
   assert.deepEqual(
-    result.devices[0]?.suiteResults.map((suite) => [suite.suiteClass, suite.status, suite.testsRun, suite.reportCode]),
+    result.devices[0]?.suiteResults.map((suite) => [
+      suite.suiteClass,
+      suite.status,
+      suite.testsRun,
+      suite.reportCode,
+    ]),
     [
       ["CommonPassToPassTest", "passed", 10, 0],
       ["SmPassToPassTest", "passed", 6, 0],
@@ -449,10 +584,30 @@ test("runOhosTestMatrix lets CLI testClass override device testSuites", async (t
     }),
     "utf-8",
   );
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/default"), { recursive: true });
-  await fs.mkdir(path.join(project, "products/entry/build/default/outputs/ohosTest"), { recursive: true });
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"), "", "utf-8");
-  await fs.writeFile(path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"), "", "utf-8");
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
   const commands: string[] = [];
 
   await runOhosTestMatrix({
@@ -478,5 +633,8 @@ test("runOhosTestMatrix lets CLI testClass override device testSuites", async (t
   const aaCommands = commands.filter((command) => command.includes("aa test"));
   assert.equal(aaCommands.length, 1);
   assert.match(aaCommands[0] ?? "", /-s class OnlyThisSuite/);
-  assert.doesNotMatch(aaCommands[0] ?? "", /CommonPassToPassTest|SmPassToPassTest/);
+  assert.doesNotMatch(
+    aaCommands[0] ?? "",
+    /CommonPassToPassTest|SmPassToPassTest/,
+  );
 });

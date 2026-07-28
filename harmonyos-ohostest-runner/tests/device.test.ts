@@ -7,7 +7,7 @@ import {
   isInstallFailure,
   prepareDevice,
   waitForTargetDisconnected,
-} from "../src/matrix/device.js";
+} from "../src/execution/device.js";
 import type {
   DeviceConfig,
   InstallArtifacts,

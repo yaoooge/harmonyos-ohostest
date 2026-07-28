@@ -5,17 +5,17 @@ import type {
   CommandResult,
   DeviceConfig,
   InstallArtifacts,
-  MatrixConfig,
+  ExecutionConfig,
 } from "./types/index.js";
-import { verifyFileExists } from "../shared/utils/file.js";
-import { sanitizeName } from "../shared/utils/names.js";
-import { shellQuote } from "../shared/utils/shellQuote.js";
-import { sleep } from "../shared/utils/sleep.js";
+import { verifyFileExists } from "./utils/file.js";
+import { sanitizeName } from "./utils/names.js";
+import { shellQuote } from "./utils/shellQuote.js";
+import { sleep } from "./utils/sleep.js";
 
 const targetReadyMaxAttempts = 120;
 
 export interface DeviceCommandContext {
-  config: MatrixConfig;
+  config: ExecutionConfig;
   device: DeviceConfig;
   cwd: string;
   outDir: string;
@@ -23,7 +23,7 @@ export interface DeviceCommandContext {
 }
 
 export function buildStartEmulatorCommand(
-  config: MatrixConfig,
+  config: ExecutionConfig,
   device: DeviceConfig,
   platform: NodeJS.Platform = process.platform,
 ): string {
@@ -43,7 +43,7 @@ export function buildStartEmulatorCommand(
 }
 
 export function buildStopEmulatorCommand(
-  config: MatrixConfig,
+  config: ExecutionConfig,
   device: DeviceConfig,
   platform: NodeJS.Platform = process.platform,
 ): string {
@@ -153,7 +153,7 @@ export async function writeDeviceLog(input: {
   return relativePath;
 }
 
-export function hdcFor(config: MatrixConfig, device: DeviceConfig): string {
+export function hdcFor(config: ExecutionConfig, device: DeviceConfig): string {
   return `${shellQuote(config.paths.hdc)} -t ${shellQuote(device.target)}`;
 }
 

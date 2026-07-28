@@ -81,7 +81,8 @@ function normalizeSingleQuotedStrings(text: string): string {
     if (quote === "single") {
       if (character === "\\" && index + 1 < text.length) {
         const escaped = text[index + 1];
-        result += escaped === "'" ? "'" : escaped === '"' ? '\\"' : `\\${escaped}`;
+        result +=
+          escaped === "'" ? "'" : escaped === '"' ? '\\"' : `\\${escaped}`;
         index += 1;
       } else if (character === "'") {
         result += '"';

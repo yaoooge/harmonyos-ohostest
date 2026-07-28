@@ -36,9 +36,7 @@ async function importsAcross(
         resolved === forbiddenRoot ||
         resolved.startsWith(`${forbiddenRoot}${path.sep}`)
       ) {
-        violations.push(
-          `${path.relative(runnerRoot, file)} -> ${specifier}`,
-        );
+        violations.push(`${path.relative(runnerRoot, file)} -> ${specifier}`);
       }
     }
   }
@@ -46,27 +44,25 @@ async function importsAcross(
 }
 
 async function typescriptFiles(directory: string): Promise<string[]> {
-  let entries: Awaited<ReturnType<typeof fs.readdir>>;
   try {
-    entries = await fs.readdir(directory, { withFileTypes: true });
+    const entries = await fs.readdir(directory, {
+      withFileTypes: true,
+      encoding: "utf-8",
+    });
+    const files: string[] = [];
+    for (const entry of entries) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...(await typescriptFiles(fullPath)));
+      } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+        files.push(fullPath);
+      }
+    }
+    return files;
   } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return [];
     }
     throw error;
   }
-  const files: string[] = [];
-  for (const entry of entries) {
-    const fullPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await typescriptFiles(fullPath)));
-    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
-      files.push(fullPath);
-    }
-  }
-  return files;
 }

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { runBuild } from "../src/matrix/build.js";
+import { runBuild } from "../src/execution/build.js";
 import type { MatrixConfig } from "../src/matrix/types/index.js";
 
 async function makeBuildConfig(t: test.TestContext): Promise<MatrixConfig> {
@@ -136,10 +136,7 @@ test("runBuild resolves unsigned HSPs in shared-module order without exposing th
     },
   });
 
-  assert.deepEqual(outcome.installArtifacts?.hspPaths, [
-    commonHsp,
-    stylesHsp,
-  ]);
+  assert.deepEqual(outcome.installArtifacts?.hspPaths, [commonHsp, stylesHsp]);
   assert.equal("hspPaths" in outcome.result, false);
 });
 

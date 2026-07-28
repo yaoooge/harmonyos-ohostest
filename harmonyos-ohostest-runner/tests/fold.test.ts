@@ -48,7 +48,14 @@ describe("deployFoldTrigger", () => {
   it("creates FoldTrigger.ets in a temp project directory", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "fold-test-"));
     try {
-      const entryDir = path.join(tmp, "entry", "src", "ohosTest", "ets", "util");
+      const entryDir = path.join(
+        tmp,
+        "entry",
+        "src",
+        "ohosTest",
+        "ets",
+        "util",
+      );
       const deployed = await deployFoldTrigger(tmp, 8765, "entry");
       const expected = path.join(entryDir, "FoldTrigger.ets");
       assert.strictEqual(deployed, expected);
@@ -63,7 +70,14 @@ describe("deployFoldTrigger", () => {
   it("overwrites when FoldTrigger.ets already exists", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "fold-test-"));
     try {
-      const entryDir = path.join(tmp, "entry", "src", "ohosTest", "ets", "util");
+      const entryDir = path.join(
+        tmp,
+        "entry",
+        "src",
+        "ohosTest",
+        "ets",
+        "util",
+      );
       await fs.mkdir(entryDir, { recursive: true });
       const existing = path.join(entryDir, "FoldTrigger.ets");
       await fs.writeFile(existing, "// old content", "utf-8");

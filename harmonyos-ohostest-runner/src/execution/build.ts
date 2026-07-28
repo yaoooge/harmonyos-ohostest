@@ -1,21 +1,23 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { verifyFileExists } from "../shared/utils/file.js";
-import { shellQuote } from "../shared/utils/shellQuote.js";
-import type { BuildOutcome, CommandResult, MatrixConfig } from "./types/index.js";
+import { verifyFileExists } from "./utils/file.js";
+import { shellQuote } from "./utils/shellQuote.js";
+import type {
+  BuildOutcome,
+  CommandResult,
+  ExecutionConfig,
+} from "./types/index.js";
 
 const BUILD_STDERR_TAIL_LINES = 15;
 
 interface RunBuildInput {
-  config: MatrixConfig;
+  config: ExecutionConfig;
   skipBuild: boolean;
   runCommand: (command: string) => Promise<CommandResult>;
   diagnostics: string[];
 }
 
-export async function runBuild(
-  input: RunBuildInput,
-): Promise<BuildOutcome> {
+export async function runBuild(input: RunBuildInput): Promise<BuildOutcome> {
   const started = Date.now();
   const commandFailure = await runBuildCommands(input, started);
   if (commandFailure) {
@@ -32,7 +34,9 @@ async function verifyBuildArtifacts(
     await verifyFileExists(input.config.artifacts.appHap);
     await verifyFileExists(input.config.artifacts.testHap);
   } catch (error) {
-    input.diagnostics.push(`HAP 文件不存在：${error instanceof Error ? error.message : String(error)}`);
+    input.diagnostics.push(
+      `HAP 文件不存在：${error instanceof Error ? error.message : String(error)}`,
+    );
     return blockedBuild(input.config, started, "hap_missing");
   }
   let hspPaths: string[];
@@ -78,7 +82,7 @@ async function runBuildCommands(
 }
 
 function blockedBuild(
-  config: MatrixConfig,
+  config: ExecutionConfig,
   started: number,
   blockedReason: string,
 ): BuildOutcome {
@@ -93,7 +97,7 @@ function blockedBuild(
   };
 }
 
-async function resolveHspPaths(config: MatrixConfig): Promise<string[]> {
+async function resolveHspPaths(config: ExecutionConfig): Promise<string[]> {
   const suffix = hspSignatureSuffix(config.artifacts.appHap);
   const hspPaths: string[] = [];
   for (const moduleInfo of config.sharedModules) {
@@ -114,9 +118,7 @@ async function resolveHspPaths(config: MatrixConfig): Promise<string[]> {
   return hspPaths;
 }
 
-function hspSignatureSuffix(
-  appHap: string,
-): "-unsigned.hsp" | "-signed.hsp" {
+function hspSignatureSuffix(appHap: string): "-unsigned.hsp" | "-signed.hsp" {
   if (appHap.endsWith("-unsigned.hap")) {
     return "-unsigned.hsp";
   }
@@ -128,12 +130,12 @@ function hspSignatureSuffix(
   );
 }
 
-export function buildTestHapCommand(config: MatrixConfig): string {
+export function buildTestHapCommand(config: ExecutionConfig): string {
   const buildExecutable = shellQuote(config.paths.hvigorw);
   return `${buildExecutable} --mode module -p module=${config.module}@ohosTest ${config.build.testTask} --no-daemon`;
 }
 
-function buildCommands(config: MatrixConfig): string[] {
+function buildCommands(config: ExecutionConfig): string[] {
   const packageManager = shellQuote(config.paths.ohpm);
   const buildExecutable = shellQuote(config.paths.hvigorw);
   const appBase = `${buildExecutable} --mode ${config.build.mode} -p product=${config.product}`;
@@ -154,6 +156,9 @@ function tailOfStderr(stderr: string): string[] {
   }
   const lines = trimmed.split(/\r?\n/);
   const tail = lines.slice(-BUILD_STDERR_TAIL_LINES);
-  const prefix = lines.length > BUILD_STDERR_TAIL_LINES ? "[build stderr 尾部] " : "[build stderr] ";
+  const prefix =
+    lines.length > BUILD_STDERR_TAIL_LINES
+      ? "[build stderr 尾部] "
+      : "[build stderr] ";
   return [prefix + tail.join("\n")];
 }

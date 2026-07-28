@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveMatrixStatus, renderSummaryMarkdown } from "../src/matrix/result.js";
+import {
+  deriveMatrixStatus,
+  renderSummaryMarkdown,
+} from "../src/matrix/result.js";
 import type { DeviceRunResult } from "../src/matrix/types/index.js";
 
-function device(status: DeviceRunResult["status"], id: string = status): DeviceRunResult {
+function device(
+  status: DeviceRunResult["status"],
+  id: string = status,
+): DeviceRunResult {
   return {
     id,
     target: `127.0.0.1:${status.length}500`,
@@ -20,11 +26,17 @@ function device(status: DeviceRunResult["status"], id: string = status): DeviceR
 }
 
 test("deriveMatrixStatus returns completed when every selected device reaches a test result", () => {
-  assert.equal(deriveMatrixStatus([device("passed", "phone"), device("failed", "tablet")]), "completed");
+  assert.equal(
+    deriveMatrixStatus([device("passed", "phone"), device("failed", "tablet")]),
+    "completed",
+  );
 });
 
 test("deriveMatrixStatus returns failed when any selected device is blocked", () => {
-  assert.equal(deriveMatrixStatus([device("passed"), device("blocked")]), "failed");
+  assert.equal(
+    deriveMatrixStatus([device("passed"), device("blocked")]),
+    "failed",
+  );
 });
 
 test("deriveMatrixStatus returns failed when no device reaches a test result", () => {
@@ -32,10 +44,15 @@ test("deriveMatrixStatus returns failed when no device reaches a test result", (
 });
 
 test("renderSummaryMarkdown includes a compact device table", () => {
-  const markdown = renderSummaryMarkdown("completed", [device("passed", "phone")]);
+  const markdown = renderSummaryMarkdown("completed", [
+    device("passed", "phone"),
+  ]);
 
   assert.match(markdown, /# ohosTest Matrix Summary/);
-  assert.match(markdown, /\| phone \| passed \| 0 \| 25 \| 0 \| 0 \| 25 \| 0 \|/);
+  assert.match(
+    markdown,
+    /\| phone \| passed \| 0 \| 25 \| 0 \| 0 \| 25 \| 0 \|/,
+  );
 });
 
 test("renderSummaryMarkdown includes per-suite details below device aggregation", () => {
@@ -81,11 +98,23 @@ test("renderSummaryMarkdown includes per-suite details below device aggregation"
 
   const markdown = renderSummaryMarkdown("completed", [item]);
 
-  assert.match(markdown, /\| Device \| Status \| Suites \| Tests \| Failures \| Errors \| Passes \| Ignored \|/);
-  assert.match(markdown, /\| foldable \| failed \| 2 \| 25 \| 1 \| 0 \| 24 \| 0 \|/);
+  assert.match(
+    markdown,
+    /\| Device \| Status \| Suites \| Tests \| Failures \| Errors \| Passes \| Ignored \|/,
+  );
+  assert.match(
+    markdown,
+    /\| foldable \| failed \| 2 \| 25 \| 1 \| 0 \| 24 \| 0 \|/,
+  );
   assert.match(markdown, /### foldable/);
-  assert.match(markdown, /\| CommonPassToPassTest \| passed \| 10 \| 0 \| 0 \| 10 \| 0 \| 0 \|/);
-  assert.match(markdown, /\| MdFailToPassTest \| failed \| 5 \| 2 \| 0 \| 3 \| 0 \| 1 \|/);
+  assert.match(
+    markdown,
+    /\| CommonPassToPassTest \| passed \| 10 \| 0 \| 0 \| 10 \| 0 \| 0 \|/,
+  );
+  assert.match(
+    markdown,
+    /\| MdFailToPassTest \| failed \| 5 \| 2 \| 0 \| 3 \| 0 \| 1 \|/,
+  );
   assert.match(markdown, /\| Test Case \| Status \| Code \|/);
   assert.match(markdown, /\| should_show_home \| passed \| 0 \|/);
   assert.match(markdown, /\| should_show_md_columns \| failed \| -2 \|/);

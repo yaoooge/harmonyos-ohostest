@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseJson5ish } from "../src/matrix/utils/json5ish.js";
+import { parseJson5ish } from "../src/execution/project/json5ish.js";
 
 test("parseJson5ish parses single-quoted keys and values", () => {
   const result = parseJson5ish(`{
