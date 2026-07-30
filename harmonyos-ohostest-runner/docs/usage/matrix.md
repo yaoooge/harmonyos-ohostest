@@ -131,16 +131,16 @@ config/machine.json
 <project>/.ohostest-runs/<timestamp>/
   result.json
   summary.md
-  commands.log
-  devices/
+  commands.jsonl
 ```
 
 输出说明：
 
 - `result.json`：完整矩阵结果，包含每台设备、每个 suite、每条用例的状态
 - `summary.md`：人工可读汇总报告，包含设备汇总、suite 明细和用例明细
-- `commands.log`：构建、安装、启动模拟器、执行测试等命令日志
-- `devices/`：每台设备和每个 suite 的原始输出日志
+- `commands.jsonl`：构建、安装、启动模拟器、执行测试等结构化事件；可按
+  `deviceId` 和 `suiteClass` 过滤设备及 suite 输出。每条用例对应一个
+  `test_case` 事件，失败事件包含断言消息和堆栈
 
 矩阵级 `status`：
 

@@ -4,7 +4,10 @@ import { loadExecutionConfig } from "../execution/config.js";
 import { buildExecutionPlan } from "../execution/plan.js";
 import { runExecution } from "../execution/runner.js";
 import { renderSummaryMarkdown } from "../execution/summary.js";
-import { CommandLogger, defaultCommandExecutor } from "../execution/command.js";
+import { defaultCommandExecutor } from "../execution/command.js";
+import { createLoggedCommandExecutor } from "../logging/command.js";
+import { RunnerLogger } from "../logging/logger.js";
+import { formatRunnerError } from "../logging/types.js";
 import type {
   CommandResult,
   ExecutionConfig,
@@ -33,22 +36,74 @@ interface CaseRunContext {
   workProject: string;
   diagnostics: string[];
   runs: CaseResult["runs"];
-  logger: CommandLogger;
+  logger: RunnerLogger;
+}
+
+interface CaseRunBootstrap {
+  startedTime: number;
+  caseDir: string;
+  outDir: string;
+  logger: RunnerLogger;
 }
 
 export async function runOhosTestCase(
   input: RunCaseInput,
 ): Promise<CaseResult> {
-  const context = await createCaseRunContext(input);
+  const startedTime = Date.now();
+  const caseDir = path.resolve(input.caseDir);
+  const outDir = resolveOutDir(input, caseDir, startedTime);
+  await fs.mkdir(outDir, { recursive: true });
+  const logger = RunnerLogger.create(path.join(outDir, "commands.jsonl"), {
+    phase: "case",
+  });
 
+  try {
+    return await runCaseWithLogger(input, {
+      startedTime,
+      caseDir,
+      outDir,
+      logger,
+    });
+  } catch (error) {
+    logger.recordError(error);
+    throw error;
+  } finally {
+    await logger.close();
+  }
+}
+
+async function runCaseWithLogger(
+  input: RunCaseInput,
+  bootstrap: CaseRunBootstrap,
+): Promise<CaseResult> {
+  let metadata: CaseMetadata;
+  try {
+    metadata = await loadCaseMetadata(bootstrap.caseDir);
+  } catch (error) {
+    bootstrap.logger.recordError(error);
+    const result = failedCaseResult(
+      input,
+      bootstrap.caseDir,
+      bootstrap.outDir,
+      bootstrap.startedTime,
+      error,
+    );
+    await writeFailedCaseArtifacts(result, bootstrap.outDir);
+    return result;
+  }
+  const context = createCaseRunContext(
+    input,
+    bootstrap.startedTime,
+    bootstrap.outDir,
+    metadata,
+    bootstrap.logger,
+  );
   try {
     await runCaseComparisons(input, context);
   } catch (error) {
-    context.diagnostics.push(
-      error instanceof Error ? error.message : String(error),
-    );
+    context.diagnostics.push(formatRunnerError(error));
+    context.logger.recordError(error);
   }
-
   const result = buildCaseResult(input, context);
   await writeCaseArtifacts(result, context);
   await cleanupCaseWorkdir(input, context, result);
@@ -134,21 +189,22 @@ function loggedPatchCommand(
   input: RunCaseInput,
   context: CaseRunContext,
 ): (command: string) => Promise<CommandResult> {
-  return async (command) => {
-    const executor = input.patchCommandExecutor ?? defaultCommandExecutor;
-    const result = await executor(command, context.workProject);
-    await context.logger.record(command, result);
-    return result;
-  };
+  const logged = createLoggedCommandExecutor(
+    input.patchCommandExecutor ?? defaultCommandExecutor,
+    context.logger,
+    context.workProject,
+  );
+  return (command) => logged(command, context.workProject);
 }
 
-async function createCaseRunContext(
+function createCaseRunContext(
   input: RunCaseInput,
-): Promise<CaseRunContext> {
-  const startedTime = Date.now();
-  const metadata = await loadCaseMetadata(input.caseDir);
-  const outDir = resolveOutDir(input, metadata, startedTime);
-  const context: CaseRunContext = {
+  startedTime: number,
+  outDir: string,
+  metadata: CaseMetadata,
+  logger: RunnerLogger,
+): CaseRunContext {
+  return {
     startedTime,
     startedAt: new Date(startedTime).toISOString(),
     metadata,
@@ -157,24 +213,19 @@ async function createCaseRunContext(
     workProject: path.join(outDir, "work", "project"),
     diagnostics: [],
     runs: {},
-    logger: new CommandLogger(
-      path.join(outDir, "commands.log"),
-      "# ohosTest case command log\n",
-    ),
+    logger,
   };
-  await fs.mkdir(outDir, { recursive: true });
-  return context;
 }
 
 function resolveOutDir(
   input: RunCaseInput,
-  metadata: CaseMetadata,
+  caseDir: string,
   startedTime: number,
 ): string {
   return path.resolve(
     input.out ??
       path.join(
-        metadata.caseDir,
+        caseDir,
         ".ohostest-runs",
         timestampForPath(new Date(startedTime)),
       ),
@@ -201,12 +252,13 @@ async function runCaseExecution(
     skipBuild: input.skipBuild,
     keepEmulators: input.keepEmulators,
     commandExecutor: input.commandExecutor,
+    logger: context.logger.child({ phase }),
   });
   const result: NonNullable<CaseResult["runs"]["swe"]> = {
     schemaVersion: "ohostest-matrix-v1",
     ...execution,
     artifacts: {
-      commandLog: "commands.log",
+      commandLog: "../commands.jsonl",
       summary: "summary.md",
     },
   };
@@ -255,10 +307,7 @@ function buildCaseArtifacts(
       context,
       path.join(context.outDir, "summary.md"),
     ),
-    commandLog: relativeToCaseDir(
-      context,
-      path.join(context.outDir, "commands.log"),
-    ),
+    commandLog: "commands.jsonl",
     ...(context.runs.swe
       ? {
           sweResult: relativeToCaseDir(
@@ -277,6 +326,59 @@ function buildCaseArtifacts(
       : {}),
     ...(input.keepWorkdir ? { workdir: context.workProject } : {}),
   };
+}
+
+function failedCaseResult(
+  input: RunCaseInput,
+  caseDir: string,
+  outDir: string,
+  startedTime: number,
+  error: unknown,
+): CaseResult {
+  const finishedTime = Date.now();
+  const message = formatRunnerError(error);
+  return {
+    schemaVersion: "ohostest-case-v1",
+    caseId: path.basename(caseDir),
+    caseDir,
+    baseProject: "",
+    startedAt: new Date(startedTime).toISOString(),
+    finishedAt: new Date(finishedTime).toISOString(),
+    durationMs: finishedTime - startedTime,
+    status: "failed",
+    metadata: {
+      testCaseTimeoutMs: 0,
+      failToPass: [],
+      passToPass: [],
+      deviceTestSuites: {},
+    },
+    runs: {},
+    artifacts: {
+      result: path.relative(caseDir, path.join(outDir, "result.json")),
+      summary: path.relative(caseDir, path.join(outDir, "summary.md")),
+      commandLog: "commands.jsonl",
+      ...(input.keepWorkdir
+        ? { workdir: path.join(outDir, "work", "project") }
+        : {}),
+    },
+    diagnostics: [message],
+  };
+}
+
+async function writeFailedCaseArtifacts(
+  result: CaseResult,
+  outDir: string,
+): Promise<void> {
+  await fs.writeFile(
+    path.join(outDir, "summary.md"),
+    renderCaseSummary(result),
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(outDir, "result.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf-8",
+  );
 }
 
 function relativeToCaseDir(context: CaseRunContext, target: string): string {

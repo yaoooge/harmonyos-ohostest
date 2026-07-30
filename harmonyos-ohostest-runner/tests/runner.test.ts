@@ -202,6 +202,54 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
     await fs.readFile(path.join(path.dirname(out), "summary.md"), "utf-8"),
     /Status: completed/,
   );
+  assert.equal(result.artifacts.commandLog, "commands.jsonl");
+  assert.equal(result.devices[0]?.log, "commands.jsonl");
+  const logEvents = (
+    await fs.readFile(path.join(path.dirname(out), "commands.jsonl"), "utf-8")
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.ok(logEvents.every((event) => event.phase === "matrix"));
+  assert.ok(
+    logEvents.some(
+      (event) =>
+        event.deviceId === "phone" &&
+        event.suiteClass === "ALL" &&
+        String(event.command).includes("aa test"),
+    ),
+  );
+  assert.equal(
+    logEvents.filter((event) => String(event.command).includes("list targets"))
+      .length,
+    1,
+  );
+});
+
+test("runOhosTestMatrix persists structured configuration failures", async (t) => {
+  const project = await makeProject(t);
+  const machineConfigPath = path.join(project, "invalid-machine.json");
+  const out = path.join(project, "config-error", "result.json");
+  await fs.writeFile(machineConfigPath, "{ invalid", "utf-8");
+
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out,
+  });
+
+  assert.equal(result.status, "failed");
+  assert.match(result.diagnostics[0] ?? "", /config_file_parse_failed/);
+  assert.match(await fs.readFile(out, "utf-8"), /config_file_parse_failed/);
+  const events = (
+    await fs.readFile(path.join(path.dirname(out), "commands.jsonl"), "utf-8")
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.equal(events[0]?.event, "runner_error");
+  assert.equal(events[0]?.errorCode, "CONFIG_PARSE_ERROR");
+  assert.equal(events[0]?.file, path.resolve(machineConfigPath));
 });
 
 test("runOhosTestMatrix blocks install output errors before aa test", async (t) => {
@@ -441,8 +489,19 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
       }
       if (command.includes("MdFailToPassTest")) {
         return {
-          stdout:
-            "OHOS_REPORT_RESULT: stream=Tests run: 5, Failure: 2, Error: 0, Pass: 3, Ignore: 0\nOHOS_REPORT_CODE: 1\n",
+          stdout: [
+            "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+            "OHOS_REPORT_STATUS: current=1",
+            "OHOS_REPORT_STATUS: stack=    at AssertException @ohos/hypium (service.js:23:9)",
+            "    at should_adapt_medium (MdFailToPass.test.ets:42:7)",
+            "OHOS_REPORT_STATUS: stream=Error in should_adapt_medium, expect true, actualValue is false",
+            "OHOS_REPORT_STATUS: test=should_adapt_medium",
+            "OHOS_REPORT_STATUS_CODE: -2",
+            "OHOS_REPORT_STATUS: consuming=239",
+            "OHOS_REPORT_RESULT: stream=Tests run: 5, Failure: 2, Error: 0, Pass: 3, Ignore: 0",
+            "OHOS_REPORT_CODE: 1",
+            "",
+          ].join("\n"),
           stderr: "",
           exitCode: 0,
           durationMs: 10,
@@ -469,6 +528,15 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
   assert.equal(result.devices[0]?.failures, 2);
   assert.equal(result.devices[0]?.passes, 18);
   assert.equal(result.devices[0]?.ignored, 1);
+  assert.deepEqual(result.devices[0]?.suiteResults[2]?.testCases[0], {
+    name: "should_adapt_medium",
+    status: "failed",
+    statusCode: -2,
+    durationMs: 239,
+    message: "Error in should_adapt_medium, expect true, actualValue is false",
+    stack:
+      "at AssertException @ohos/hypium (service.js:23:9)\n    at should_adapt_medium (MdFailToPass.test.ets:42:7)",
+  });
   assert.deepEqual(
     result.devices[0]?.suiteResults.map((suite) => [
       suite.suiteClass,
@@ -482,4 +550,23 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
       ["MdFailToPassTest", "failed", 5, 1],
     ],
   );
+  const events = (
+    await fs.readFile(path.join(project, "commands.jsonl"), "utf-8")
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const failedTest = events.find(
+    (event) =>
+      event.event === "test_case" && event.test === "should_adapt_medium",
+  );
+  assert.equal(failedTest?.level, 50);
+  assert.match(String(failedTest?.message), /actualValue is false/);
+  assert.match(String(failedTest?.stack), /MdFailToPass\.test\.ets:42/);
+  const testCommand = events.find(
+    (event) =>
+      event.event === "command" &&
+      String(event.command).includes("MdFailToPassTest"),
+  );
+  assert.equal(testCommand?.stdout, undefined);
 });

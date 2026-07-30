@@ -52,8 +52,8 @@ hdc -t <target> shell param get const.product.devicetype
 ```
 
 MateBook/2in1 目标应返回 `2in1`，runner 随后发送 Enter 键码 `2054`。如果参数读取失败或
-返回其他值，runner 会兼容性回退到 Home。检查 `commands.log`，确认参数探测结果及实际
-发送的按键；设备 `id` 不参与类型判断。
+返回其他值，runner 会兼容性回退到 Home。检查 `commands.jsonl` 中对应 `deviceId` 的
+事件，确认参数探测结果及实际发送的按键；设备 `id` 不参与类型判断。
 
 ## 折叠测试失败：折叠命令被设备拒绝
 

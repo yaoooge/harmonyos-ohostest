@@ -255,6 +255,7 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
     result.artifacts.sweResult,
     path.relative(caseDir, path.join(out, "swe", "result.json")),
   );
+  assert.equal(result.artifacts.commandLog, "commands.jsonl");
   assert.equal(
     commands.filter((command) => command.includes("aa test")).length,
     2,
@@ -271,6 +272,22 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
   );
   assert.match(commands.join("\n"), /-s timeout 30000 -w 120000/);
   assert.equal(result.metadata.testCaseTimeoutMs, 30000);
+  assert.equal(result.runs.swe?.artifacts.commandLog, "../commands.jsonl");
+  assert.equal(result.runs.answer?.artifacts.commandLog, "../commands.jsonl");
+  assert.ok(
+    result.runs.swe?.devices.every(
+      (device) => device.log === "../commands.jsonl",
+    ),
+  );
+  const logEvents = (
+    await fs.readFile(path.join(out, "commands.jsonl"), "utf-8")
+  )
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.ok(logEvents.some((event) => event.phase === "case"));
+  assert.ok(logEvents.some((event) => event.phase === "swe"));
+  assert.ok(logEvents.some((event) => event.phase === "answer"));
   assert.match(
     await fs.readFile(
       path.join(
@@ -445,23 +462,23 @@ test("runOhosTestCase writes case command log when golden patch fails before ans
     }),
   });
 
-  const commandLog = await fs.readFile(path.join(out, "commands.log"), "utf-8");
+  const commandLog = await fs.readFile(
+    path.join(out, "commands.jsonl"),
+    "utf-8",
+  );
   const summary = await fs.readFile(path.join(out, "summary.md"), "utf-8");
 
   assert.equal(result.status, "failed");
   assert.ok(result.runs.swe);
   assert.equal(result.runs.answer, undefined);
-  assert.equal(
-    result.artifacts.commandLog,
-    path.relative(caseDir, path.join(out, "commands.log")),
-  );
+  assert.equal(result.artifacts.commandLog, "commands.jsonl");
   assert.match(commandLog, /git apply --ignore-whitespace --check/);
   assert.match(commandLog, /golden_patch\.patch/);
-  assert.match(commandLog, /exitCode: [1-9]/);
-  assert.match(commandLog, /stderr:\n.+/s);
+  assert.match(commandLog, /"exitCode":[1-9]/);
+  assert.match(commandLog, /"stderr":".+"/s);
   assert.match(summary, /patch_apply_failed: golden_patch/);
-  assert.match(summary, /Command Log: \.\.\/runs\/commands\.log/);
-  assert.doesNotMatch(summary, /stderr:\n/);
+  assert.match(summary, /Command Log: commands\.jsonl/);
+  assert.doesNotMatch(summary, /"stderr":/);
 });
 
 test("runOhosTestCase temporarily enables tablet only for swe", async (t) => {
@@ -563,4 +580,72 @@ test("runOhosTestCase temporarily enables tablet only for swe", async (t) => {
     ),
   ) as { module: { deviceTypes: string[] } };
   assert.deepEqual(finalConfig.module.deviceTypes, ["phone"]);
+});
+
+test("runOhosTestCase writes configuration failures to result and command log", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-config-error-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs");
+  await fs.writeFile(
+    path.join(root, "base", "build-profile.json5"),
+    "{ invalid",
+    "utf-8",
+  );
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    keepWorkdir: true,
+  });
+  const persistedResult = await fs.readFile(
+    path.join(out, "result.json"),
+    "utf-8",
+  );
+  const commandLog = await fs.readFile(
+    path.join(out, "commands.jsonl"),
+    "utf-8",
+  );
+
+  assert.equal(result.status, "failed");
+  assert.match(result.diagnostics[0] ?? "", /build-profile\.json5/);
+  assert.match(persistedResult, /config_file_parse_failed/);
+  assert.match(commandLog, /"event":"runner_error"/);
+  assert.match(commandLog, /"errorCode":"CONFIG_PARSE_ERROR"/);
+  assert.match(commandLog, /config_file_parse_failed/);
+  assert.match(commandLog, /build-profile\.json5/);
+});
+
+test("runOhosTestCase logs metadata failures before context creation", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-metadata-error-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const caseDir = path.join(root, "case");
+  const out = path.join(root, "runs");
+  await fs.mkdir(caseDir, { recursive: true });
+  await fs.writeFile(path.join(caseDir, "metadata.json"), "{ invalid", "utf-8");
+
+  const result = await runOhosTestCase({ caseDir, out });
+  assert.equal(result.status, "failed");
+  const commandLog = await fs.readFile(
+    path.join(out, "commands.jsonl"),
+    "utf-8",
+  );
+  assert.match(commandLog, /"event":"runner_error"/);
+  assert.match(commandLog, /"errorCode":"CONFIG_PARSE_ERROR"/);
+  assert.match(commandLog, /metadata\.json/);
+  assert.match(
+    await fs.readFile(path.join(out, "result.json"), "utf-8"),
+    /config_file_parse_failed/,
+  );
 });

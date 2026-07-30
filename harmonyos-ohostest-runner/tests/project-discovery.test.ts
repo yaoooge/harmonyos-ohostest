@@ -293,3 +293,22 @@ test("discoverProjectInfo rejects multiple HAP modules", async (t) => {
     /project_hap_module_ambiguous: phone, tablet/,
   );
 });
+
+test("discoverProjectInfo identifies an invalid build-profile.json5 file", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "entry",
+      srcPath: "products/entry",
+      type: "entry",
+      packageType: "hap",
+    },
+  ]);
+  const buildProfilePath = path.join(project, "build-profile.json5");
+  await fs.writeFile(buildProfilePath, "{ invalid", "utf-8");
+
+  await assert.rejects(discoverProjectInfo(project), (error: Error) => {
+    assert.match(error.message, /config_file_parse_failed/);
+    assert.ok(error.message.includes(buildProfilePath));
+    return true;
+  });
+});

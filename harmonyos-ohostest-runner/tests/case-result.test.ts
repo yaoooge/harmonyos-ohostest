@@ -78,7 +78,7 @@ function matrix(devices: DeviceRunResult[]): MatrixResult {
     },
     devices,
     artifacts: {
-      commandLog: "commands.log",
+      commandLog: "commands.jsonl",
       summary: "summary.md",
     },
     diagnostics: [],
@@ -111,7 +111,7 @@ function baseCaseResult(
     artifacts: {
       result: ".ohostest-runs/run/result.json",
       summary: ".ohostest-runs/run/summary.md",
-      commandLog: ".ohostest-runs/run/commands.log",
+      commandLog: ".ohostest-runs/run/commands.jsonl",
     },
     diagnostics: [],
   };

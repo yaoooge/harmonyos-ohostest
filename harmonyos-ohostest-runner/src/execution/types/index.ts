@@ -153,6 +153,9 @@ export interface TestCaseRunResult {
   name: string;
   status: TestCaseRunStatus;
   statusCode: number;
+  durationMs?: number;
+  message?: string;
+  stack?: string;
 }
 
 export interface SuiteRunResult {
@@ -205,4 +208,5 @@ export interface RunExecutionInput {
   skipBuild?: boolean;
   keepEmulators?: boolean;
   commandExecutor?: CommandExecutor;
+  logger: import("../../logging/logger.js").RunnerLogger;
 }

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { configFileError, readJsonConfigFile } from "../configFile.js";
 import { AA_TEST_CASE_TIMEOUT_MS } from "../execution/ohostest.js";
 import type { ExecutionConfig } from "../execution/types/index.js";
 import type {
@@ -25,49 +26,51 @@ export async function loadCaseMetadata(
 ): Promise<CaseMetadata> {
   const caseDir = path.resolve(caseDirInput);
   const metadataPath = path.join(caseDir, "metadata.json");
-  const raw = JSON.parse(
-    await fs.readFile(metadataPath, "utf-8"),
-  ) as RawCaseMetadata;
-  const caseId = readRequiredString(raw.case_id, "metadata.case_id");
-  const baseProjectName = readRequiredString(
-    raw.base_project,
-    "metadata.base_project",
-  );
-  const testPatchName = readRequiredString(
-    raw.test_patch,
-    "metadata.test_patch",
-  );
-  const goldenPatchName = readRequiredString(
-    raw.golden_patch,
-    "metadata.golden_patch",
-  );
-  const baseProject = await resolveBaseProject(caseDir, baseProjectName);
-  const testPatch = await resolveExistingFile(
-    caseDir,
-    testPatchName,
-    "test_patch",
-  );
-  const goldenPatch = await resolveExistingFile(
-    caseDir,
-    goldenPatchName,
-    "golden_patch",
-  );
+  const raw = await readJsonConfigFile<RawCaseMetadata>(metadataPath);
+  try {
+    const caseId = readRequiredString(raw.case_id, "metadata.case_id");
+    const baseProjectName = readRequiredString(
+      raw.base_project,
+      "metadata.base_project",
+    );
+    const testPatchName = readRequiredString(
+      raw.test_patch,
+      "metadata.test_patch",
+    );
+    const goldenPatchName = readRequiredString(
+      raw.golden_patch,
+      "metadata.golden_patch",
+    );
+    const baseProject = await resolveBaseProject(caseDir, baseProjectName);
+    const testPatch = await resolveExistingFile(
+      caseDir,
+      testPatchName,
+      "test_patch",
+    );
+    const goldenPatch = await resolveExistingFile(
+      caseDir,
+      goldenPatchName,
+      "golden_patch",
+    );
 
-  return {
-    caseId,
-    caseDir,
-    baseProject,
-    testPatch,
-    goldenPatch,
-    testCaseTimeoutMs: readTestCaseTimeoutMs(raw.test_case_timeout_ms),
-    failToPass: readStringArray(raw.fail_to_pass, "metadata.fail_to_pass"),
-    passToPass: readStringArray(raw.pass_to_pass, "metadata.pass_to_pass"),
-    deviceTestSuites: readDeviceTestSuites(raw.device_test_suites),
-    enabledDevices: readOptionalStringArray(
-      raw.enabled_devices,
-      "metadata.enabled_devices",
-    ),
-  };
+    return {
+      caseId,
+      caseDir,
+      baseProject,
+      testPatch,
+      goldenPatch,
+      testCaseTimeoutMs: readTestCaseTimeoutMs(raw.test_case_timeout_ms),
+      failToPass: readStringArray(raw.fail_to_pass, "metadata.fail_to_pass"),
+      passToPass: readStringArray(raw.pass_to_pass, "metadata.pass_to_pass"),
+      deviceTestSuites: readDeviceTestSuites(raw.device_test_suites),
+      enabledDevices: readOptionalStringArray(
+        raw.enabled_devices,
+        "metadata.enabled_devices",
+      ),
+    };
+  } catch (error) {
+    throw configFileError(metadataPath, error);
+  }
 }
 
 export function buildCaseDeviceSelection(

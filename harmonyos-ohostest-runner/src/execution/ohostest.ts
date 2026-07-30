@@ -35,6 +35,7 @@ export function buildAaTestCommand(input: BuildAaTestCommandInput): string {
 }
 
 export function parseAaTestOutput(output: string): ParsedAaTestOutput {
+  const testCases = parseTestCases(output);
   const summary =
     /Tests run:\s*(\d+),\s*Failure:\s*(\d+),\s*Error:\s*(\d+),\s*Pass:\s*(\d+),\s*Ignore:\s*(\d+)/.exec(
       output,
@@ -43,6 +44,7 @@ export function parseAaTestOutput(output: string): ParsedAaTestOutput {
     return {
       ok: false,
       blockedReason: "test_output_unparseable",
+      ...(testCases.length > 0 ? { testCases } : {}),
     };
   }
 
@@ -61,32 +63,51 @@ export function parseAaTestOutput(output: string): ParsedAaTestOutput {
     errors,
     passes,
     ignored,
-    testCases: parseTestCases(output),
+    testCases,
     ...(reportCode !== undefined ? { reportCode } : {}),
   };
 }
 
 function parseTestCases(output: string): TestCaseRunResult[] {
   const cases = new Map<string, TestCaseRunResult>();
-  let currentTest: string | undefined;
-  for (const line of output.split(/\r?\n/)) {
-    const testMatch = /^OHOS_REPORT_STATUS:\s+test=(.+)$/.exec(line);
-    if (testMatch) {
-      currentTest = testMatch[1];
-      continue;
-    }
-    const codeMatch = /^OHOS_REPORT_STATUS_CODE:\s*(-?\d+)$/.exec(line);
-    if (codeMatch && currentTest) {
-      const statusCode = Number(codeMatch[1]);
-      cases.set(currentTest, {
-        name: currentTest,
-        status: statusFromStatusCode(statusCode),
-        statusCode,
-      });
-      currentTest = undefined;
-    }
+  const records = output.split(/(?=^OHOS_REPORT_STATUS:\s+class=)/m);
+  for (const record of records) {
+    const name = readStatusValue(record, "test");
+    const codeMatch = /^OHOS_REPORT_STATUS_CODE:\s*(-?\d+)$/m.exec(record);
+    if (!name || !codeMatch) continue;
+    const statusCode = Number(codeMatch[1]);
+    const duration = readStatusValue(record, "consuming");
+    const message = readStatusValue(record, "stream");
+    const stack = readStatusValue(record, "stack");
+    cases.set(name, {
+      name,
+      status: statusFromStatusCode(statusCode),
+      statusCode,
+      ...(duration && Number.isFinite(Number(duration))
+        ? { durationMs: Number(duration) }
+        : {}),
+      ...(message ? { message } : {}),
+      ...(stack ? { stack } : {}),
+    });
   }
   return [...cases.values()];
+}
+
+function readStatusValue(record: string, key: string): string | undefined {
+  const prefix = `OHOS_REPORT_STATUS: ${key}=`;
+  const lines = record.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith(prefix));
+  if (start < 0) return undefined;
+  const valueLines = [lines[start]?.slice(prefix.length) ?? ""];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (/^OHOS_REPORT_(?:STATUS|STATUS_CODE|RESULT|CODE):/.test(line)) {
+      break;
+    }
+    valueLines.push(line);
+  }
+  const value = valueLines.join("\n").trim();
+  return value.length > 0 ? value : undefined;
 }
 
 function statusFromStatusCode(statusCode: number): TestCaseRunResult["status"] {

@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import type {
   CommandExecutor,
   CommandResult,
@@ -7,8 +5,8 @@ import type {
   InstallArtifacts,
   ExecutionConfig,
 } from "./types/index.js";
+import type { RunnerLogger } from "../logging/logger.js";
 import { verifyFileExists } from "./utils/file.js";
-import { sanitizeName } from "./utils/names.js";
 import { shellQuote } from "./utils/shellQuote.js";
 import { sleep } from "./utils/sleep.js";
 
@@ -20,6 +18,8 @@ export interface DeviceCommandContext {
   cwd: string;
   outDir: string;
   runCommand: (command: string) => Promise<CommandResult>;
+  pollCommand?: (command: string) => Promise<CommandResult>;
+  logger?: RunnerLogger;
 }
 
 export function buildStartEmulatorCommand(
@@ -111,46 +111,41 @@ export function isInstallFailure(result: CommandResult): boolean {
 export async function ensureTargetReady(
   ctx: DeviceCommandContext,
 ): Promise<void> {
+  let lastResult: CommandResult | undefined;
+  const command = `${shellQuote(ctx.config.paths.hdc)} list targets`;
   for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
-    const result = await ctx.runCommand(
-      `${shellQuote(ctx.config.paths.hdc)} list targets`,
-    );
+    const result = await (ctx.pollCommand ?? ctx.runCommand)(command);
+    lastResult = result;
     if (isTargetConnected(result.stdout, ctx.device.target)) {
+      ctx.logger?.recordCommand(command, result);
       return;
     }
     await sleep(1000);
   }
+  if (lastResult) ctx.logger?.recordCommand(command, lastResult);
   throw new Error("hdc_not_connected");
 }
 
 export async function waitForTargetDisconnected(
   ctx: DeviceCommandContext,
 ): Promise<boolean> {
+  let lastResult: CommandResult | undefined;
+  const command = `${shellQuote(ctx.config.paths.hdc)} list targets`;
   for (let attempt = 0; attempt < targetReadyMaxAttempts; attempt += 1) {
-    const result = await ctx.runCommand(
-      `${shellQuote(ctx.config.paths.hdc)} list targets`,
-    );
+    const result = await (ctx.pollCommand ?? ctx.runCommand)(command);
+    lastResult = result;
     if (!isTargetConnected(result.stdout, ctx.device.target)) {
+      ctx.logger?.recordCommand(command, result);
       return true;
     }
     await sleep(1000);
   }
+  if (lastResult) ctx.logger?.recordCommand(command, lastResult);
+  ctx.logger?.recordError(new Error("hdc_disconnect_timeout"), {
+    errorCode: "HDC_DISCONNECT_TIMEOUT",
+    command,
+  });
   return false;
-}
-
-export async function writeDeviceLog(input: {
-  outDir: string;
-  deviceId: string;
-  lines: string[];
-}): Promise<string> {
-  const relativePath = path.join(
-    "devices",
-    `${sanitizeName(input.deviceId)}.log`,
-  );
-  const fullPath = path.join(input.outDir, relativePath);
-  await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, `${input.lines.join("\n")}\n`, "utf-8");
-  return relativePath;
 }
 
 export function hdcFor(config: ExecutionConfig, device: DeviceConfig): string {
@@ -172,4 +167,4 @@ export async function runIfNeeded(
   return commandExecutor(command, cwd);
 }
 
-export { sanitizeName, verifyFileExists };
+export { verifyFileExists };

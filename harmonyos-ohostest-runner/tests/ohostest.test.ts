@@ -78,8 +78,12 @@ test("parseAaTestOutput extracts each test case status from OHOS status records"
       "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
       "OHOS_REPORT_STATUS_CODE: 1",
       "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: stack=    at AssertException @ohos/hypium (service.js:23:9)",
+      "    at should_fail_on_md_layout (MdFailToPass.test.ets:42:7)",
+      "OHOS_REPORT_STATUS: stream=Error in should_fail_on_md_layout, expect true, actualValue is false",
       "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
       "OHOS_REPORT_STATUS_CODE: -2",
+      "OHOS_REPORT_STATUS: consuming=239",
       "OHOS_REPORT_STATUS: class=MdFailToPassTest",
       "OHOS_REPORT_STATUS: test=should_pass_common_quality",
       "OHOS_REPORT_STATUS_CODE: 1",
@@ -96,6 +100,11 @@ test("parseAaTestOutput extracts each test case status from OHOS status records"
       name: "should_fail_on_md_layout",
       status: "failed",
       statusCode: -2,
+      durationMs: 239,
+      message:
+        "Error in should_fail_on_md_layout, expect true, actualValue is false",
+      stack:
+        "at AssertException @ohos/hypium (service.js:23:9)\n    at should_fail_on_md_layout (MdFailToPass.test.ets:42:7)",
     },
     {
       name: "should_pass_common_quality",

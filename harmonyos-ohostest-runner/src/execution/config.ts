@@ -1,5 +1,5 @@
-import fs from "node:fs/promises";
 import path from "node:path";
+import { configFileError, readJsonConfigFile } from "../configFile.js";
 import type { ExecutionConfig, RawExecutionConfig } from "./types/index.js";
 import { AA_TEST_CASE_TIMEOUT_MS } from "./ohostest.js";
 import { discoverProjectInfo } from "./project/discovery.js";
@@ -18,24 +18,26 @@ export async function loadExecutionConfig(
   const machineConfigPath = path.resolve(
     input.machineConfigPath ?? defaultMachineConfigPath(),
   );
-  const raw = JSON.parse(
-    await fs.readFile(machineConfigPath, "utf-8"),
-  ) as RawExecutionConfig;
+  const raw = await readJsonConfigFile<RawExecutionConfig>(machineConfigPath);
   const projectInfo = await discoverProjectInfo(project);
-  validateRawConfig(raw);
+  try {
+    validateRawConfig(raw);
 
-  const paths = readToolPaths(raw.paths);
-  const devices = readDevices(raw);
-  validateFoldControl(devices, paths);
+    const paths = readToolPaths(raw.paths);
+    const devices = readDevices(raw);
+    validateFoldControl(devices, paths);
 
-  return buildExecutionConfig({
-    project,
-    raw,
-    projectInfo,
-    paths,
-    devices,
-    input,
-  });
+    return buildExecutionConfig({
+      project,
+      raw,
+      projectInfo,
+      paths,
+      devices,
+      input,
+    });
+  } catch (error) {
+    throw configFileError(machineConfigPath, error);
+  }
 }
 
 function validateRawConfig(raw: RawExecutionConfig): void {

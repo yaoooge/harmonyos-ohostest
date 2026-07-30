@@ -1,9 +1,5 @@
 import path from "node:path";
-import {
-  CommandLogger,
-  defaultCommandExecutor,
-  runDetachedCommand,
-} from "./command.js";
+import { defaultCommandExecutor, runDetachedCommand } from "./command.js";
 import { sleep } from "./utils/sleep.js";
 import { buildTestHapCommand, runBuild } from "./build.js";
 import {
@@ -12,7 +8,6 @@ import {
   installHaps,
   prepareDevice,
   waitForTargetDisconnected,
-  writeDeviceLog,
 } from "./device.js";
 import { buildAaTestCommand, parseAaTestOutput } from "./ohostest.js";
 import { deriveExecutionStatus } from "./result.js";
@@ -22,12 +17,15 @@ import {
   startFoldServer,
 } from "../fold/server.js";
 import type { FoldServerInstance } from "../fold/server.js";
+import { createLoggedCommandExecutor } from "../logging/command.js";
+import type { RunnerLogger } from "../logging/logger.js";
 import type {
   CommandResult,
   DeviceRunResult,
   InstallArtifacts,
   ExecutionConfig,
   ExecutionResult,
+  ParsedAaTestOutput,
   RunExecutionInput,
   SuiteRunResult,
 } from "./types/index.js";
@@ -40,7 +38,10 @@ interface ExecutionRunContext {
   config: ExecutionConfig;
   selectedDevices: ExecutionConfig["devices"];
   outDir: string;
+  commandLog: string;
   diagnostics: string[];
+  logger: RunnerLogger;
+  executor: NonNullable<RunExecutionInput["commandExecutor"]>;
   runCommand: (command: string) => Promise<CommandResult>;
   runDetached: (command: string) => Promise<CommandResult>;
 }
@@ -50,9 +51,23 @@ interface DeviceRunInput {
   installArtifacts: InstallArtifacts;
   device: ExecutionConfig["devices"][number];
   outDir: string;
+  commandLog: string;
   keepEmulators: boolean;
+  logger: RunnerLogger;
+  executor: NonNullable<RunExecutionInput["commandExecutor"]>;
   runCommand: (command: string) => Promise<CommandResult>;
   runDetached: (command: string) => Promise<CommandResult>;
+}
+
+type TestRunInput = Pick<
+  DeviceRunInput,
+  "config" | "device" | "executor" | "logger"
+>;
+
+interface LoggedTestRun {
+  commandResult: CommandResult;
+  parsed: ParsedAaTestOutput;
+  logger: RunnerLogger;
 }
 
 export async function runExecution(
@@ -68,6 +83,12 @@ export async function runExecution(
     runCommand: context.runCommand,
     diagnostics: context.diagnostics,
   });
+  if (buildOutcome.result.status === "blocked") {
+    context.logger.recordError(
+      new Error(buildOutcome.result.blockedReason ?? "build_blocked"),
+      { errorCode: "BUILD_BLOCKED" },
+    );
+  }
 
   const devices =
     buildOutcome.result.status === "passed" && buildOutcome.installArtifacts
@@ -91,8 +112,9 @@ async function createExecutionRunContext(
   const config = input.config;
   const selectedDevices = input.plan.devices;
   const outDir = path.resolve(input.outDir);
-  const logger = new CommandLogger(path.join(outDir, "commands.log"));
   const executor = input.commandExecutor ?? defaultCommandExecutor;
+  const detachedExecutor = (command: string, cwd: string) =>
+    runDetachedCommand(command, cwd);
 
   return {
     startedTime,
@@ -100,32 +122,20 @@ async function createExecutionRunContext(
     config,
     selectedDevices,
     outDir,
+    commandLog: path.relative(outDir, input.logger.logPath),
     diagnostics: [],
-    runCommand: loggedCommand(executor, logger, config.project),
-    runDetached: loggedDetachedCommand(logger, config.project),
-  };
-}
-
-function loggedCommand(
-  executor: typeof defaultCommandExecutor,
-  logger: CommandLogger,
-  project: string,
-): (command: string) => Promise<CommandResult> {
-  return async (command) => {
-    const result = await executor(command, project);
-    await logger.record(command, result);
-    return result;
-  };
-}
-
-function loggedDetachedCommand(
-  logger: CommandLogger,
-  project: string,
-): (command: string) => Promise<CommandResult> {
-  return async (command) => {
-    const result = await runDetachedCommand(command, project);
-    await logger.record(command, result);
-    return result;
+    logger: input.logger,
+    executor,
+    runCommand: bindLoggedCommandExecutor(
+      executor,
+      input.logger,
+      config.project,
+    ),
+    runDetached: bindLoggedCommandExecutor(
+      detachedExecutor,
+      input.logger,
+      config.project,
+    ),
   };
 }
 
@@ -149,12 +159,27 @@ async function runSelectedDevices(
   const devices: DeviceRunResult[] = [];
   for (let index = 0; index < context.selectedDevices.length; index += 1) {
     const device = context.selectedDevices[index];
+    const logger = context.logger.child({ deviceId: device.id });
     devices.push(
       await runDevice({
-        ...context,
+        config: context.config,
+        outDir: context.outDir,
+        commandLog: context.commandLog,
         device,
         installArtifacts,
         keepEmulators: input.keepEmulators ?? false,
+        logger,
+        executor: context.executor,
+        runCommand: bindLoggedCommandExecutor(
+          context.executor,
+          logger,
+          context.config.project,
+        ),
+        runDetached: bindLoggedCommandExecutor(
+          (command, cwd) => runDetachedCommand(command, cwd),
+          logger,
+          context.config.project,
+        ),
       }),
     );
     if (
@@ -203,36 +228,26 @@ function shouldWaitBeforeNextEmulatorStart(
 
 async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
   const started = Date.now();
-  const logLines: string[] = [
-    `device: ${input.device.id}`,
-    `target: ${input.device.target}`,
-  ];
   let foldServer: FoldServerInstance | undefined;
 
   try {
-    const emulatorBlock = await startEmulatorIfNeeded(input, started, logLines);
+    const emulatorBlock = await startEmulatorIfNeeded(input, started);
     if (emulatorBlock) return emulatorBlock;
 
     await prepareRunDevice(input);
 
-    const foldResult = await startFoldSupportIfNeeded(input, started, logLines);
+    const foldResult = await startFoldSupportIfNeeded(input, started);
     if (foldResult.blocked) return foldResult.blocked;
     foldServer = foldResult.foldServer;
 
     await installRunHaps(input);
-    const suiteResults = await runDeviceSuites(input, started, logLines);
+    const suiteResults = await runDeviceSuites(input, started);
     if (isBlockedDeviceResult(suiteResults)) return suiteResults;
 
-    return await passedDevice(
-      input,
-      started,
-      logLines,
-      suiteResults,
-      foldServer,
-    );
+    return passedDevice(input, started, suiteResults, foldServer);
   } catch (error) {
     const reason = reasonFromError(error);
-    return blockedDevice(input, started, [...logLines, String(error)], reason);
+    return blockedDevice(input, started, reason);
   } finally {
     await cleanupRunDevice(input, foldServer);
   }
@@ -241,16 +256,14 @@ async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
 async function startEmulatorIfNeeded(
   input: DeviceRunInput,
   started: number,
-  logLines: string[],
 ): Promise<DeviceRunResult | undefined> {
   if (!input.device.startEmulator) return undefined;
   const start = await input.runDetached(
     buildStartEmulatorCommand(input.config, input.device),
   );
-  logLines.push(`emulatorStartExitCode: ${start.exitCode}`);
   return start.exitCode === 0
     ? undefined
-    : blockedDevice(input, started, logLines, "emulator_start_failed");
+    : blockedDevice(input, started, "emulator_start_failed");
 }
 
 async function prepareRunDevice(input: DeviceRunInput): Promise<void> {
@@ -260,13 +273,14 @@ async function prepareRunDevice(input: DeviceRunInput): Promise<void> {
     cwd: input.config.project,
     outDir: input.outDir,
     runCommand: input.runCommand,
+    pollCommand: (command) => input.executor(command, input.config.project),
+    logger: input.logger,
   });
 }
 
 async function startFoldSupportIfNeeded(
   input: DeviceRunInput,
   started: number,
-  logLines: string[],
 ): Promise<{ foldServer?: FoldServerInstance; blocked?: DeviceRunResult }> {
   if (!input.device.foldControl || !input.config.paths.foldServerScript) {
     return {};
@@ -276,19 +290,11 @@ async function startFoldSupportIfNeeded(
       input.device,
       input.config.paths.foldServerScript,
     );
-    await deployDeviceFoldTrigger(input, foldServer, logLines);
+    await deployDeviceFoldTrigger(input, foldServer);
     return { foldServer };
-  } catch (error) {
-    logLines.push(
-      `foldServerError: ${error instanceof Error ? error.message : String(error)}`,
-    );
+  } catch {
     return {
-      blocked: await blockedDevice(
-        input,
-        started,
-        logLines,
-        "fold_server_start_failed",
-      ),
+      blocked: blockedDevice(input, started, "fold_server_start_failed"),
     };
   }
 }
@@ -296,20 +302,13 @@ async function startFoldSupportIfNeeded(
 async function deployDeviceFoldTrigger(
   input: DeviceRunInput,
   foldServer: FoldServerInstance,
-  logLines: string[],
 ): Promise<void> {
-  logLines.push(`foldServerPort: ${foldServer.port}`);
-  const triggerPath = await deployFoldTrigger(
+  await deployFoldTrigger(
     input.config.project,
     foldServer.devicePort,
     input.config.moduleSrcPath,
   );
-  logLines.push(`deployedFoldTrigger: ${triggerPath}`);
-  const buildResult = await input.runCommand(buildTestHapCommand(input.config));
-  logLines.push(`foldTestBuildExitCode: ${buildResult.exitCode}`);
-  if (buildResult.exitCode !== 0) {
-    logLines.push(`foldTestBuildStderr: ${buildResult.stderr.trimEnd()}`);
-  }
+  await input.runCommand(buildTestHapCommand(input.config));
 }
 
 async function installRunHaps(input: DeviceRunInput): Promise<void> {
@@ -328,16 +327,15 @@ async function installRunHaps(input: DeviceRunInput): Promise<void> {
 async function runDeviceSuites(
   input: DeviceRunInput,
   started: number,
-  logLines: string[],
 ): Promise<SuiteRunResult[] | DeviceRunResult> {
   const suiteClasses = selectedSuiteClasses(input);
   if (suiteClasses.length === 0) {
-    return runAllSuites(input, started, logLines);
+    return runAllSuites(input, started);
   }
 
   const suiteResults: SuiteRunResult[] = [];
   for (const suiteClass of suiteClasses) {
-    suiteResults.push(await runSuite({ ...input, suiteClass, logLines }));
+    suiteResults.push(await runSuite({ ...input, suiteClass }));
   }
   return suiteResults;
 }
@@ -354,27 +352,17 @@ function selectedSuiteClasses(input: DeviceRunInput): string[] {
 async function runAllSuites(
   input: DeviceRunInput,
   started: number,
-  logLines: string[],
 ): Promise<SuiteRunResult[] | DeviceRunResult> {
-  const testResult = await input.runCommand(
-    buildTestCommand(input.config, input.device),
-  );
-  logLines.push(
-    "aaTestStdout:",
-    testResult.stdout.trimEnd(),
-    "aaTestStderr:",
-    testResult.stderr.trimEnd(),
-  );
-  if (testResult.exitCode !== 0) {
-    return blockedDevice(input, started, logLines, "test_command_failed");
+  const testRun = await runLoggedTest(input, "ALL");
+  if (testRun.commandResult.exitCode !== 0) {
+    return blockedDevice(input, started, "test_command_failed");
   }
-  const parsed = parseAaTestOutput(
-    `${testResult.stdout}\n${testResult.stderr}`,
-  );
-  if (!parsed.ok && parsed.blockedReason) {
-    return blockedDevice(input, started, logLines, parsed.blockedReason);
+  if (!testRun.parsed.ok && testRun.parsed.blockedReason) {
+    return blockedDevice(input, started, testRun.parsed.blockedReason);
   }
-  return [suiteResultFromParsed("ALL", parsed)];
+  const result = suiteResultFromParsed("ALL", testRun.parsed);
+  testRun.logger.recordTestSuite(result);
+  return [result];
 }
 
 function isBlockedDeviceResult(
@@ -383,19 +371,13 @@ function isBlockedDeviceResult(
   return !Array.isArray(result);
 }
 
-async function passedDevice(
+function passedDevice(
   input: DeviceRunInput,
   started: number,
-  logLines: string[],
   suiteResults: SuiteRunResult[],
   foldServer?: FoldServerInstance,
-): Promise<DeviceRunResult> {
+): DeviceRunResult {
   const aggregate = aggregateSuites(suiteResults);
-  const log = await writeDeviceLog({
-    outDir: input.outDir,
-    deviceId: input.device.id,
-    lines: logLines,
-  });
   return {
     id: input.device.id,
     ...(input.device.profile ? { profile: input.device.profile } : {}),
@@ -410,7 +392,7 @@ async function passedDevice(
     ignored: aggregate.ignored,
     suiteResults,
     durationMs: Date.now() - started,
-    log,
+    log: input.commandLog,
     ...(foldServer ? { foldServerPort: foldServer.port } : {}),
   };
 }
@@ -432,19 +414,18 @@ async function cleanupRunDevice(
     cwd: input.config.project,
     outDir: input.outDir,
     runCommand: input.runCommand,
+    pollCommand: (command) => input.executor(command, input.config.project),
+    logger: input.logger,
   });
 }
 
-async function blockedDevice(
-  input: Pick<DeviceRunInput, "device" | "outDir">,
+function blockedDevice(
+  input: Pick<DeviceRunInput, "device" | "logger" | "commandLog">,
   started: number,
-  logLines: string[],
   blockedReason: DeviceRunResult["blockedReason"],
-): Promise<DeviceRunResult> {
-  const log = await writeDeviceLog({
-    outDir: input.outDir,
-    deviceId: input.device.id,
-    lines: [...logLines, `blockedReason: ${blockedReason}`],
+): DeviceRunResult {
+  input.logger.recordError(new Error(blockedReason ?? "device_blocked"), {
+    errorCode: blockedReason?.toUpperCase(),
   });
   return {
     id: input.device.id,
@@ -458,7 +439,7 @@ async function blockedDevice(
     ignored: 0,
     suiteResults: [],
     durationMs: Date.now() - started,
-    log,
+    log: input.commandLog,
     blockedReason,
   };
 }
@@ -467,30 +448,62 @@ async function runSuite(input: {
   config: ExecutionConfig;
   device: ExecutionConfig["devices"][number];
   suiteClass: string;
-  logLines: string[];
-  runCommand: (command: string) => Promise<CommandResult>;
+  executor: NonNullable<RunExecutionInput["commandExecutor"]>;
+  logger: RunnerLogger;
 }): Promise<SuiteRunResult> {
-  input.logLines.push(`suiteClass: ${input.suiteClass}`);
-  const testResult = await input.runCommand(
-    buildTestCommand(input.config, input.device, input.suiteClass),
+  const testRun = await runLoggedTest(
+    input,
+    input.suiteClass,
+    input.suiteClass,
   );
-  input.logLines.push(
-    `aaTestClass: ${input.suiteClass}`,
-    "aaTestStdout:",
-    testResult.stdout.trimEnd(),
-    "aaTestStderr:",
-    testResult.stderr.trimEnd(),
-  );
-  if (testResult.exitCode !== 0) {
-    return emptySuiteResult(input.suiteClass, "failed");
+  let result: SuiteRunResult;
+  if (testRun.commandResult.exitCode !== 0) {
+    result = emptySuiteResult(input.suiteClass, "failed");
+  } else if (!testRun.parsed.ok && testRun.parsed.blockedReason) {
+    result = emptySuiteResult(input.suiteClass, "blocked");
+  } else {
+    result = suiteResultFromParsed(input.suiteClass, testRun.parsed);
+  }
+  testRun.logger.recordTestSuite(result);
+  return result;
+}
+
+async function runLoggedTest(
+  input: TestRunInput,
+  suiteClass: string,
+  testClass?: string,
+): Promise<LoggedTestRun> {
+  const logger = input.logger.child({ suiteClass });
+  const command = buildTestCommand(input.config, input.device, testClass);
+  let commandResult: CommandResult;
+  try {
+    commandResult = await input.executor(command, input.config.project);
+  } catch (error) {
+    logger.recordError(error, { command });
+    throw error;
   }
   const parsed = parseAaTestOutput(
-    `${testResult.stdout}\n${testResult.stderr}`,
+    `${commandResult.stdout}\n${commandResult.stderr}`,
   );
-  if (!parsed.ok && parsed.blockedReason) {
-    return emptySuiteResult(input.suiteClass, "blocked");
+  logger.recordCommand(
+    command,
+    parsed.testsRun === undefined
+      ? commandResult
+      : { ...commandResult, stdout: "" },
+  );
+  for (const testCase of parsed.testCases ?? []) {
+    logger.recordTestCase(testCase);
   }
-  return suiteResultFromParsed(input.suiteClass, parsed);
+  return { commandResult, parsed, logger };
+}
+
+function bindLoggedCommandExecutor(
+  executor: NonNullable<RunExecutionInput["commandExecutor"]>,
+  logger: RunnerLogger,
+  cwd: string,
+): (command: string) => Promise<CommandResult> {
+  const logged = createLoggedCommandExecutor(executor, logger, cwd);
+  return (command) => logged(command, cwd);
 }
 
 function emptySuiteResult(

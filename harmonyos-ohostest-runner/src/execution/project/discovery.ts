@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  ConfigFileError,
+  configFileError,
+  readJson5ConfigFile,
+} from "../../configFile.js";
 import type { SharedModuleInfo } from "../types/index.js";
-import { parseJson5ish } from "./json5ish.js";
 
 export interface ProjectInfo {
   product: string;
@@ -48,17 +52,34 @@ interface ModulePackageConfig {
 export async function discoverProjectInfo(
   project: string,
 ): Promise<ProjectInfo> {
-  const buildProfile = await readJson5ish<BuildProfile>(
-    path.join(project, "build-profile.json5"),
+  const buildProfilePath = path.join(project, "build-profile.json5");
+  const appJsonPath = path.join(project, "AppScope", "app.json5");
+  const buildProfile =
+    await readJson5ConfigFile<BuildProfile>(buildProfilePath);
+  const appJson = await readJson5ConfigFile<AppConfig>(appJsonPath);
+  return buildProjectInfo(
+    project,
+    buildProfilePath,
+    appJsonPath,
+    buildProfile,
+    appJson,
   );
-  const appJson = await readJson5ish<AppConfig>(
-    path.join(project, "AppScope", "app.json5"),
-  );
+}
+
+async function buildProjectInfo(
+  project: string,
+  buildProfilePath: string,
+  appJsonPath: string,
+  buildProfile: BuildProfile,
+  appJson: AppConfig,
+): Promise<ProjectInfo> {
   const product = buildProfile.app?.products?.[0]?.name ?? "default";
-  const moduleInfo = await selectHapModule(
+  const modules = buildProfile.modules ?? [];
+  const moduleInfo = await selectConfiguredHapModule(
     project,
     product,
-    buildProfile.modules ?? [],
+    modules,
+    buildProfilePath,
   );
   const moduleName = moduleInfo.name ?? "entry";
   const moduleSrcPath = normalizeModuleSrcPath(
@@ -72,11 +93,15 @@ export async function discoverProjectInfo(
     "module.json5",
   );
   const ohosTestModule =
-    await readJson5ish<TestModuleConfig>(ohosTestModulePath);
-  const bundleName = appJson.app?.bundleName;
-  if (!bundleName) {
-    throw new Error("project AppScope/app.json5 app.bundleName is required.");
-  }
+    await readJson5ConfigFile<TestModuleConfig>(ohosTestModulePath);
+  const bundleName = readBundleName(appJson, appJsonPath);
+
+  const sharedModules = await discoverConfiguredSharedModules(
+    project,
+    product,
+    modules,
+    buildProfilePath,
+  );
 
   return {
     product,
@@ -84,13 +109,41 @@ export async function discoverProjectInfo(
     moduleSrcPath,
     bundleName,
     testModuleName: ohosTestModule.module?.name ?? `${moduleName}_test`,
-    sharedModules: await discoverSharedModules(
-      project,
-      product,
-      buildProfile.modules ?? [],
-    ),
+    sharedModules,
     ...buildArtifactPaths(moduleSrcPath, moduleName, product),
   };
+}
+
+function readBundleName(appJson: AppConfig, appJsonPath: string): string {
+  const bundleName = appJson.app?.bundleName;
+  if (bundleName) return bundleName;
+  throw configFileError(appJsonPath, new Error("app.bundleName is required."));
+}
+
+async function selectConfiguredHapModule(
+  project: string,
+  product: string,
+  modules: ProjectModuleInfo[],
+  buildProfilePath: string,
+): Promise<ProjectModuleInfo> {
+  try {
+    return await selectHapModule(project, product, modules);
+  } catch (error) {
+    throw configFileError(buildProfilePath, error);
+  }
+}
+
+async function discoverConfiguredSharedModules(
+  project: string,
+  product: string,
+  modules: ProjectModuleInfo[],
+  buildProfilePath: string,
+): Promise<SharedModuleInfo[]> {
+  try {
+    return await discoverSharedModules(project, product, modules);
+  } catch (error) {
+    throw configFileError(buildProfilePath, error);
+  }
 }
 
 async function discoverSharedModules(
@@ -156,9 +209,10 @@ async function readMainModuleConfig(
     "module.json5",
   );
   try {
-    return await readJson5ish<MainModuleConfig>(moduleConfigPath);
+    return await readJson5ConfigFile<MainModuleConfig>(moduleConfigPath);
   } catch (error) {
-    throw new Error(
+    throw contextualConfigError(
+      error,
       `module ${moduleName} module.json5 could not be read at ${moduleConfigPath}: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -171,14 +225,23 @@ async function readModulePackageConfig(
   packageConfigPath: string,
 ): Promise<ModulePackageConfig> {
   try {
-    return await readJson5ish<ModulePackageConfig>(packageConfigPath);
+    return await readJson5ConfigFile<ModulePackageConfig>(packageConfigPath);
   } catch (error) {
-    throw new Error(
+    throw contextualConfigError(
+      error,
       `module ${moduleName} oh-package.json5 could not be read at ${packageConfigPath}: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   }
+}
+
+function contextualConfigError(error: unknown, message: string): Error {
+  return error instanceof ConfigFileError
+    ? new ConfigFileError(message, error.errorCode, error.file, {
+        cause: error,
+      })
+    : new Error(message, { cause: error });
 }
 
 function orderSharedModules(modules: SharedModuleInfo[]): SharedModuleInfo[] {
@@ -218,10 +281,6 @@ function appliesToProduct(
   return moduleInfo.targets.some((target) =>
     target.applyToProducts?.includes(product),
   );
-}
-
-async function readJson5ish<T>(filePath: string): Promise<T> {
-  return parseJson5ish(await fs.readFile(filePath, "utf-8")) as T;
 }
 
 function buildArtifactPaths(

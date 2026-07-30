@@ -217,22 +217,20 @@ case 模式按以下优先级决定设备与 suite：
 <case>/.ohostest-runs/<timestamp>/
   result.json          # case 级 JSON 报告，包含 metadata、runs.swe/runs.answer、artifacts、diagnostics
   summary.md           # case 级 Markdown 汇总，包含 Runs、Device Results、Totals、Device Suites、Pass/Fail To Pass
-  commands.log         # case 级命令日志，记录 patch apply 等 case 编排命令；patch 失败时用于定位 stderr
+  commands.jsonl       # case、swe 和 answer 共用的结构化命令日志
   swe/                 # 仅在执行 --run swe 或 --run all 时生成
     result.json        # swe 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
     summary.md         # swe 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
-    commands.log       # swe 矩阵命令日志，记录构建、安装、aa test、设备控制等命令输出
-    devices/
-      <device>.log     # 单设备执行日志，包含该设备安装、测试、解析过程的诊断信息
   answer/              # 仅在执行 --run answer 或 --run all 时生成
     result.json        # answer 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
     summary.md         # answer 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
-    commands.log       # answer 矩阵命令日志，记录构建、安装、aa test、设备控制等命令输出
-    devices/
-      <device>.log     # 单设备执行日志，包含该设备安装、测试、解析过程的诊断信息
   work/                # 合成工程工作目录；--keep-workdir false 时运行结束后删除
     project/           # base_project + test_patch，answer/all 模式下还会继续应用 golden_patch
 ```
+
+`swe/result.json` 和 `answer/result.json` 的命令日志路径均指向顶层
+`commands.jsonl`。可按 `phase`、`deviceId` 和 `suiteClass` 过滤对应事件；
+失败的 `test_case` 事件包含断言消息和堆栈。
 
 `--keep-workdir false` 时，运行结束后删除 `work/`。
 

@@ -21,7 +21,7 @@ function device(
     ignored: 0,
     suiteResults: [],
     durationMs: 1000,
-    log: `devices/${id}.log`,
+    log: "commands.jsonl",
   };
 }
 

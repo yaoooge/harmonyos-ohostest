@@ -161,6 +161,18 @@ test("loadCaseMetadata rejects invalid test case timeouts", async (t) => {
   }
 });
 
+test("loadCaseMetadata identifies an invalid metadata.json file", async (t) => {
+  const caseDir = await makeTempCase(t);
+  const metadataPath = path.join(caseDir, "metadata.json");
+  await fs.writeFile(metadataPath, "{ invalid", "utf-8");
+
+  await assert.rejects(loadCaseMetadata(caseDir), (error: Error) => {
+    assert.match(error.message, /config_file_parse_failed/);
+    assert.ok(error.message.includes(metadataPath));
+    return true;
+  });
+});
+
 test("buildCaseDeviceSelection falls back to enabled devices or machine devices for full test runs", () => {
   const matrixConfig = {
     devices: [

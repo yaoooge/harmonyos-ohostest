@@ -1,6 +1,4 @@
 import { exec, spawn, type ChildProcess } from "node:child_process";
-import fs from "node:fs/promises";
-import path from "node:path";
 import { TextDecoder, promisify } from "node:util";
 import type { CommandExecutor, CommandResult } from "./types/index.js";
 
@@ -112,37 +110,4 @@ export function decodeCommandOutput(
   return platform === "win32"
     ? windowsDecoder.decode(chunk)
     : utf8Decoder.decode(chunk);
-}
-
-export class CommandLogger {
-  private started = false;
-  private index = 0;
-
-  constructor(
-    private readonly logPath: string,
-    private readonly title = "# ohosTest matrix command log\n",
-  ) {}
-
-  async record(command: string, result: CommandResult): Promise<void> {
-    this.index += 1;
-    await fs.mkdir(path.dirname(this.logPath), { recursive: true });
-    if (!this.started) {
-      await fs.writeFile(this.logPath, this.title, "utf-8");
-      this.started = true;
-    }
-    await fs.appendFile(
-      this.logPath,
-      [
-        "",
-        `## Command ${this.index}`,
-        `$ ${command}`,
-        `exitCode: ${result.exitCode}`,
-        `durationMs: ${result.durationMs}`,
-        result.stdout ? `stdout:\n${result.stdout.trimEnd()}` : "stdout:",
-        result.stderr ? `stderr:\n${result.stderr.trimEnd()}` : "stderr:",
-        "",
-      ].join("\n"),
-      "utf-8",
-    );
-  }
 }

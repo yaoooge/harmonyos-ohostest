@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   buildStartEmulatorCommand,
@@ -13,6 +16,7 @@ import type {
   InstallArtifacts,
   MatrixConfig,
 } from "../src/matrix/types/index.js";
+import { RunnerLogger } from "../src/logging/logger.js";
 
 function makeConfig(): MatrixConfig {
   return {
@@ -329,6 +333,59 @@ test("ensureTargetReady waits up to 120 polling attempts for slow Windows emulat
   } finally {
     globalThis.setTimeout = originalSetTimeout;
   }
+});
+
+test("ensureTargetReady logs only the final polling result", async (t) => {
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void) => {
+    callback();
+    return 0 as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  const outDir = await fs.mkdtemp(path.join(os.tmpdir(), "device-poll-log-"));
+  t.after(async () => {
+    globalThis.setTimeout = originalSetTimeout;
+    await fs.rm(outDir, { recursive: true, force: true });
+  });
+  const logger = RunnerLogger.create(path.join(outDir, "commands.jsonl"), {
+    phase: "matrix",
+    deviceId: "phone",
+  });
+  let attempts = 0;
+  const config = makeConfig();
+  const device: DeviceConfig = {
+    id: "phone",
+    target: "127.0.0.1:15001",
+    startEmulator: true,
+  };
+
+  await ensureTargetReady({
+    config,
+    device,
+    cwd: config.project,
+    outDir,
+    runCommand: async () => {
+      throw new Error("polling must use the raw executor");
+    },
+    pollCommand: async () => {
+      attempts += 1;
+      return {
+        stdout: attempts === 3 ? "127.0.0.1:15001\tConnected\n" : "[Empty]\n",
+        stderr: "",
+        exitCode: 0,
+        durationMs: attempts,
+      };
+    },
+    logger,
+  });
+  await logger.close();
+
+  const events = (await fs.readFile(logger.logPath, "utf-8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  assert.equal(attempts, 3);
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.durationMs, 3);
 });
 
 test("waitForTargetDisconnected waits before allowing the next emulator to start", async () => {
