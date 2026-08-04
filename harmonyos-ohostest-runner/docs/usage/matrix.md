@@ -44,13 +44,13 @@ runner 会明确报错，不会再按模块名、目录名或模块顺序猜测�
 默认主构建按以下顺序执行：
 
 ```text
-hvigorw clean --no-daemon
 ohpm install
+hvigorw clean --no-daemon
 assembleApp
 ohosTest@PackageHap
 ```
 
-每次矩阵主构建只 clean 一次。`--skip-build true` 会跳过 clean 和全部构建命令，
+每次矩阵主构建先安装依赖，再 clean 一次。`--skip-build true` 会跳过依赖安装、clean 和全部构建命令，
 但仍校验已有的 HAP/HSP 产物。折叠屏流程修改测试源码后单独重打 test HAP 时不会再次
 clean，避免删除主构建生成的应用和 shared 模块产物。
 

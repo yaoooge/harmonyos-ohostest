@@ -142,8 +142,8 @@ function buildCommands(config: ExecutionConfig): string[] {
   const appSuffix = "--analyze=normal --parallel --incremental --no-daemon";
   const testBase = `${buildExecutable} --mode module -p module=${config.module}@ohosTest`;
   return [
-    `${buildExecutable} clean --no-daemon`,
     `${packageManager} install`,
+    `${buildExecutable} clean --no-daemon`,
     `${appBase} ${config.build.appTask} ${appSuffix}`,
     `${testBase} ${config.build.testTask} --no-daemon --stacktrace`,
   ];

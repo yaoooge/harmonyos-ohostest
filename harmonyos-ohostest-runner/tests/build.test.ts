@@ -43,7 +43,7 @@ async function makeBuildConfig(t: test.TestContext): Promise<MatrixConfig> {
   };
 }
 
-test("runBuild cleans before dependency installation and Hvigor builds", async (t) => {
+test("runBuild installs dependencies before clean and Hvigor builds", async (t) => {
   const config = await makeBuildConfig(t);
   const commands: string[] = [];
 
@@ -62,12 +62,12 @@ test("runBuild cleans before dependency installation and Hvigor builds", async (
     },
   });
 
-  assert.ok(commands.some((command) => command.includes("clean --no-daemon")));
-  assert.ok(commands.some((command) => command.includes("ohpm install")));
-  assert.ok(commands.some((command) => command.includes("assembleApp")));
-  assert.ok(
-    commands.some((command) => command.includes("ohosTest@PackageHap")),
-  );
+  assert.deepEqual(commands, [
+    "ohpm install",
+    "hvigorw clean --no-daemon",
+    "hvigorw --mode project -p product=default assembleApp --analyze=normal --parallel --incremental --no-daemon",
+    "hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap --no-daemon --stacktrace",
+  ]);
   assert.equal(outcome.result.status, "passed");
   assert.deepEqual(outcome.installArtifacts?.hspPaths, []);
 });
@@ -84,14 +84,14 @@ test("runBuild stops when clean fails", async (t) => {
       commands.push(command);
       return {
         stdout: "",
-        stderr: "clean failed",
-        exitCode: 1,
+        stderr: command.includes(" clean ") ? "clean failed" : "",
+        exitCode: command.includes(" clean ") ? 1 : 0,
         durationMs: 1,
       };
     },
   });
 
-  assert.deepEqual(commands, ["hvigorw clean --no-daemon"]);
+  assert.deepEqual(commands, ["ohpm install", "hvigorw clean --no-daemon"]);
   assert.equal(outcome.result.status, "blocked");
   assert.equal(outcome.result.blockedReason, "build_failed");
 });

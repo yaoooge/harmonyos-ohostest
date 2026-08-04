@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.7] - 2026-08-04
+
+### 变更
+
+- 主构建调整为先执行 `ohpm install`，再执行 `hvigorw clean --no-daemon`，确保 clean 加载构建配置时依赖已经就绪。
+
 ## [0.1.6] - 2026-07-30
 
 ### 新增
