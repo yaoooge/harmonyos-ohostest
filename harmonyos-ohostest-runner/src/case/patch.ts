@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
+import type { Stats } from "node:fs";
 import path from "node:path";
+import createIgnore, { type Ignore } from "ignore";
 import { defaultCommandExecutor } from "../execution/command.js";
 import { shellQuote } from "../execution/utils/shellQuote.js";
 import type { CommandExecutor } from "../execution/types/index.js";
@@ -10,38 +12,66 @@ export async function copyBaseProject(input: {
 }): Promise<void> {
   await fs.rm(input.workProject, { recursive: true, force: true });
   await fs.mkdir(path.dirname(input.workProject), { recursive: true });
-  await copyProjectEntry(input.baseProject, input.workProject);
+  await copyProjectEntry(input.baseProject, input.workProject, "", []);
+}
+
+interface IgnoreScope {
+  relativeRoot: string;
+  matcher: Ignore;
 }
 
 async function copyProjectEntry(
   source: string,
   destination: string,
+  relativePath: string,
+  ignoreScopes: readonly IgnoreScope[],
 ): Promise<void> {
   if (path.basename(source) === ".git") {
     return;
   }
 
-  const stat = await fs.lstat(source);
-  if (stat.isSymbolicLink()) {
-    await copyProjectTarget(await fs.realpath(source), destination);
+  const sourceStat = await fs.lstat(source);
+  const target = sourceStat.isSymbolicLink()
+    ? await fs.realpath(source)
+    : source;
+  const targetStat = await fs.stat(target);
+  if (
+    path.basename(source) !== ".gitignore" &&
+    isIgnored(relativePath, targetStat.isDirectory(), ignoreScopes)
+  ) {
     return;
   }
 
-  await copyProjectTarget(source, destination);
+  await copyProjectTarget(
+    target,
+    destination,
+    relativePath,
+    ignoreScopes,
+    targetStat,
+  );
 }
 
 async function copyProjectTarget(
   source: string,
   destination: string,
+  relativePath: string,
+  ignoreScopes: readonly IgnoreScope[],
+  stat: Stats,
 ): Promise<void> {
-  const stat = await fs.stat(source);
   if (stat.isDirectory()) {
     await fs.mkdir(destination, { recursive: true });
+    const nestedScopes = await addIgnoreScope(
+      source,
+      relativePath,
+      ignoreScopes,
+    );
     const entries = await fs.readdir(source);
     for (const entry of entries) {
       await copyProjectEntry(
         path.join(source, entry),
         path.join(destination, entry),
+        relativePath ? `${relativePath}/${entry}` : entry,
+        nestedScopes,
       );
     }
     return;
@@ -54,6 +84,59 @@ async function copyProjectTarget(
   }
 
   throw new Error(`copy_base_project_unsupported_entry: ${source}`);
+}
+
+async function addIgnoreScope(
+  sourceDirectory: string,
+  relativeRoot: string,
+  ignoreScopes: readonly IgnoreScope[],
+): Promise<readonly IgnoreScope[]> {
+  const ignoreFile = path.join(sourceDirectory, ".gitignore");
+  let patterns: string;
+  try {
+    patterns = await fs.readFile(ignoreFile, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return ignoreScopes;
+    }
+    throw error;
+  }
+
+  return [
+    ...ignoreScopes,
+    { relativeRoot, matcher: createIgnore().add(patterns) },
+  ];
+}
+
+function isIgnored(
+  relativePath: string,
+  isDirectory: boolean,
+  ignoreScopes: readonly IgnoreScope[],
+): boolean {
+  if (!relativePath) {
+    return false;
+  }
+
+  let ignored = false;
+  for (const scope of ignoreScopes) {
+    const scopedPath = path.posix.relative(scope.relativeRoot, relativePath);
+    if (
+      scopedPath === ".." ||
+      scopedPath.startsWith("../") ||
+      path.posix.isAbsolute(scopedPath)
+    ) {
+      continue;
+    }
+    const result = scope.matcher.test(
+      isDirectory ? `${scopedPath}/` : scopedPath,
+    );
+    if (result.ignored) {
+      ignored = true;
+    } else if (result.unignored) {
+      ignored = false;
+    }
+  }
+  return ignored;
 }
 
 export async function applyPatch(input: {

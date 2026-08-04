@@ -22,6 +22,7 @@
     "typescript-eslint": "^8.62.1"
   },
   "dependencies": {
+    "ignore": "^7.0.6",
     "pino": "^10.0.0"
   }
 }
