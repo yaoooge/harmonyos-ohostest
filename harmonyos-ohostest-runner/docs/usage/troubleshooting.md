@@ -43,6 +43,18 @@ ls ~/.Huawei/Emulator/deployed/
 hdc list targets
 ```
 
+## 设备阶段：PC 唤醒后仍停留在锁屏
+
+runner 通过目标系统参数判断 PC：
+
+```bash
+hdc -t <target> shell param get const.product.devicetype
+```
+
+MateBook/2in1 目标应返回 `2in1`，runner 随后发送 Enter 键码 `2054`。如果参数读取失败或
+返回其他值，runner 会兼容性回退到 Home。检查 `commands.jsonl` 中对应 `deviceId` 的
+事件，确认参数探测结果及实际发送的按键；设备 `id` 不参与类型判断。
+
 ## 折叠测试失败：折叠命令被设备拒绝
 
 现象：`FoldControlTest` 出现 `cannot connect` 或折叠/展开用例失败，但旋转用例能过。

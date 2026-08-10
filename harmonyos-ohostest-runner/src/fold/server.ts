@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { DeviceConfig } from "../matrix/types/index.js";
+import type { DeviceConfig } from "../execution/types/index.js";
 import { foldTriggerTemplate } from "./foldTriggerTemplate.js";
 import type { FoldServerInstance } from "./types/index.js";
 import { healthCheck } from "./utils/healthCheck.js";
@@ -81,7 +81,14 @@ export async function deployFoldTrigger(
   devicePort: number,
   moduleSrcPath: string = "entry",
 ): Promise<string> {
-  const targetDir = path.join(projectPath, moduleSrcPath, "src", "ohosTest", "ets", "util");
+  const targetDir = path.join(
+    projectPath,
+    moduleSrcPath,
+    "src",
+    "ohosTest",
+    "ets",
+    "util",
+  );
   const targetFile = path.join(targetDir, "FoldTrigger.ets");
 
   await fs.mkdir(targetDir, { recursive: true });

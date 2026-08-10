@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAaTestCommand, parseAaTestOutput, shellQuote } from "../src/matrix/ohostest.js";
+import {
+  buildAaTestCommand,
+  parseAaTestOutput,
+  shellQuote,
+} from "../src/execution/ohostest.js";
 
 test("buildAaTestCommand emits full module command without class filter", () => {
   const command = buildAaTestCommand({
@@ -14,7 +18,7 @@ test("buildAaTestCommand emits full module command without class filter", () => 
 
   assert.equal(
     command,
-    "/fake/hdc -t 127.0.0.1:15001 shell aa test -b zhsc.1.xxxxxx -m entry_test -s unittest OpenHarmonyTestRunner -w 120000",
+    "/fake/hdc -t 127.0.0.1:15001 shell aa test -b zhsc.1.xxxxxx -m entry_test -s unittest OpenHarmonyTestRunner -s timeout 15000 -w 120000",
   );
 });
 
@@ -30,6 +34,21 @@ test("buildAaTestCommand includes class filter when configured", () => {
   });
 
   assert.match(command, /-s class HomePageAdaptiveTest/);
+  assert.match(command, /-s timeout 15000/);
+});
+
+test("buildAaTestCommand uses an explicit per-test timeout", () => {
+  const command = buildAaTestCommand({
+    hdc: "/fake/hdc",
+    target: "127.0.0.1:15001",
+    bundleName: "zhsc.1.xxxxxx",
+    testModule: "phone_test",
+    testRunner: "OpenHarmonyTestRunner",
+    testCaseTimeoutMs: 30000,
+    timeoutMs: 120000,
+  });
+
+  assert.match(command, /-s timeout 30000 -w 120000$/);
 });
 
 test("parseAaTestOutput extracts summary and report code", () => {
@@ -59,8 +78,12 @@ test("parseAaTestOutput extracts each test case status from OHOS status records"
       "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
       "OHOS_REPORT_STATUS_CODE: 1",
       "OHOS_REPORT_STATUS: class=MdFailToPassTest",
+      "OHOS_REPORT_STATUS: stack=    at AssertException @ohos/hypium (service.js:23:9)",
+      "    at should_fail_on_md_layout (MdFailToPass.test.ets:42:7)",
+      "OHOS_REPORT_STATUS: stream=Error in should_fail_on_md_layout, expect true, actualValue is false",
       "OHOS_REPORT_STATUS: test=should_fail_on_md_layout",
       "OHOS_REPORT_STATUS_CODE: -2",
+      "OHOS_REPORT_STATUS: consuming=239",
       "OHOS_REPORT_STATUS: class=MdFailToPassTest",
       "OHOS_REPORT_STATUS: test=should_pass_common_quality",
       "OHOS_REPORT_STATUS_CODE: 1",
@@ -77,6 +100,11 @@ test("parseAaTestOutput extracts each test case status from OHOS status records"
       name: "should_fail_on_md_layout",
       status: "failed",
       statusCode: -2,
+      durationMs: 239,
+      message:
+        "Error in should_fail_on_md_layout, expect true, actualValue is false",
+      stack:
+        "at AssertException @ohos/hypium (service.js:23:9)\n    at should_fail_on_md_layout (MdFailToPass.test.ets:42:7)",
     },
     {
       name: "should_pass_common_quality",

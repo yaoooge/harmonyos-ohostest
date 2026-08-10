@@ -4,6 +4,7 @@
 **/node_modules/
 **/dist/
 npm-debug.log*
+**/package-lock.json
 
 # HarmonyOS / DevEco generated artifacts
 **/build/

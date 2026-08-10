@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { loadMatrixConfig } from "../src/matrix/config.js";
+import { AA_TEST_CASE_TIMEOUT_MS } from "../src/execution/ohostest.js";
 
 async function makeTempProject(t: test.TestContext): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-config-"));
@@ -30,7 +31,22 @@ async function makeTempProject(t: test.TestContext): Promise<string> {
     }),
     "utf-8",
   );
-  await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), { recursive: true });
+  await fs.mkdir(path.join(root, "products", "entry", "src", "ohosTest"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(root, "products", "entry", "src", "main"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(root, "products", "entry", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(root, "products", "entry", "src", "main", "module.json5"),
+    JSON.stringify({ module: { name: "entry", type: "entry" } }),
+    "utf-8",
+  );
   await fs.writeFile(
     path.join(root, "products", "entry", "src", "ohosTest", "module.json5"),
     JSON.stringify({ module: { name: "entry_test" } }),
@@ -50,7 +66,14 @@ async function writeMachineConfig(project: string): Promise<string> {
         emulatorBin: "Emulator",
         emulatorDeployedDir: "/fake/deployed",
       },
-      devices: [{ id: "phone", target: "127.0.0.1:15001", profile: "Mate 80 Pro", hdcPort: 15001 }],
+      devices: [
+        {
+          id: "phone",
+          target: "127.0.0.1:15001",
+          profile: "Mate 80 Pro",
+          hdcPort: 15001,
+        },
+      ],
     }),
     "utf-8",
   );
@@ -65,6 +88,7 @@ test("loadMatrixConfig infers project information and reads machine devices", as
 
   assert.equal(config.product, "default");
   assert.equal(config.module, "entry");
+  assert.deepEqual(config.sharedModules, []);
   assert.equal(config.bundleName, "zhsc.1.xxxxxx");
   assert.equal(config.testModule, "entry_test");
   assert.equal(config.testRunner, "OpenHarmonyTestRunner");
@@ -73,18 +97,38 @@ test("loadMatrixConfig infers project information and reads machine devices", as
   assert.equal(config.paths.emulatorBin, "Emulator");
   assert.equal(config.paths.emulatorDeployedDir, "/fake/deployed");
   assert.equal(config.timeoutMs, 120000);
+  assert.equal(config.testCaseTimeoutMs, AA_TEST_CASE_TIMEOUT_MS);
   assert.equal(config.build.appTask, "assembleApp");
   assert.equal(config.build.testTask, "ohosTest@PackageHap");
   assert.equal(
     config.artifacts.appHap,
-    path.join(project, "products/entry/build/default/outputs/default/entry-default-unsigned.hap"),
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
   );
   assert.equal(
     config.artifacts.testHap,
-    path.join(project, "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap"),
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
   );
   assert.equal(config.devices[0]?.hdcPort, 15001);
   assert.equal(config.devices[0]?.startEmulator, false);
+});
+
+test("loadMatrixConfig accepts an in-memory test case timeout override", async (t) => {
+  const project = await makeTempProject(t);
+  const machineConfigPath = await writeMachineConfig(project);
+
+  const config = await loadMatrixConfig({
+    project,
+    machineConfigPath,
+    testCaseTimeoutMs: 30000,
+  });
+
+  assert.equal(config.testCaseTimeoutMs, 30000);
 });
 
 test("loadMatrixConfig accepts explicit machine paths", async (t) => {
@@ -95,6 +139,7 @@ test("loadMatrixConfig accepts explicit machine paths", async (t) => {
     JSON.stringify({
       paths: {
         hvigorw: "/config/hvigorw",
+        ohpm: "/config/ohpm",
         hdc: "/config/hdc",
         emulatorBin: "/config/Emulator",
         emulatorDeployedDir: "/config/deployed",
@@ -108,6 +153,7 @@ test("loadMatrixConfig accepts explicit machine paths", async (t) => {
 
   assert.deepEqual(config.paths, {
     hvigorw: "/config/hvigorw",
+    ohpm: "/config/ohpm",
     hdc: "/config/hdc",
     emulatorBin: "/config/Emulator",
     emulatorDeployedDir: "/config/deployed",
@@ -130,7 +176,12 @@ test("loadMatrixConfig reads device testSuites and deduplicates suite classes", 
         {
           id: "foldable",
           target: "127.0.0.1:15002",
-          testSuites: ["CommonPassToPassTest", "SmPassToPassTest", "MdFailToPassTest", "SmPassToPassTest"],
+          testSuites: [
+            "CommonPassToPassTest",
+            "SmPassToPassTest",
+            "MdFailToPassTest",
+            "SmPassToPassTest",
+          ],
         },
       ],
     }),
@@ -164,7 +215,10 @@ test("loadMatrixConfig rejects legacy testFolders config and invalid testSuites"
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /config\.testFolders has been removed/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /config\.testFolders has been removed/,
+  );
 
   await fs.writeFile(
     machineConfigPath,
@@ -175,11 +229,16 @@ test("loadMatrixConfig rejects legacy testFolders config and invalid testSuites"
         emulatorBin: "Emulator",
         emulatorDeployedDir: "/fake/deployed",
       },
-      devices: [{ id: "phone", target: "127.0.0.1:15001", testFolders: ["common"] }],
+      devices: [
+        { id: "phone", target: "127.0.0.1:15001", testFolders: ["common"] },
+      ],
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /renamed to testSuites/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /renamed to testSuites/,
+  );
 
   await fs.writeFile(
     machineConfigPath,
@@ -194,7 +253,10 @@ test("loadMatrixConfig rejects legacy testFolders config and invalid testSuites"
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /testSuites.*non-empty/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /testSuites.*non-empty/,
+  );
 });
 
 test("loadMatrixConfig rejects missing paths, empty devices, and invalid target from machine config", async (t) => {
@@ -206,7 +268,10 @@ test("loadMatrixConfig rejects missing paths, empty devices, and invalid target 
     JSON.stringify({ devices: [{ id: "phone", target: "127.0.0.1:15001" }] }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /paths\.hvigorw/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /paths\.hvigorw/,
+  );
 
   await fs.writeFile(
     machineConfigPath,
@@ -216,25 +281,44 @@ test("loadMatrixConfig rejects missing paths, empty devices, and invalid target 
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /paths\.emulatorDeployedDir/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /paths\.emulatorDeployedDir/,
+  );
 
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
-      paths: { hvigorw: "hvigorw", hdc: "hdc", emulatorBin: "Emulator", emulatorDeployedDir: "/fake/deployed" },
+      paths: {
+        hvigorw: "hvigorw",
+        hdc: "hdc",
+        emulatorBin: "Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
       devices: [],
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /devices/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /devices/,
+  );
 
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
-      paths: { hvigorw: "hvigorw", hdc: "hdc", emulatorBin: "Emulator", emulatorDeployedDir: "/fake/deployed" },
+      paths: {
+        hvigorw: "hvigorw",
+        hdc: "hdc",
+        emulatorBin: "Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
       devices: [{ id: "phone", target: "not a target" }],
     }),
     "utf-8",
   );
-  await assert.rejects(() => loadMatrixConfig({ project, machineConfigPath }), /target/);
+  await assert.rejects(
+    () => loadMatrixConfig({ project, machineConfigPath }),
+    /target/,
+  );
 });

@@ -10,92 +10,10 @@ export function deriveMatrixStatus(devices: DeviceRunResult[]): MatrixStatus {
   return "completed";
 }
 
-export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunResult[]): string {
-  const rows = devices.map((device) =>
-    [
-      "|",
-      device.id,
-      "|",
-      device.status,
-      "|",
-      String(device.suiteResults.length),
-      "|",
-      String(device.testsRun),
-      "|",
-      String(device.failures),
-      "|",
-      String(device.errors),
-      "|",
-      String(device.passes),
-      "|",
-      String(device.ignored),
-      "|",
-    ].join(" "),
-  );
-
-  const suiteSections = devices.flatMap((device) => {
-    if (device.suiteResults.length === 0) {
-      return [];
-    }
-    const suiteRows = device.suiteResults.map((suite) =>
-      [
-        "|",
-        suite.suiteClass,
-        "|",
-        suite.status,
-        "|",
-        String(suite.testsRun),
-        "|",
-        String(suite.failures),
-        "|",
-        String(suite.errors),
-        "|",
-        String(suite.passes),
-        "|",
-        String(suite.ignored),
-        "|",
-        String(suite.reportCode ?? ""),
-        "|",
-      ].join(" "),
-    );
-    const caseSections = device.suiteResults.flatMap((suite) => {
-      if (suite.testCases.length === 0) {
-        return [];
-      }
-      const caseRows = suite.testCases.map((testCase) =>
-        [
-          "|",
-          testCase.name,
-          "|",
-          testCase.status,
-          "|",
-          String(testCase.statusCode),
-          "|",
-        ].join(" "),
-      );
-      return [
-        `#### ${suite.suiteClass}`,
-        "",
-        "| Test Case | Status | Code |",
-        "| --- | --- | ---: |",
-        ...caseRows,
-        "",
-      ];
-    });
-    return [
-      `### ${device.id}`,
-      "",
-      ...(device.foldServerPort !== undefined
-        ? [`- Fold Server Port: ${device.foldServerPort}`, ""]
-        : []),
-      "| Suite | Status | Tests | Failures | Errors | Passes | Ignored | Report |",
-      "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-      ...suiteRows,
-      "",
-      ...caseSections,
-    ];
-  });
-
+export function renderSummaryMarkdown(
+  status: MatrixStatus,
+  devices: DeviceRunResult[],
+): string {
   return [
     "# ohosTest Matrix Summary",
     "",
@@ -103,8 +21,102 @@ export function renderSummaryMarkdown(status: MatrixStatus, devices: DeviceRunRe
     "",
     "| Device | Status | Suites | Tests | Failures | Errors | Passes | Ignored |",
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...rows,
+    ...devices.map(renderDeviceRow),
     "",
-    ...suiteSections,
+    ...devices.flatMap(renderDeviceSection),
   ].join("\n");
+}
+
+function renderDeviceRow(device: DeviceRunResult): string {
+  return [
+    "|",
+    device.id,
+    "|",
+    device.status,
+    "|",
+    String(device.suiteResults.length),
+    "|",
+    String(device.testsRun),
+    "|",
+    String(device.failures),
+    "|",
+    String(device.errors),
+    "|",
+    String(device.passes),
+    "|",
+    String(device.ignored),
+    "|",
+  ].join(" ");
+}
+
+function renderDeviceSection(device: DeviceRunResult): string[] {
+  if (device.suiteResults.length === 0) {
+    return [];
+  }
+  return [
+    `### ${device.id}`,
+    "",
+    ...renderFoldServerPort(device),
+    "| Suite | Status | Tests | Failures | Errors | Passes | Ignored | Report |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...device.suiteResults.map(renderSuiteRow),
+    "",
+    ...device.suiteResults.flatMap(renderCaseSection),
+  ];
+}
+
+function renderFoldServerPort(device: DeviceRunResult): string[] {
+  return device.foldServerPort === undefined
+    ? []
+    : [`- Fold Server Port: ${device.foldServerPort}`, ""];
+}
+
+function renderSuiteRow(
+  suite: DeviceRunResult["suiteResults"][number],
+): string {
+  return [
+    "|",
+    suite.suiteClass,
+    "|",
+    suite.status,
+    "|",
+    String(suite.testsRun),
+    "|",
+    String(suite.failures),
+    "|",
+    String(suite.errors),
+    "|",
+    String(suite.passes),
+    "|",
+    String(suite.ignored),
+    "|",
+    String(suite.reportCode ?? ""),
+    "|",
+  ].join(" ");
+}
+
+function renderCaseSection(
+  suite: DeviceRunResult["suiteResults"][number],
+): string[] {
+  if (suite.testCases.length === 0) {
+    return [];
+  }
+  return [
+    `#### ${suite.suiteClass}`,
+    "",
+    "| Test Case | Status | Code |",
+    "| --- | --- | ---: |",
+    ...suite.testCases.map((testCase) =>
+      [
+        "|",
+        testCase.name,
+        "|",
+        testCase.status,
+        "|",
+        String(testCase.statusCode),
+        "|",
+      ].join(" "),
+    ),
+    "",
+  ];
 }

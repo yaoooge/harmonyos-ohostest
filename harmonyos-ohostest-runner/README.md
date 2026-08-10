@@ -39,16 +39,48 @@ npm run ohostest:matrix -- \
   --project /path/to/ResponsiveRepeatLayout
 ```
 
+以 SWE case 目录执行默认 answer 验证：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case
+```
+
+只在 phone 模拟器执行：
+
+```bash
+npm run ohostest:case -- \
+  --case /path/to/ResponsiveRepeatLayout/case \
+  --device phone
+```
+
+默认会读取 `case/metadata.json`，在 `base_project + test_patch` 基础上继续应用 `golden_patch`，
+只执行 `answer` 轮。需要完整 SWE/Answer 双轮比较时传入 `--run all`；只验证题目工程时传入
+`--run swe`。设备连接、模拟器和工具路径仍来自
+`config/machine.json`。实际设备集合优先使用 `metadata.device_test_suites`，其次使用
+`metadata.enabled_devices`，两者都没有时使用 `machine.json.devices`。没有 `device_test_suites` 时每台设备执行
+全量测试，不继承 `machine.json.devices[].testSuites`。默认报告输出到 `<case>/.ohostest-runs/<timestamp>/`。
+
 常用参数：
 
 ```text
---out <path>                  指定 result.json 输出路径
---device <id>                 只运行指定设备，可重复传入
+--out <path>                  指定输出目录，目录下写入 result.json
 --machine-config <path>       指定设备矩阵配置文件
---test-class <className>      只运行指定 suite class
 --skip-build true|false       是否跳过构建
 --keep-emulators true|false   运行结束后是否保留模拟器
 ```
+
+case 模式额外支持：
+
+```text
+--case <path>                 指定 case 目录
+--run answer|swe|all          运行范围，默认 answer
+--device <id>                 只执行指定设备，可重复传入
+--keep-workdir true|false     是否保留合成工程目录，默认 false
+```
+
+`--device` 必须属于 case 配置选择出的设备集合；可重复传入，例如 `--device phone --device tablet`。
+SWE 和 Answer 两轮使用相同的筛选结果。case 模式仍不支持 `--test-class`，suite 选择只由 case 配置决定。
 
 ## 配置入口
 
@@ -63,6 +95,7 @@ config/machine.json
 ## 文档索引
 
 - [矩阵测试运行](docs/usage/matrix.md)
+- [case 目录执行](docs/usage/case.md)
 - [折叠屏和旋转控制](docs/usage/fold-control.md)
 - [故障排查](docs/usage/troubleshooting.md)
 - [工程结构说明](docs/project-structure/README.md)

@@ -115,7 +115,7 @@ def find_emulator():
         if c and os.path.isfile(c):
             return c
 
-    print(f"  ⚠ 找不到 emulator，请设置 EMULATOR_PATH 环境变量")
+    print(f"  [!] 找不到 emulator，请设置 EMULATOR_PATH 环境变量")
     return exe_name  # 兜底，让命令失败时报错
 
 
@@ -160,8 +160,8 @@ EMULATOR_INSTANCE = os.environ.get("EMULATOR_INSTANCE", "Mate X7")
 def print_paths():
     print(f"  路径探测:")
     print(f"    DevEco 根目录: {find_deveco_root() or '未找到（用环境变量 DEVECO_SDK_HOME 指定）'}")
-    print(f"    Emulator: {EMULATOR}{'  ✓' if os.path.isfile(EMULATOR) else '  ✗ 未找到'}")
-    print(f"    hdc: {HDC}{'  ✓' if os.path.isfile(HDC) else '  （用 PATH 兜底）'}")
+    print(f"    Emulator: {EMULATOR}{'  [ok]' if os.path.isfile(EMULATOR) else '  [x] 未找到'}")
+    print(f"    hdc: {HDC}{'  [ok]' if os.path.isfile(HDC) else '  （用 PATH 兜底）'}")
 
 
 def setup_fport(target=None):
@@ -183,7 +183,7 @@ def setup_fport(target=None):
         else:
             check = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5)
         if check.returncode != 0:
-            print(f"  ✗ hdc 不可用: {HDC}")
+            print(f"  [x] hdc 不可用: {HDC}")
             print(f"    错误: {check.stderr}")
             return False
 
@@ -210,19 +210,19 @@ def setup_fport(target=None):
         output = (result.stdout or "") + (result.stderr or "")
         if "OK" in output:
             target_info = f" (target={target})" if target else ""
-            print(f"  ✓ hdc 反向端口转发已建立（rport: 模拟器内 127.0.0.1:{DEVICE_PORT} → 宿主机:{PORT}{target_info}）")
+            print(f"  [ok] hdc 反向端口转发已建立（rport: 模拟器内 127.0.0.1:{DEVICE_PORT} → 宿主机:{PORT}{target_info}）")
             return True
         else:
-            print(f"  ✗ hdc rport 建立失败: {output}")
+            print(f"  [x] hdc rport 建立失败: {output}")
             target_hint = f"hdc -t {target} list target" if target else "hdc list target"
             print(f"    请确认模拟器已连接：{target_hint}")
             return False
     except FileNotFoundError:
-        print(f"  ✗ 找不到 hdc: {HDC}")
+        print(f"  [x] 找不到 hdc: {HDC}")
         print(f"    请设置 HDC_PATH 环境变量指向 hdc.exe/hdc 的路径")
         return False
     except Exception as e:
-        print(f"  ✗ 建立端口转发异常: {e}")
+        print(f"  [x] 建立端口转发异常: {e}")
         return False
 
 # 允许的折叠状态
@@ -291,9 +291,9 @@ class FoldHandler(http.server.BaseHTTPRequestHandler):
             print(f"[{self.log_date_time_string()}] 触发折叠 → {state}")
             success, msg = do_fold(state)
             if success:
-                print(f"  ✓ 已切换到 {state}")
+                print(f"  [ok] 已切换到 {state}")
             else:
-                print(f"  ✗ 切换失败: {msg}")
+                print(f"  [x] 切换失败: {msg}")
             self._respond(200, {"success": success, "state": state, "message": msg})
 
         # 旋转控制
@@ -305,9 +305,9 @@ class FoldHandler(http.server.BaseHTTPRequestHandler):
             print(f"[{self.log_date_time_string()}] 触发旋转 → {direction}")
             success, msg = do_rotation(direction)
             if success:
-                print(f"  ✓ 已旋转 {direction}")
+                print(f"  [ok] 已旋转 {direction}")
             else:
-                print(f"  ✗ 旋转失败: {msg}")
+                print(f"  [x] 旋转失败: {msg}")
             self._respond(200, {"success": success, "direction": direction, "message": msg})
 
         elif self.path == "/health":
@@ -378,7 +378,7 @@ def main():
 
     # 先绑定端口再建立 hdc 转发，避免端口冲突时误清除 rport
     server = http.server.HTTPServer(("0.0.0.0", PORT), FoldHandler)
-    print(f"  ✓ HTTP 服务已绑定 0.0.0.0:{PORT}")
+    print(f"  [ok] HTTP 服务已绑定 0.0.0.0:{PORT}")
 
     print("  建立 hdc 端口转发...")
     setup_fport(TARGET)

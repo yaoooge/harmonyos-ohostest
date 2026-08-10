@@ -26,11 +26,36 @@ npm run ohostest:matrix -- \
 
 运行器会在目标 HarmonyOS 工程中自动读取：
 
-- `build-profile.json5`：product 名称、entry module 名称、entry module 的 `srcPath`
+- `build-profile.json5`：product 名称和模块列表
+- 各模块的 `hvigorfile.ts`：通过 `hapTasks` 识别 HAP 模块
 - `AppScope/app.json5`：bundle name
-- `<entry-srcPath>/src/ohosTest/module.json5`：ohosTest module 名称
+- `<hap-srcPath>/src/ohosTest/module.json5`：ohosTest module 名称
 
-构建完成后，应用 HAP 和测试 HAP 路径会根据 entry module 的源码路径自动推导。
+自动发现当前只支持适用于目标 product 的单 HAP 工程。找不到 HAP 或发现多个 HAP 时，
+runner 会明确报错，不会再按模块名、目录名或模块顺序猜测。构建完成后，应用 HAP 和
+测试 HAP 路径会根据该 HAP 模块的源码路径自动推导。
+
+运行器也会读取 `build-profile.json5` 中适用于当前 product 的模块及其
+`src/main/module.json5` 和 `oh-package.json5`。`module.type` 为 `shared` 的模块会在
+构建后解析对应 HSP，按模块依赖顺序逐个安装；全部 HSP 成功后再安装应用 HAP和测试 HAP。
+
+## 构建与安装
+
+默认主构建按以下顺序执行：
+
+```text
+ohpm install
+hvigorw clean --no-daemon
+assembleApp
+ohosTest@PackageHap
+```
+
+每次矩阵主构建先安装依赖，再 clean 一次。`--skip-build true` 会跳过依赖安装、clean 和全部构建命令，
+但仍校验已有的 HAP/HSP 产物。折叠屏流程修改测试源码后单独重打 test HAP 时不会再次
+clean，避免删除主构建生成的应用和 shared 模块产物。
+
+设备安装不仅检查 HDC 退出码，也检查 AppMod 输出。若输出包含安装失败信息，即使 HDC
+返回退出码 `0`，设备也会以 `install_failed` 阻断，不再执行 `aa test`。
 
 ## 设备矩阵配置
 
@@ -46,6 +71,7 @@ config/machine.json
 {
   "paths": {
     "hvigorw": "/path/to/hvigorw",
+    "ohpm": "/path/to/ohpm",
     "hdc": "/path/to/hdc",
     "emulatorBin": "/path/to/Emulator",
     "emulatorDeployedDir": "/path/to/.Huawei/Emulator/deployed",
@@ -78,6 +104,7 @@ config/machine.json
 | 字段 | 说明 |
 |------|------|
 | `paths.hvigorw` | Hvigor 命令，必填；如果命令目录已加入环境变量，可填写 `hvigorw` |
+| `paths.ohpm` | ohpm 命令，可选；如果不配置，默认使用 `ohpm` |
 | `paths.hdc` | hdc 命令，必填；如果命令目录已加入环境变量，可填写 `hdc` |
 | `paths.emulatorBin` | DevEco 模拟器命令，必填；如果模拟器目录已加入环境变量，可填写 `Emulator` |
 | `paths.emulatorDeployedDir` | 模拟器实例目录，必填 |
@@ -90,6 +117,10 @@ config/machine.json
 | `devices[].foldControl` | 是否启用折叠屏/旋转控制 |
 | `devices[].testSuites` | 该设备要执行的 suite class 列表，按声明顺序运行，重复 class 会自动去重 |
 
+设备 ID 只用于选择和报告，不用于判断设备形态。target 连接后，runner 会读取
+`const.product.devicetype`：值为 `2in1` 时使用 PC 的 Enter 键解锁，其他值或读取失败时
+继续使用触屏设备的 Home 键。无需为 PC 使用特定 `id`，也无需增加设备类型配置。
+
 如果设备未配置 `testSuites`，且命令行未传 `--test-class`，运行器会执行完整测试模块。
 
 ## 输出结果
@@ -100,16 +131,16 @@ config/machine.json
 <project>/.ohostest-runs/<timestamp>/
   result.json
   summary.md
-  commands.log
-  devices/
+  commands.jsonl
 ```
 
 输出说明：
 
 - `result.json`：完整矩阵结果，包含每台设备、每个 suite、每条用例的状态
 - `summary.md`：人工可读汇总报告，包含设备汇总、suite 明细和用例明细
-- `commands.log`：构建、安装、启动模拟器、执行测试等命令日志
-- `devices/`：每台设备和每个 suite 的原始输出日志
+- `commands.jsonl`：构建、安装、启动模拟器、执行测试等结构化事件；可按
+  `deviceId` 和 `suiteClass` 过滤设备及 suite 输出。每条用例对应一个
+  `test_case` 事件，失败事件包含断言消息和堆栈
 
 矩阵级 `status`：
 

@@ -1,171 +1,40 @@
-import type { CommandExecutor } from "../../shared/types/index.js";
+export type {
+  BlockedReason,
+  BuildOutcome,
+  BuildResult,
+  CommandExecutor,
+  CommandResult,
+  DeviceConfig,
+  DeviceRunResult,
+  DeviceRunStatus,
+  InstallArtifacts,
+  ParsedAaTestOutput,
+  RawDeviceConfig,
+  SharedModuleInfo,
+  SuiteRunResult,
+  SuiteRunStatus,
+  TestCaseRunResult,
+  TestCaseRunStatus,
+} from "../../execution/types/index.js";
 
-export type MatrixStatus = "completed" | "failed";
+import type {
+  CommandExecutor,
+  ExecutionConfig,
+  ExecutionResult,
+} from "../../execution/types/index.js";
 
-export type DeviceRunStatus = "passed" | "failed" | "blocked";
+export type MatrixConfig = ExecutionConfig;
+export type RawMatrixConfig =
+  import("../../execution/types/index.js").RawExecutionConfig;
+export type MatrixStatus =
+  import("../../execution/types/index.js").ExecutionStatus;
 
-export type BlockedReason =
-  | "emulator_start_failed"
-  | "hdc_not_connected"
-  | "install_failed"
-  | "test_command_failed"
-  | "test_output_unparseable"
-  | "fold_server_start_failed";
-
-export type { CommandExecutor, CommandResult } from "../../shared/types/index.js";
-
-export interface RawMatrixConfig {
-  product?: string;
-  module?: string;
-  bundleName?: string;
-  testModule?: string;
-  testRunner?: string;
-  testClass?: string;
-  timeoutMs?: number;
-  build?: {
-    mode?: string;
-    appTask?: string;
-    testTask?: string;
-  };
-  paths?: {
-    hvigorw?: string;
-    hdc?: string;
-    emulatorBin?: string;
-    emulatorDeployedDir?: string;
-    foldServerScript?: string;
-  };
-  artifacts?: {
-    appHap?: string;
-    testHap?: string;
-  };
-  devices?: RawDeviceConfig[];
-}
-
-export interface RawDeviceConfig {
-  id?: string;
-  profile?: string;
-  target?: string;
-  hdcPort?: number;
-  startEmulator?: boolean;
-  foldControl?: boolean;
-  testSuites?: unknown;
-}
-
-export interface MatrixConfig {
-  project: string;
-  product: string;
-  module: string;
-  moduleSrcPath: string;
-  bundleName: string;
-  testModule: string;
-  testRunner: string;
-  testClass?: string;
-  timeoutMs: number;
-  build: {
-    mode: string;
-    appTask: string;
-    testTask: string;
-  };
-  paths: {
-    hvigorw: string;
-    hdc: string;
-    emulatorBin: string;
-    emulatorDeployedDir: string;
-    foldServerScript?: string;
-  };
-  artifacts: {
-    appHap: string;
-    testHap: string;
-  };
-  devices: DeviceConfig[];
-}
-
-export interface DeviceConfig {
-  id: string;
-  profile?: string;
-  target: string;
-  hdcPort?: number;
-  startEmulator: boolean;
-  foldControl?: boolean;
-  testClasses?: string[];
-}
-
-export interface ParsedAaTestOutput {
-  ok: boolean;
-  testsRun?: number;
-  failures?: number;
-  errors?: number;
-  passes?: number;
-  ignored?: number;
-  reportCode?: number;
-  testCases?: TestCaseRunResult[];
-  blockedReason?: BlockedReason;
-}
-
-export interface BuildResult {
-  status: "passed" | "blocked";
-  appHap: string;
-  testHap: string;
-  durationMs?: number;
-  blockedReason?: string;
-}
-
-export type SuiteRunStatus = "passed" | "failed" | "blocked";
-
-export type TestCaseRunStatus = "passed" | "failed" | "ignored" | "running";
-
-export interface TestCaseRunResult {
-  name: string;
-  status: TestCaseRunStatus;
-  statusCode: number;
-}
-
-export interface SuiteRunResult {
-  suiteClass: string;
-  status: SuiteRunStatus;
-  testsRun: number;
-  failures: number;
-  errors: number;
-  passes: number;
-  ignored: number;
-  reportCode: number | null;
-  ok: boolean;
-  testCases: TestCaseRunResult[];
-  outputFile?: string;
-}
-
-export interface DeviceRunResult {
-  id: string;
-  profile?: string;
-  target: string;
-  status: DeviceRunStatus;
-  testsRun: number;
-  failures: number;
-  errors: number;
-  passes: number;
-  ignored: number;
-  reportCode?: number;
-  suiteResults: SuiteRunResult[];
-  durationMs: number;
-  log: string;
-  blockedReason?: BlockedReason;
-  foldServerPort?: number;
-}
-
-export interface MatrixResult {
+export interface MatrixResult extends ExecutionResult {
   schemaVersion: "ohostest-matrix-v1";
-  project: string;
-  status: MatrixStatus;
-  startedAt: string;
-  finishedAt: string;
-  durationMs: number;
-  build: BuildResult;
-  devices: DeviceRunResult[];
   artifacts: {
     commandLog: string;
     summary: string;
   };
-  diagnostics: string[];
 }
 
 export interface RunMatrixInput {
@@ -176,5 +45,6 @@ export interface RunMatrixInput {
   testClass?: string;
   skipBuild?: boolean;
   keepEmulators?: boolean;
+  testCaseTimeoutMs?: number;
   commandExecutor?: CommandExecutor;
 }
