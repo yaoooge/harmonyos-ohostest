@@ -226,6 +226,110 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
   );
 });
 
+test("runOhosTestMatrix wakes and retries once when aa test reports a locked screen", async (t) => {
+  const project = await makeProject(t);
+  const machineConfigPath = path.join(project, "pc-machine.json");
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        ohpm: "/fake/ohpm",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: [
+        {
+          id: "pc",
+          target: "127.0.0.1:15005",
+          profile: "MateBook Pro",
+          hdcPort: 15005,
+          testSuites: ["PcAdaptiveTest"],
+        },
+      ],
+    }),
+    "utf-8",
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/default"),
+    { recursive: true },
+  );
+  await fs.mkdir(
+    path.join(project, "products/entry/build/default/outputs/ohosTest"),
+    { recursive: true },
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/default/entry-default-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(
+      project,
+      "products/entry/build/default/outputs/ohosTest/entry-ohosTest-unsigned.hap",
+    ),
+    "",
+    "utf-8",
+  );
+
+  const commands: string[] = [];
+  let aaTestCount = 0;
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, "result.json"),
+    commandExecutor: async (command) => {
+      commands.push(command);
+      if (command.includes("aa test")) {
+        aaTestCount += 1;
+        return aaTestCount === 1
+          ? {
+              stdout:
+                "Error Code:10106102 Error Message:The device screen is locked during the application launch, unlock screen failed.\nTestFinished-ResultCode: -3\n",
+              stderr: "",
+              exitCode: 0,
+              durationMs: 1,
+            }
+          : {
+              stdout:
+                "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n",
+              stderr: "",
+              exitCode: 0,
+              durationMs: 1,
+            };
+      }
+      if (command.includes("list targets")) {
+        return {
+          stdout: "127.0.0.1:15005\tConnected\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+        };
+      }
+      if (command.includes("const.product.devicetype")) {
+        return {
+          stdout: "2in1\n",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+        };
+      }
+      return { stdout: "", stderr: "", exitCode: 0, durationMs: 1 };
+    },
+  });
+
+  assert.equal(result.devices[0]?.status, "passed");
+  assert.equal(aaTestCount, 2);
+  assert.equal(
+    commands.filter((command) => command.includes("power-shell wakeup")).length,
+    2,
+  );
+});
+
 test("runOhosTestMatrix persists structured configuration failures", async (t) => {
   const project = await makeProject(t);
   const machineConfigPath = path.join(project, "invalid-machine.json");

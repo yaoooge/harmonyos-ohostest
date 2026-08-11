@@ -31,6 +31,7 @@ import type {
 } from "./types/index.js";
 
 const emulatorRestartCooldownMs = 5000;
+const screenUnlockSettleMs = 1000;
 
 interface ExecutionRunContext {
   startedTime: number;
@@ -353,7 +354,7 @@ async function runAllSuites(
   input: DeviceRunInput,
   started: number,
 ): Promise<SuiteRunResult[] | DeviceRunResult> {
-  const testRun = await runLoggedTest(input, "ALL");
+  const testRun = await runLoggedTestWithUnlockRetry(input, "ALL");
   if (testRun.commandResult.exitCode !== 0) {
     return blockedDevice(input, started, "test_command_failed");
   }
@@ -444,14 +445,10 @@ function blockedDevice(
   };
 }
 
-async function runSuite(input: {
-  config: ExecutionConfig;
-  device: ExecutionConfig["devices"][number];
-  suiteClass: string;
-  executor: NonNullable<RunExecutionInput["commandExecutor"]>;
-  logger: RunnerLogger;
-}): Promise<SuiteRunResult> {
-  const testRun = await runLoggedTest(
+async function runSuite(
+  input: DeviceRunInput & { suiteClass: string },
+): Promise<SuiteRunResult> {
+  const testRun = await runLoggedTestWithUnlockRetry(
     input,
     input.suiteClass,
     input.suiteClass,
@@ -466,6 +463,27 @@ async function runSuite(input: {
   }
   testRun.logger.recordTestSuite(result);
   return result;
+}
+
+async function runLoggedTestWithUnlockRetry(
+  input: DeviceRunInput,
+  suiteClass: string,
+  testClass?: string,
+): Promise<LoggedTestRun> {
+  let testRun = await runLoggedTest(input, suiteClass, testClass);
+  if (!isLockedScreenResult(testRun.commandResult)) {
+    return testRun;
+  }
+  await prepareRunDevice(input);
+  await sleep(screenUnlockSettleMs);
+  testRun = await runLoggedTest(input, suiteClass, testClass);
+  return testRun;
+}
+
+function isLockedScreenResult(result: CommandResult): boolean {
+  return /10106102|device screen is locked|unlock screen failed/i.test(
+    `${result.stdout}\n${result.stderr}`,
+  );
 }
 
 async function runLoggedTest(
