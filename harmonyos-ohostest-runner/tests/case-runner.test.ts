@@ -403,7 +403,7 @@ test("runOhosTestCase groups five devices into two HAP module runs", async (t) =
     ["phone", "wide_fold", "foldable", "tablet", "pc"],
   );
   assert.deepEqual(
-    result.runs.swe?.moduleRuns?.map((moduleRun) => ({
+    result.runs.swe?.module_runs?.map((moduleRun) => ({
       module: moduleRun.module,
       devices: moduleRun.devices.map((device) => device.id),
     })),

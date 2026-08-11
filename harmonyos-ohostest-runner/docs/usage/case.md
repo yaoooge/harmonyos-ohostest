@@ -250,7 +250,7 @@ case 模式按以下优先级决定设备与 suite：
 ```
 
 多 HAP 轮次会在 `swe/modules/<module>/` 或 `answer/modules/<module>/` 中写入各模块的
-`result.json` 和 `summary.md`。顶层矩阵结果保持现有格式，并可选增加 `moduleRuns`，记录
+`result.json` 和 `summary.md`。顶层矩阵结果保持现有格式，并可选增加 `module_runs`，记录
 每个模块对应的设备、构建产物、结果路径和诊断。单 HAP 用例不生成该字段。
 
 `swe/result.json` 和 `answer/result.json` 的命令日志路径均指向顶层

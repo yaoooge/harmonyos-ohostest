@@ -346,7 +346,7 @@ async function runCaseExecution(
         (diagnostic) => `[${moduleRun.module}] ${diagnostic}`,
       ),
     ),
-    moduleRuns,
+    module_runs: moduleRuns,
     artifacts: {
       commandLog: "../commands.jsonl",
       summary: "summary.md",

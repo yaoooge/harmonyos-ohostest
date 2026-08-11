@@ -76,7 +76,7 @@ export function renderCaseSummary(result: CaseResult): string {
 
 function moduleRunSection(result: CaseResult): string[] {
   const runs = [result.runs.swe, result.runs.answer]
-    .flatMap((run) => run?.moduleRuns ?? [])
+    .flatMap((run) => run?.module_runs ?? [])
     .map(
       (run) =>
         `| ${run.module} | ${run.devices.map((device) => device.id).join(", ")} | ${run.status} |`,

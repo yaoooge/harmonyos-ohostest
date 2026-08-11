@@ -54,7 +54,7 @@ export type CaseStatus = "completed" | "failed";
 
 export interface CaseRunResult extends ExecutionResult {
   schemaVersion: "ohostest-matrix-v1";
-  moduleRuns?: CaseModuleRunResult[];
+  module_runs?: CaseModuleRunResult[];
   artifacts: {
     commandLog: string;
     summary: string;
