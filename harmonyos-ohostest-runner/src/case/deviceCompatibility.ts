@@ -18,6 +18,7 @@ interface MainModuleConfig {
 
 export async function withSweTabletCompatibility<T>(input: {
   project: string;
+  module?: string;
   enabled: boolean;
   run: () => Promise<T>;
 }): Promise<T> {
@@ -25,7 +26,10 @@ export async function withSweTabletCompatibility<T>(input: {
     return input.run();
   }
 
-  const modulePath = await resolveEntryMainModulePath(input.project);
+  const modulePath = await resolveEntryMainModulePath(
+    input.project,
+    input.module,
+  );
   const original = await readCompatibilityFile(modulePath);
   const config = readMainModuleConfig(original, modulePath);
   const deviceTypes = readDeviceTypes(config, modulePath);
@@ -46,7 +50,10 @@ export async function withSweTabletCompatibility<T>(input: {
   }
 }
 
-async function resolveEntryMainModulePath(project: string): Promise<string> {
+async function resolveEntryMainModulePath(
+  project: string,
+  module?: string,
+): Promise<string> {
   const buildProfilePath = path.join(project, "build-profile.json5");
   let buildProfile: BuildProfile;
   try {
@@ -68,6 +75,7 @@ async function resolveEntryMainModulePath(project: string): Promise<string> {
     project,
     product,
     buildProfile.modules,
+    module,
   );
   const srcPath = moduleInfo.srcPath ?? moduleInfo.name;
   if (typeof srcPath !== "string" || srcPath.trim().length === 0) {

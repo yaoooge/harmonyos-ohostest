@@ -202,6 +202,279 @@ async function writeEnabledDevicesCase(root: string): Promise<string> {
   return caseDir;
 }
 
+async function makeMultiHapProject(root: string): Promise<string> {
+  const project = path.join(root, "base");
+  await fs.mkdir(path.join(project, "AppScope"), { recursive: true });
+  await fs.writeFile(
+    path.join(project, "AppScope", "app.json5"),
+    JSON.stringify({ app: { bundleName: "case.multi.setting" } }),
+    "utf-8",
+  );
+  const modules = [
+    { name: "multisettingdefaultsample", srcPath: "products/default" },
+    { name: "multisettingpcsample", srcPath: "products/pc" },
+  ];
+  await fs.writeFile(
+    path.join(project, "build-profile.json5"),
+    JSON.stringify({
+      app: { products: [{ name: "default" }] },
+      modules: modules.map((module) => ({
+        name: module.name,
+        srcPath: `./${module.srcPath}`,
+      })),
+    }),
+    "utf-8",
+  );
+  for (const module of modules) {
+    const moduleRoot = path.join(project, module.srcPath);
+    await fs.mkdir(path.join(moduleRoot, "src", "main", "ets"), {
+      recursive: true,
+    });
+    await fs.mkdir(path.join(moduleRoot, "src", "ohosTest"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(moduleRoot, "hvigorfile.ts"),
+      "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(moduleRoot, "src", "main", "ets", "Index.ets"),
+      "export const state = 'base';\n",
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(moduleRoot, "src", "main", "module.json5"),
+      JSON.stringify({
+        module: {
+          name: module.name,
+          deviceTypes:
+            module.name === "multisettingpcsample"
+              ? ["2in1"]
+              : ["phone", "tablet"],
+        },
+      }),
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(moduleRoot, "src", "ohosTest", "module.json5"),
+      JSON.stringify({ module: { name: `${module.name}_test` } }),
+      "utf-8",
+    );
+    await fs.mkdir(
+      path.join(moduleRoot, "build", "default", "outputs", "default"),
+      { recursive: true },
+    );
+    await fs.mkdir(
+      path.join(moduleRoot, "build", "default", "outputs", "ohosTest"),
+      { recursive: true },
+    );
+    await fs.writeFile(
+      path.join(
+        moduleRoot,
+        "build",
+        "default",
+        "outputs",
+        "default",
+        `${module.name}-default-unsigned.hap`,
+      ),
+      "",
+      "utf-8",
+    );
+    await fs.writeFile(
+      path.join(
+        moduleRoot,
+        "build",
+        "default",
+        "outputs",
+        "ohosTest",
+        `${module.name}-ohosTest-unsigned.hap`,
+      ),
+      "",
+      "utf-8",
+    );
+  }
+  return project;
+}
+
+async function writeMultiHapMachineConfig(root: string): Promise<string> {
+  const machineConfigPath = path.join(root, "machine.json");
+  const deviceIds = ["phone", "wide_fold", "foldable", "tablet", "pc"];
+  await fs.writeFile(
+    machineConfigPath,
+    JSON.stringify({
+      paths: {
+        hdc: "/fake/hdc",
+        hvigorw: "/fake/hvigorw",
+        emulatorBin: "/fake/Emulator",
+        emulatorDeployedDir: "/fake/deployed",
+      },
+      devices: deviceIds.map((id, index) => ({
+        id,
+        target: `127.0.0.1:${15001 + index}`,
+      })),
+    }),
+    "utf-8",
+  );
+  return machineConfigPath;
+}
+
+async function writeMultiHapCase(root: string): Promise<string> {
+  const caseDir = path.join(root, "case");
+  await fs.mkdir(caseDir, { recursive: true });
+  const deviceSuites = Object.fromEntries(
+    ["phone", "wide_fold", "foldable", "tablet", "pc"].map((device) => [
+      device,
+      [{ suite: `${device}_suite` }],
+    ]),
+  );
+  await fs.writeFile(
+    path.join(caseDir, "metadata.json"),
+    JSON.stringify({
+      case_id: "case-navigation-settings",
+      base_project: "base",
+      test_patch: "test_patch.patch",
+      golden_patch: "golden_patch.patch",
+      device_hap_modules: {
+        phone: "multisettingdefaultsample",
+        tablet: "multisettingdefaultsample",
+        pc: "multisettingpcsample",
+      },
+      device_test_suites: deviceSuites,
+    }),
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(caseDir, "test_patch.patch"),
+    [
+      "diff --git a/products/default/src/main/ets/TestOnly.ets b/products/default/src/main/ets/TestOnly.ets",
+      "new file mode 100644",
+      "index 0000000..8f0b6af",
+      "--- /dev/null",
+      "+++ b/products/default/src/main/ets/TestOnly.ets",
+      "@@ -0,0 +1 @@",
+      "+export const testOnly = true;",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  await fs.writeFile(path.join(caseDir, "golden_patch.patch"), "", "utf-8");
+  return caseDir;
+}
+
+test("runOhosTestCase groups five devices into two HAP module runs", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-runner-multi-hap-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeMultiHapProject(root);
+  const caseDir = await writeMultiHapCase(root);
+  const machineConfigPath = await writeMultiHapMachineConfig(root);
+  const out = path.join(root, "runs");
+  const commands: string[] = [];
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    runMode: "swe",
+    commandExecutor: async (command) => {
+      commands.push(command);
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : command.includes("list targets")
+            ? [15001, 15002, 15003, 15004, 15005]
+                .map((port) => `127.0.0.1:${port}\tConnected`)
+                .join("\n")
+            : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.status, "completed");
+  assert.deepEqual(
+    result.runs.swe?.devices.map((device) => device.id),
+    ["phone", "wide_fold", "foldable", "tablet", "pc"],
+  );
+  assert.deepEqual(
+    result.runs.swe?.moduleRuns?.map((moduleRun) => ({
+      module: moduleRun.module,
+      devices: moduleRun.devices.map((device) => device.id),
+    })),
+    [
+      {
+        module: "multisettingdefaultsample",
+        devices: ["phone", "wide_fold", "foldable", "tablet"],
+      },
+      { module: "multisettingpcsample", devices: ["pc"] },
+    ],
+  );
+  assert.deepEqual(result.metadata.deviceHapModules, {
+    phone: "multisettingdefaultsample",
+    tablet: "multisettingdefaultsample",
+    pc: "multisettingpcsample",
+  });
+  assert.equal(
+    commands.filter((command) =>
+      command.includes("module=multisettingdefaultsample@ohosTest"),
+    ).length,
+    1,
+  );
+  assert.equal(
+    commands.filter((command) =>
+      command.includes("module=multisettingpcsample@ohosTest"),
+    ).length,
+    1,
+  );
+  assert.ok(
+    commands.some(
+      (command) =>
+        command.includes("aa test") &&
+        command.includes("-m multisettingdefaultsample_test"),
+    ),
+  );
+  assert.ok(
+    commands.some(
+      (command) =>
+        command.includes("aa test") &&
+        command.includes("-m multisettingpcsample_test"),
+    ),
+  );
+  assert.ok(
+    await fs.readFile(
+      path.join(
+        out,
+        "swe",
+        "modules",
+        "multisettingdefaultsample",
+        "result.json",
+      ),
+      "utf-8",
+    ),
+  );
+  assert.ok(
+    await fs.readFile(
+      path.join(
+        out,
+        "swe",
+        "modules",
+        "multisettingpcsample",
+        "result.json",
+      ),
+      "utf-8",
+    ),
+  );
+  const summary = await fs.readFile(path.join(out, "summary.md"), "utf-8");
+  assert.match(summary, /multisettingdefaultsample/);
+  assert.match(summary, /multisettingpcsample/);
+});
+
 test("runOhosTestCase applies test and golden patches, runs swe and answer, and writes a case report", async (t) => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "ohostest-case-runner-"),

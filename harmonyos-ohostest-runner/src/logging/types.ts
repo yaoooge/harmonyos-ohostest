@@ -8,6 +8,7 @@ export type LogPhase = "case" | "matrix" | "swe" | "answer";
 
 export interface LogBindings {
   phase?: LogPhase;
+  module?: string;
   deviceId?: string;
   suiteClass?: string;
 }

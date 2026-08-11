@@ -21,6 +21,10 @@ export interface CaseDeviceSuite {
   file?: string;
 }
 
+export type DeviceDeploymentType = "phone" | "tablet" | "pc";
+
+export type DeviceHapModules = Partial<Record<DeviceDeploymentType, string>>;
+
 export interface CaseMetadata {
   caseId: string;
   caseDir: string;
@@ -32,6 +36,7 @@ export interface CaseMetadata {
   passToPass: string[];
   deviceTestSuites?: Record<string, CaseDeviceSuite[]>;
   enabledDevices?: string[];
+  deviceHapModules?: DeviceHapModules;
 }
 
 export interface CaseDeviceSelection {
@@ -40,12 +45,27 @@ export interface CaseDeviceSelection {
   runAllTests: boolean;
 }
 
+export interface CaseExecutionGroup {
+  module?: string;
+  selection: CaseDeviceSelection;
+}
+
 export type CaseStatus = "completed" | "failed";
 
 export interface CaseRunResult extends ExecutionResult {
   schemaVersion: "ohostest-matrix-v1";
+  moduleRuns?: CaseModuleRunResult[];
   artifacts: {
     commandLog: string;
+    summary: string;
+  };
+}
+
+export interface CaseModuleRunResult extends ExecutionResult {
+  module: string;
+  artifacts: {
+    commandLog: string;
+    result: string;
     summary: string;
   };
 }
@@ -65,6 +85,7 @@ export interface CaseResult {
     passToPass: string[];
     deviceTestSuites: Record<string, CaseDeviceSuite[]>;
     enabledDevices?: string[];
+    deviceHapModules?: DeviceHapModules;
   };
   runs: {
     swe?: CaseRunResult;

@@ -44,6 +44,7 @@ export function renderCaseSummary(result: CaseResult): string {
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     runRow("swe", result.runs.swe),
     runRow("answer", result.runs.answer),
+    ...moduleRunSection(result),
     "",
     "## Device Results",
     "",
@@ -73,6 +74,26 @@ export function renderCaseSummary(result: CaseResult): string {
   ].join("\n");
 }
 
+function moduleRunSection(result: CaseResult): string[] {
+  const runs = [result.runs.swe, result.runs.answer]
+    .flatMap((run) => run?.moduleRuns ?? [])
+    .map(
+      (run) =>
+        `| ${run.module} | ${run.devices.map((device) => device.id).join(", ")} | ${run.status} |`,
+    );
+  if (runs.length === 0) {
+    return [];
+  }
+  return [
+    "",
+    "## Module Runs",
+    "",
+    "| Module | Devices | Status |",
+    "| --- | --- | --- |",
+    ...runs,
+  ];
+}
+
 export function metadataForResult(
   metadata: CaseMetadata,
 ): CaseResult["metadata"] {
@@ -83,6 +104,9 @@ export function metadataForResult(
     deviceTestSuites: metadata.deviceTestSuites ?? {},
     ...(metadata.enabledDevices
       ? { enabledDevices: metadata.enabledDevices }
+      : {}),
+    ...(metadata.deviceHapModules
+      ? { deviceHapModules: metadata.deviceHapModules }
       : {}),
   };
 }

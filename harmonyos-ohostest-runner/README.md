@@ -6,6 +6,7 @@
 
 - 执行 ohosTest 设备矩阵
 - 按设备执行指定 suite class
+- 在多 HAP 工程中按 phone、tablet、pc 部署映射分组执行
 - 自动构建、安装、唤醒设备并执行测试
 - 输出 `result.json`、`summary.md`、`commands.log` 和设备日志
 - 可选管理折叠屏/旋转控制服务
@@ -60,6 +61,9 @@ npm run ohostest:case -- \
 `config/machine.json`。实际设备集合优先使用 `metadata.device_test_suites`，其次使用
 `metadata.enabled_devices`，两者都没有时使用 `machine.json.devices`。没有 `device_test_suites` 时每台设备执行
 全量测试，不继承 `machine.json.devices[].testSuites`。默认报告输出到 `<case>/.ohostest-runs/<timestamp>/`。
+
+多 HAP case 可通过 `metadata.device_hap_modules` 将 `phone`、`tablet`、`pc` 部署类型映射到
+HAP 模块；`wide_fold` 和 `foldable` 自动使用 `phone` 映射，但仍分别执行自己的测试套件。
 
 常用参数：
 

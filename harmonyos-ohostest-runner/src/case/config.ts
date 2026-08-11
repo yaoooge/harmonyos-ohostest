@@ -6,7 +6,10 @@ import type { ExecutionConfig } from "../execution/types/index.js";
 import type {
   CaseDeviceSelection,
   CaseDeviceSuite,
+  CaseExecutionGroup,
   CaseMetadata,
+  DeviceDeploymentType,
+  DeviceHapModules,
 } from "./types/index.js";
 
 interface RawCaseMetadata {
@@ -19,7 +22,14 @@ interface RawCaseMetadata {
   pass_to_pass?: unknown;
   device_test_suites?: unknown;
   enabled_devices?: unknown;
+  device_hap_modules?: unknown;
 }
+
+const DEVICE_DEPLOYMENT_TYPES: DeviceDeploymentType[] = [
+  "phone",
+  "tablet",
+  "pc",
+];
 
 export async function loadCaseMetadata(
   caseDirInput: string,
@@ -67,10 +77,64 @@ export async function loadCaseMetadata(
         raw.enabled_devices,
         "metadata.enabled_devices",
       ),
+      deviceHapModules: readDeviceHapModules(raw.device_hap_modules),
     };
   } catch (error) {
     throw configFileError(metadataPath, error);
   }
+}
+
+export function buildCaseExecutionGroups(
+  metadata: CaseMetadata,
+  selection: CaseDeviceSelection,
+): CaseExecutionGroup[] {
+  if (!metadata.deviceHapModules) {
+    return [{ selection }];
+  }
+
+  const groups = new Map<string, CaseExecutionGroup>();
+  for (const deviceId of selection.devices) {
+    const deploymentType = deploymentTypeForDevice(deviceId);
+    const module = metadata.deviceHapModules[deploymentType];
+    if (!module) {
+      throw new Error(
+        `metadata.device_hap_modules.${deploymentType} is required for device ${deviceId}.`,
+      );
+    }
+    const group = groups.get(module) ?? {
+      module,
+      selection: {
+        devices: [],
+        ...(selection.deviceSuiteOverrides
+          ? { deviceSuiteOverrides: {} }
+          : {}),
+        runAllTests: selection.runAllTests,
+      },
+    };
+    group.selection.devices.push(deviceId);
+    if (group.selection.deviceSuiteOverrides) {
+      group.selection.deviceSuiteOverrides[deviceId] =
+        selection.deviceSuiteOverrides?.[deviceId] ?? [];
+    }
+    groups.set(module, group);
+  }
+  return [...groups.values()];
+}
+
+function deploymentTypeForDevice(deviceId: string): DeviceDeploymentType {
+  if (
+    deviceId === "phone" ||
+    deviceId === "wide_fold" ||
+    deviceId === "foldable"
+  ) {
+    return "phone";
+  }
+  if (deviceId === "tablet" || deviceId === "pc") {
+    return deviceId;
+  }
+  throw new Error(
+    `metadata.device_hap_modules cannot resolve deployment type for device ${deviceId}.`,
+  );
 }
 
 export function buildCaseDeviceSelection(
@@ -267,6 +331,34 @@ function readDeviceTestSuites(
   if (Object.keys(result).length === 0) {
     throw new Error(
       "metadata.device_test_suites must contain at least one device.",
+    );
+  }
+  return result;
+}
+
+function readDeviceHapModules(value: unknown): DeviceHapModules | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("metadata.device_hap_modules must be an object.");
+  }
+  const entries = Object.entries(value);
+  if (entries.length === 0) {
+    throw new Error(
+      "metadata.device_hap_modules must contain at least one deployment type.",
+    );
+  }
+  const result: DeviceHapModules = {};
+  for (const [deploymentType, module] of entries) {
+    if (!DEVICE_DEPLOYMENT_TYPES.includes(deploymentType as DeviceDeploymentType)) {
+      throw new Error(
+        "metadata.device_hap_modules supports only phone, tablet, and pc.",
+      );
+    }
+    result[deploymentType as DeviceDeploymentType] = readRequiredString(
+      module,
+      `metadata.device_hap_modules.${deploymentType}`,
     );
   }
   return result;

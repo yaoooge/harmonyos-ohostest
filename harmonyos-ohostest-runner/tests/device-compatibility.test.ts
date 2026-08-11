@@ -111,3 +111,37 @@ test("withSweTabletCompatibility rejects invalid deviceTypes with a stable error
     /swe_tablet_compatibility_invalid_module/,
   );
 });
+
+test("withSweTabletCompatibility selects the requested HAP in a multi-HAP project", async (t) => {
+  const { project, modulePath, original } = await makeTempProject(t);
+  const buildProfilePath = path.join(project, "build-profile.json5");
+  const buildProfile = parseJson5ish(
+    await fs.readFile(buildProfilePath, "utf-8"),
+  ) as { app: object; modules: object[] };
+  buildProfile.modules.push({ name: "pc", srcPath: "./products/pc" });
+  await fs.writeFile(
+    buildProfilePath,
+    `${JSON.stringify(buildProfile, null, 2)}\n`,
+    "utf-8",
+  );
+  await fs.mkdir(path.join(project, "products", "pc"), { recursive: true });
+  await fs.writeFile(
+    path.join(project, "products", "pc", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
+
+  await withSweTabletCompatibility({
+    project,
+    module: "entry",
+    enabled: true,
+    run: async () => {
+      const config = parseJson5ish(await fs.readFile(modulePath, "utf-8")) as {
+        module: { deviceTypes: string[] };
+      };
+      assert.deepEqual(config.module.deviceTypes, ["phone", "tablet"]);
+    },
+  });
+
+  assert.equal(await fs.readFile(modulePath, "utf-8"), original);
+});

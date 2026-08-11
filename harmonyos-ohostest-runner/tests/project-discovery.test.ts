@@ -84,16 +84,16 @@ async function makeProject(
     );
   }
 
-  const hap = modules.find((module) => module.packageType === "hap");
-  if (!hap) return project;
-  await fs.mkdir(path.join(project, hap.srcPath, "src", "ohosTest"), {
-    recursive: true,
-  });
-  await fs.writeFile(
-    path.join(project, hap.srcPath, "src", "ohosTest", "module.json5"),
-    JSON.stringify({ module: { name: `${hap.name}_test` } }),
-    "utf-8",
-  );
+  for (const hap of modules.filter((module) => module.packageType === "hap")) {
+    await fs.mkdir(path.join(project, hap.srcPath, "src", "ohosTest"), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(project, hap.srcPath, "src", "ohosTest", "module.json5"),
+      JSON.stringify({ module: { name: `${hap.name}_test` } }),
+      "utf-8",
+    );
+  }
   return project;
 }
 
@@ -291,6 +291,55 @@ test("discoverProjectInfo rejects multiple HAP modules", async (t) => {
   await assert.rejects(
     discoverProjectInfo(project),
     /project_hap_module_ambiguous: phone, tablet/,
+  );
+});
+
+test("discoverProjectInfo selects an explicitly requested HAP module", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "phone",
+      srcPath: "products/phone",
+      type: "entry",
+      packageType: "hap",
+    },
+    {
+      name: "pc",
+      srcPath: "products/pc",
+      type: "entry",
+      packageType: "hap",
+    },
+  ]);
+
+  const info = await discoverProjectInfo(project, "pc");
+
+  assert.equal(info.moduleName, "pc");
+  assert.equal(info.moduleSrcPath, "products/pc");
+  assert.equal(info.testModuleName, "pc_test");
+  assert.match(
+    info.appHap,
+    /products\/pc\/build\/default\/outputs\/default\/pc-default-unsigned\.hap$/,
+  );
+});
+
+test("discoverProjectInfo rejects an explicit module that is not a HAP", async (t) => {
+  const project = await makeProject(t, [
+    {
+      name: "phone",
+      srcPath: "products/phone",
+      type: "entry",
+      packageType: "hap",
+    },
+    {
+      name: "common",
+      srcPath: "commons/common",
+      type: "har",
+      packageType: "har",
+    },
+  ]);
+
+  await assert.rejects(
+    discoverProjectInfo(project, "common"),
+    /project_hap_module_invalid: common/,
   );
 });
 

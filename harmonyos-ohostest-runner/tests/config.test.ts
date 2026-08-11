@@ -131,6 +131,61 @@ test("loadMatrixConfig accepts an in-memory test case timeout override", async (
   assert.equal(config.testCaseTimeoutMs, 30000);
 });
 
+test("loadMatrixConfig discovers artifacts for an explicitly selected HAP", async (t) => {
+  const project = await makeTempProject(t);
+  const buildProfilePath = path.join(project, "build-profile.json5");
+  await fs.writeFile(
+    buildProfilePath,
+    JSON.stringify({
+      app: { products: [{ name: "default" }] },
+      modules: [
+        { name: "entry", srcPath: "./products/entry" },
+        { name: "pc", srcPath: "./products/pc" },
+      ],
+    }),
+    "utf-8",
+  );
+  await fs.mkdir(path.join(project, "products", "pc", "src", "main"), {
+    recursive: true,
+  });
+  await fs.mkdir(path.join(project, "products", "pc", "src", "ohosTest"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(project, "products", "pc", "hvigorfile.ts"),
+    "import { hapTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hapTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(project, "products", "pc", "src", "main", "module.json5"),
+    JSON.stringify({ module: { name: "pc", type: "entry" } }),
+    "utf-8",
+  );
+  await fs.writeFile(
+    path.join(project, "products", "pc", "src", "ohosTest", "module.json5"),
+    JSON.stringify({ module: { name: "pc_test" } }),
+    "utf-8",
+  );
+  const machineConfigPath = await writeMachineConfig(project);
+
+  const config = await loadMatrixConfig({
+    project,
+    machineConfigPath,
+    module: "pc",
+  });
+
+  assert.equal(config.module, "pc");
+  assert.equal(config.moduleSrcPath, "products/pc");
+  assert.equal(config.testModule, "pc_test");
+  assert.equal(
+    config.artifacts.appHap,
+    path.join(
+      project,
+      "products/pc/build/default/outputs/default/pc-default-unsigned.hap",
+    ),
+  );
+});
+
 test("loadMatrixConfig accepts explicit machine paths", async (t) => {
   const project = await makeTempProject(t);
   const machineConfigPath = path.join(project, "paths.json");

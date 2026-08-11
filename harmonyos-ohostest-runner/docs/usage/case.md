@@ -85,6 +85,24 @@ case/
 | `fail_to_pass` | fail-to-pass 用例名列表 |
 | `device_test_suites` | 可选。设备到 suite class 的映射 |
 | `enabled_devices` | 可选。没有 `device_test_suites` 时，声明要执行全量测试的设备 |
+| `device_hap_modules` | 可选。多 HAP 工程中 phone、tablet、pc 部署类型到 HAP 模块名的映射 |
+
+多 HAP 工程必须显式声明实际运行设备所需的部署类型。`wide_fold` 和 `foldable`
+都会归一为 `phone`，但仍保留各自独立的设备和 suite：
+
+```json
+{
+  "device_hap_modules": {
+    "phone": "multisettingdefaultsample",
+    "tablet": "multisettingdefaultsample",
+    "pc": "multisettingpcsample"
+  }
+}
+```
+
+映射键只允许 `phone`、`tablet`、`pc`。目标必须是当前 product 中有效的 HAP 模块；
+缺少运行设备需要的映射、指向非 HAP 模块或无法消除多 HAP 歧义时，运行器会在构建前报错。
+未配置该字段的单 HAP 用例保持原有自动发现行为。
 
 单个 case 可以覆盖 runner 的默认用例超时：
 
@@ -209,6 +227,9 @@ case 模式按以下优先级决定设备与 suite：
 7. 写入 case 级 `result.json` 和 `summary.md`。未执行的一侧在 summary 中显示为 `not run`。
 8. `--keep-workdir` 为 `false` 时删除 `work/`。
 
+配置 `device_hap_modules` 后，每轮先按 HAP 模块分组，再分别构建、安装和执行。
+例如上述映射会将 phone、wide_fold、foldable、tablet 放入默认 HAP 组，将 pc 放入 PC HAP 组。
+
 ## 输出结果
 
 默认输出目录：
@@ -216,7 +237,7 @@ case 模式按以下优先级决定设备与 suite：
 ```text
 <case>/.ohostest-runs/<timestamp>/
   result.json          # case 级 JSON 报告，包含 metadata、runs.swe/runs.answer、artifacts、diagnostics
-  summary.md           # case 级 Markdown 汇总，包含 Runs、Device Results、Totals、Device Suites、Pass/Fail To Pass
+  summary.md           # case 级 Markdown 汇总，包含 Runs、Module Runs、设备结果与测试分类
   commands.jsonl       # case、swe 和 answer 共用的结构化命令日志
   swe/                 # 仅在执行 --run swe 或 --run all 时生成
     result.json        # swe 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
@@ -228,6 +249,10 @@ case 模式按以下优先级决定设备与 suite：
     project/           # base_project + test_patch，answer/all 模式下还会继续应用 golden_patch
 ```
 
+多 HAP 轮次会在 `swe/modules/<module>/` 或 `answer/modules/<module>/` 中写入各模块的
+`result.json` 和 `summary.md`。顶层矩阵结果保持现有格式，并可选增加 `moduleRuns`，记录
+每个模块对应的设备、构建产物、结果路径和诊断。单 HAP 用例不生成该字段。
+
 `swe/result.json` 和 `answer/result.json` 的命令日志路径均指向顶层
 `commands.jsonl`。可按 `phase`、`deviceId` 和 `suiteClass` 过滤对应事件；
 失败的 `test_case` 事件包含断言消息和堆栈。
@@ -237,6 +262,7 @@ case 模式按以下优先级决定设备与 suite：
 case 级 `summary.md` 包含：
 
 - `Runs`：swe 和 answer 两侧总体统计，未执行的一侧显示 `not run`
+- `Module Runs`：多 HAP 用例中各模块对应的设备和执行状态
 - `Device Results`：每台设备按 test case 列出执行结果，并通过 `Suite` 列辅助定位
 - `Totals`：按设备和运行侧汇总整体判定；`--run all` 时每台设备分别输出 swe 和 answer
 - `Device Suites`：metadata 中的设备 suite 列表

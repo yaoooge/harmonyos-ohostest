@@ -51,6 +51,7 @@ interface ModulePackageConfig {
 
 export async function discoverProjectInfo(
   project: string,
+  requestedModule?: string,
 ): Promise<ProjectInfo> {
   const buildProfilePath = path.join(project, "build-profile.json5");
   const appJsonPath = path.join(project, "AppScope", "app.json5");
@@ -63,6 +64,7 @@ export async function discoverProjectInfo(
     appJsonPath,
     buildProfile,
     appJson,
+    requestedModule,
   );
 }
 
@@ -72,6 +74,7 @@ async function buildProjectInfo(
   appJsonPath: string,
   buildProfile: BuildProfile,
   appJson: AppConfig,
+  requestedModule?: string,
 ): Promise<ProjectInfo> {
   const product = buildProfile.app?.products?.[0]?.name ?? "default";
   const modules = buildProfile.modules ?? [];
@@ -80,6 +83,7 @@ async function buildProjectInfo(
     product,
     modules,
     buildProfilePath,
+    requestedModule,
   );
   const moduleName = moduleInfo.name ?? "entry";
   const moduleSrcPath = normalizeModuleSrcPath(
@@ -125,9 +129,10 @@ async function selectConfiguredHapModule(
   product: string,
   modules: ProjectModuleInfo[],
   buildProfilePath: string,
+  requestedModule?: string,
 ): Promise<ProjectModuleInfo> {
   try {
-    return await selectHapModule(project, product, modules);
+    return await selectHapModule(project, product, modules, requestedModule);
   } catch (error) {
     throw configFileError(buildProfilePath, error);
   }
@@ -307,7 +312,28 @@ export async function selectHapModule(
   project: string,
   product: string,
   modules: ProjectModuleInfo[],
+  requestedModule?: string,
 ): Promise<ProjectModuleInfo> {
+  if (requestedModule) {
+    const requested = modules.find(
+      (moduleInfo) => moduleInfo.name?.trim() === requestedModule,
+    );
+    if (!requested || !appliesToProduct(requested, product)) {
+      throw new Error(`project_hap_module_invalid: ${requestedModule}`);
+    }
+    const srcPath = requested.srcPath?.trim();
+    if (!srcPath) {
+      throw new Error(`project_hap_module_invalid: ${requestedModule}`);
+    }
+    const hvigorfile = await fs.readFile(
+      path.join(project, normalizeModuleSrcPath(srcPath), "hvigorfile.ts"),
+      "utf-8",
+    );
+    if (!/\bhapTasks\b/.test(hvigorfile)) {
+      throw new Error(`project_hap_module_invalid: ${requestedModule}`);
+    }
+    return requested;
+  }
   const matches: ProjectModuleInfo[] = [];
   for (const moduleInfo of modules) {
     if (!appliesToProduct(moduleInfo, product)) continue;

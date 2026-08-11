@@ -6,6 +6,7 @@ import { discoverProjectInfo } from "./project/discovery.js";
 
 export interface LoadExecutionConfigInput {
   project: string;
+  module?: string;
   machineConfigPath?: string;
   testClass?: string;
   testCaseTimeoutMs?: number;
@@ -19,7 +20,8 @@ export async function loadExecutionConfig(
     input.machineConfigPath ?? defaultMachineConfigPath(),
   );
   const raw = await readJsonConfigFile<RawExecutionConfig>(machineConfigPath);
-  const projectInfo = await discoverProjectInfo(project);
+  const requestedModule = input.module ?? raw.module;
+  const projectInfo = await discoverProjectInfo(project, requestedModule);
   try {
     validateRawConfig(raw);
 
@@ -119,7 +121,7 @@ function buildExecutionConfig(input: {
   return {
     project,
     product: raw.product ?? projectInfo.product,
-    module: raw.module ?? projectInfo.moduleName,
+    module: input.input.module ?? raw.module ?? projectInfo.moduleName,
     moduleSrcPath: projectInfo.moduleSrcPath,
     sharedModules: projectInfo.sharedModules,
     bundleName: raw.bundleName ?? projectInfo.bundleName,

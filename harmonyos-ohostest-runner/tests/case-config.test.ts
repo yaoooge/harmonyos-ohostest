@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  buildCaseExecutionGroups,
   buildCaseDeviceSelection,
   loadCaseMetadata,
 } from "../src/case/config.js";
@@ -40,6 +41,11 @@ test("loadCaseMetadata reads metadata and resolves patch and base paths", async 
       device_test_suites: {
         phone: [{ suite: "CommonPassToPassTest" }],
       },
+      device_hap_modules: {
+        phone: "multisettingdefaultsample",
+        tablet: "multisettingdefaultsample",
+        pc: "multisettingpcsample",
+      },
     }),
     "utf-8",
   );
@@ -55,6 +61,113 @@ test("loadCaseMetadata reads metadata and resolves patch and base paths", async 
   assert.deepEqual(
     metadata.deviceTestSuites.phone?.map((suite) => suite.suite),
     ["CommonPassToPassTest"],
+  );
+  assert.deepEqual(metadata.deviceHapModules, {
+    phone: "multisettingdefaultsample",
+    tablet: "multisettingdefaultsample",
+    pc: "multisettingpcsample",
+  });
+});
+
+test("buildCaseExecutionGroups normalizes fold devices and groups by HAP module", () => {
+  const groups = buildCaseExecutionGroups(
+    {
+      caseId: "case",
+      caseDir: "/tmp/case",
+      baseProject: "/tmp/base",
+      testPatch: "/tmp/case/test_patch.patch",
+      goldenPatch: "/tmp/case/golden_patch.patch",
+      testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
+      failToPass: [],
+      passToPass: [],
+      deviceHapModules: {
+        phone: "multisettingdefaultsample",
+        tablet: "multisettingdefaultsample",
+        pc: "multisettingpcsample",
+      },
+    },
+    {
+      devices: ["phone", "wide_fold", "foldable", "tablet", "pc"],
+      deviceSuiteOverrides: {
+        phone: ["PhoneSuite"],
+        wide_fold: ["WideFoldSuite"],
+        foldable: ["FoldableSuite"],
+        tablet: ["TabletSuite"],
+        pc: ["PcSuite"],
+      },
+      runAllTests: false,
+    },
+  );
+
+  assert.deepEqual(groups, [
+    {
+      module: "multisettingdefaultsample",
+      selection: {
+        devices: ["phone", "wide_fold", "foldable", "tablet"],
+        deviceSuiteOverrides: {
+          phone: ["PhoneSuite"],
+          wide_fold: ["WideFoldSuite"],
+          foldable: ["FoldableSuite"],
+          tablet: ["TabletSuite"],
+        },
+        runAllTests: false,
+      },
+    },
+    {
+      module: "multisettingpcsample",
+      selection: {
+        devices: ["pc"],
+        deviceSuiteOverrides: { pc: ["PcSuite"] },
+        runAllTests: false,
+      },
+    },
+  ]);
+});
+
+test("loadCaseMetadata rejects unsupported device HAP mapping keys", async (t) => {
+  const caseDir = await makeTempCase(t);
+  await fs.mkdir(path.join(caseDir, "..", "base"), { recursive: true });
+  await fs.writeFile(path.join(caseDir, "test_patch.patch"), "", "utf-8");
+  await fs.writeFile(path.join(caseDir, "golden_patch.patch"), "", "utf-8");
+  await fs.writeFile(
+    path.join(caseDir, "metadata.json"),
+    JSON.stringify({
+      case_id: "case",
+      base_project: "base",
+      test_patch: "test_patch.patch",
+      golden_patch: "golden_patch.patch",
+      device_hap_modules: {
+        phone: "entry",
+        foldable: "entry",
+      },
+    }),
+    "utf-8",
+  );
+
+  await assert.rejects(
+    loadCaseMetadata(caseDir),
+    /metadata\.device_hap_modules supports only phone, tablet, and pc/,
+  );
+});
+
+test("buildCaseExecutionGroups requires a normalized deployment mapping", () => {
+  assert.throws(
+    () =>
+      buildCaseExecutionGroups(
+        {
+          caseId: "case",
+          caseDir: "/tmp/case",
+          baseProject: "/tmp/base",
+          testPatch: "/tmp/case/test_patch.patch",
+          goldenPatch: "/tmp/case/golden_patch.patch",
+          testCaseTimeoutMs: AA_TEST_CASE_TIMEOUT_MS,
+          failToPass: [],
+          passToPass: [],
+          deviceHapModules: { tablet: "entry" },
+        },
+        { devices: ["foldable"], runAllTests: true },
+      ),
+    /metadata\.device_hap_modules\.phone is required for device foldable/,
   );
 });
 
