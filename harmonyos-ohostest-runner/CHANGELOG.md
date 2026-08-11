@@ -5,6 +5,19 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.8] - 2026-08-11
+
+### 新增
+
+- case 模式支持通过 `device_hap_modules` 为 phone、tablet 和 pc 配置部署 HAP，并将 wide_fold、foldable 归一到 phone 后按 HAP 模块分组构建、安装和执行。
+- 多 HAP 执行结果支持输出可选的 `module_runs`，记录每个模块对应的设备、构建产物与诊断信息。
+- 增加部署类型映射、HAP 模块有效性、折叠设备归一、模块分组、产物匹配和结果聚合测试，同时保持未配置映射的单 HAP 用例兼容。
+
+### 修复
+
+- 设备处于锁屏状态导致测试启动失败时，唤醒设备并自动重试一次。
+- TestAbility 启动或销毁过程出现瞬时异常时自动重试，降低设备切换期间的偶发失败。
+
 ## [0.1.7] - 2026-08-04
 
 ### 变更
