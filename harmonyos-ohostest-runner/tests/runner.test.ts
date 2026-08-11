@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runOhosTestMatrix } from "../src/matrix/runner.js";
+import { isRetriableTestLaunchResult } from "../src/execution/runner.js";
 
 async function makeProject(
   t: test.TestContext,
@@ -327,6 +328,32 @@ test("runOhosTestMatrix wakes and retries once when aa test reports a locked scr
   assert.equal(
     commands.filter((command) => command.includes("power-shell wakeup")).length,
     2,
+  );
+});
+
+test("isRetriableTestLaunchResult recognizes transient ability launch failures", () => {
+  const result = (stdout: string) => ({
+    stdout,
+    stderr: "",
+    exitCode: 0,
+    durationMs: 1,
+  });
+
+  assert.equal(
+    isRetriableTestLaunchResult(
+      result("TestFinished-ResultMsg: TestAbility onDestroy unexpectedly!"),
+    ),
+    true,
+  );
+  assert.equal(
+    isRetriableTestLaunchResult(result("Can not connect to AAMS")),
+    true,
+  );
+  assert.equal(
+    isRetriableTestLaunchResult(
+      result("OHOS_REPORT_RESULT: stream=Tests run: 1, Pass: 1"),
+    ),
+    false,
   );
 });
 

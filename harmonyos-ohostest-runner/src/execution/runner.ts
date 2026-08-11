@@ -471,7 +471,7 @@ async function runLoggedTestWithUnlockRetry(
   testClass?: string,
 ): Promise<LoggedTestRun> {
   let testRun = await runLoggedTest(input, suiteClass, testClass);
-  if (!isLockedScreenResult(testRun.commandResult)) {
+  if (!isRetriableTestLaunchResult(testRun.commandResult)) {
     return testRun;
   }
   await prepareRunDevice(input);
@@ -480,8 +480,8 @@ async function runLoggedTestWithUnlockRetry(
   return testRun;
 }
 
-function isLockedScreenResult(result: CommandResult): boolean {
-  return /10106102|device screen is locked|unlock screen failed/i.test(
+export function isRetriableTestLaunchResult(result: CommandResult): boolean {
+  return /10106102|device screen is locked|unlock screen failed|TestAbility onDestroy unexpectedly|Can not connect to AAMS/i.test(
     `${result.stdout}\n${result.stderr}`,
   );
 }
