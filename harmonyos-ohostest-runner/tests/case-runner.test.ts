@@ -76,22 +76,29 @@ async function makeProject(root: string): Promise<string> {
   return project;
 }
 
-async function writeMachineConfig(root: string): Promise<string> {
+async function writeMachineConfig(
+  root: string,
+  options: { foldServerScript?: string; hdc?: string } = {},
+): Promise<string> {
   const machineConfigPath = path.join(root, "machine.json");
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
       paths: {
-        hdc: "/fake/hdc",
+        hdc: options.hdc ?? "/fake/hdc",
         hvigorw: "/fake/hvigorw",
         emulatorBin: "/fake/Emulator",
         emulatorDeployedDir: "/fake/deployed",
+        ...(options.foldServerScript
+          ? { foldServerScript: options.foldServerScript }
+          : {}),
       },
       devices: [
         {
           id: "phone",
           target: "127.0.0.1:15001",
           testSuites: ["MachineSuite"],
+          ...(options.foldServerScript ? { foldControl: true } : {}),
         },
       ],
     }),
@@ -484,7 +491,10 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
   });
   await makeProject(root);
   const caseDir = await writeCase(root);
-  const machineConfigPath = await writeMachineConfig(root);
+  const machineConfigPath = await writeMachineConfig(root, {
+    foldServerScript: path.resolve("src/fold/assets/fold-server.py"),
+    hdc: "/fake/hdc-case-all",
+  });
   const out = path.join(root, "runs", "result");
   const commands: string[] = [];
 
@@ -497,11 +507,16 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
     commandExecutor: async (command) => {
       commands.push(command);
       return {
-        stdout: command.includes("aa test")
-          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
-          : command.includes("list targets")
-            ? "127.0.0.1:15001\tConnected\n"
-            : "",
+        stdout:
+          command.includes(" rport ") || command.includes(" fport rm ")
+            ? "OK"
+            : command.endsWith("fport ls")
+              ? "[Empty]"
+              : command.includes("aa test")
+                ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+                : command.includes("list targets")
+                  ? "127.0.0.1:15001\tConnected\n"
+                  : "",
         stderr: "",
         exitCode: 0,
         durationMs: 1,
@@ -531,6 +546,14 @@ test("runOhosTestCase applies test and golden patches, runs swe and answer, and 
   assert.equal(result.artifacts.commandLog, "commands.jsonl");
   assert.equal(
     commands.filter((command) => command.includes("aa test")).length,
+    2,
+  );
+  assert.equal(
+    commands.filter((command) => command.includes(" rport ")).length,
+    2,
+  );
+  assert.equal(
+    commands.filter((command) => command.includes(" fport rm ")).length,
     2,
   );
   assert.equal(

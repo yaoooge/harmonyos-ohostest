@@ -21,10 +21,10 @@ import argparse
 import http.server
 import json
 import subprocess
-import sys
 import os
 import socket
 import platform
+import signal
 
 # ============ 配置 ============
 # fold-server 监听端口（宿主机）
@@ -155,6 +155,7 @@ def find_hdc():
 EMULATOR = find_emulator()
 HDC = find_hdc()
 EMULATOR_INSTANCE = os.environ.get("EMULATOR_INSTANCE", "Mate X7")
+OWNER_TOKEN = ""
 
 # 启动时打印探测到的路径（方便排查）
 def print_paths():
@@ -176,12 +177,7 @@ def setup_fport(target=None):
             hdc_base.extend(["-t", target])
 
         # 确认 hdc 可用
-        check_cmd = hdc_base + ["version"]
-        if platform.system() == "Windows":
-            check_cmd = f'"{HDC}" version'
-            check = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5, shell=True)
-        else:
-            check = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5)
+        check = run_command(hdc_base + ["version"], timeout=5)
         if check.returncode != 0:
             print(f"  [x] hdc 不可用: {HDC}")
             print(f"    错误: {check.stderr}")
@@ -194,18 +190,12 @@ def setup_fport(target=None):
             f'fport rm tcp:{PORT} tcp:{DEVICE_PORT}',
         ]:
             rm_cmd = hdc_base + cmd_rm.split()
-            if platform.system() == "Windows":
-                subprocess.run(f'"{HDC}" {cmd_rm}', capture_output=True, text=True, timeout=5, shell=True)
-            else:
-                subprocess.run(rm_cmd, capture_output=True, text=True, timeout=5)
+            run_command(rm_cmd, timeout=5)
 
         # 建立 rport（设备内 DEVICE_PORT → 宿主机 PORT）
         cmd_rport = f'rport tcp:{DEVICE_PORT} tcp:{PORT}'
         rport_cmd = hdc_base + cmd_rport.split()
-        if platform.system() == "Windows":
-            result = subprocess.run(f'"{HDC}" {cmd_rport}', capture_output=True, text=True, timeout=5, shell=True)
-        else:
-            result = subprocess.run(rport_cmd, capture_output=True, text=True, timeout=5)
+        result = run_command(rport_cmd, timeout=5)
 
         output = (result.stdout or "") + (result.stderr or "")
         if "OK" in output:
@@ -225,6 +215,31 @@ def setup_fport(target=None):
         print(f"  [x] 建立端口转发异常: {e}")
         return False
 
+
+def cleanup_fport(target=None):
+    """幂等删除当前实例创建的反向端口转发。"""
+    hdc_base = [HDC]
+    if target:
+        hdc_base.extend(["-t", target])
+    try:
+        result = run_command(
+            hdc_base + ["fport", "rm", f"tcp:{DEVICE_PORT}", f"tcp:{PORT}"],
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def run_command(command, timeout):
+    """使用参数数组执行命令，兼容 Windows 空格路径并避免 shell 拼接。"""
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
 # 允许的折叠状态
 VALID_STATES = {"open", "half-open", "close"}
 
@@ -235,14 +250,10 @@ VALID_ROTATIONS = {"left", "right"}
 def do_fold(state):
     """执行 Emulator 折叠命令"""
     try:
-        if platform.system() == "Windows":
-            cmd = f'"{EMULATOR}" -instance "{EMULATOR_INSTANCE}" -foldedState {state}'
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, shell=True)
-        else:
-            result = subprocess.run(
-                [EMULATOR, "-instance", EMULATOR_INSTANCE, "-foldedState", state],
-                capture_output=True, text=True, timeout=10
-            )
+        result = run_command(
+            [EMULATOR, "-instance", EMULATOR_INSTANCE, "-foldedState", state],
+            timeout=10,
+        )
         output = (result.stdout or "") + (result.stderr or "")
         success = "success" in output
         if not success:
@@ -258,14 +269,10 @@ def do_fold(state):
 def do_rotation(direction):
     """执行 Emulator 旋转命令"""
     try:
-        if platform.system() == "Windows":
-            cmd = f'"{EMULATOR}" -instance "{EMULATOR_INSTANCE}" -rotation {direction}'
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10, shell=True)
-        else:
-            result = subprocess.run(
-                [EMULATOR, "-instance", EMULATOR_INSTANCE, "-rotation", direction],
-                capture_output=True, text=True, timeout=10
-            )
+        result = run_command(
+            [EMULATOR, "-instance", EMULATOR_INSTANCE, "-rotation", direction],
+            timeout=10,
+        )
         output = (result.stdout or "") + (result.stderr or "")
         success = "success" in output
         if not success:
@@ -311,7 +318,10 @@ class FoldHandler(http.server.BaseHTTPRequestHandler):
             self._respond(200, {"success": success, "direction": direction, "message": msg})
 
         elif self.path == "/health":
-            self._respond(200, {"status": "ok"})
+            payload = {"status": "ok"}
+            if OWNER_TOKEN:
+                payload["ownerToken"] = OWNER_TOKEN
+            self._respond(200, payload)
         else:
             self._respond(404, {"error": "unknown endpoint"})
 
@@ -343,7 +353,7 @@ def get_local_ips():
 
 
 def main():
-    global EMULATOR_INSTANCE, PORT, DEVICE_PORT
+    global EMULATOR_INSTANCE, PORT, DEVICE_PORT, OWNER_TOKEN
     parser = argparse.ArgumentParser(description="Fold control HTTP server")
     parser.add_argument(
         "--profile",
@@ -361,11 +371,25 @@ def main():
         default=None,
         help="hdc target address (e.g. 127.0.0.1:5555). Required when multiple devices are connected.",
     )
+    parser.add_argument(
+        "--forwarding",
+        choices=["self", "external"],
+        default="self",
+        help="Port forwarding owner (default: self)",
+    )
+    parser.add_argument(
+        "--owner-token",
+        default="",
+        help="Runner owner token returned by /health in external mode",
+    )
     args = parser.parse_args()
+    if args.forwarding == "external" and not args.owner_token:
+        parser.error("--owner-token is required when --forwarding external")
     EMULATOR_INSTANCE = args.profile
     PORT = args.port
     DEVICE_PORT = args.port - 1
     TARGET = args.target
+    OWNER_TOKEN = args.owner_token
 
     print("=" * 50)
     print(f"折叠控制 HTTP 服务启动")
@@ -380,32 +404,31 @@ def main():
     server = http.server.HTTPServer(("0.0.0.0", PORT), FoldHandler)
     print(f"  [ok] HTTP 服务已绑定 0.0.0.0:{PORT}")
 
-    print("  建立 hdc 端口转发...")
-    setup_fport(TARGET)
+    def handle_termination(_signum, _frame):
+        raise KeyboardInterrupt
 
-    print(f"")
-    print(f"  连接方式: 模拟器内访问 127.0.0.1:{PORT}（通过 fport 转发到本服务）")
-    print(f"  API: GET /fold?state=open|half-open|close")
-    print(f"  API: GET /rotation?direction=left|right")
-    print(f"  按 Ctrl+C 停止")
-    print("=" * 50)
-
+    signal.signal(signal.SIGTERM, handle_termination)
     try:
+        if args.forwarding == "self":
+            print("  建立 hdc 端口转发...")
+            if not setup_fport(TARGET):
+                raise SystemExit(1)
+        else:
+            print("  hdc 端口转发由 runner 管理")
+
+        print(f"")
+        print(f"  连接方式: 模拟器内访问 127.0.0.1:{DEVICE_PORT}（通过 rport 转发到本服务）")
+        print(f"  API: GET /fold?state=open|half-open|close")
+        print(f"  API: GET /rotation?direction=left|right")
+        print(f"  按 Ctrl+C 停止")
+        print("=" * 50)
+
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n服务已停止")
-        # 清理端口转发
-        try:
-            cmd_rm = f'fport rm tcp:{DEVICE_PORT} tcp:{PORT}'
-            hdc_rm = [HDC]
-            if TARGET:
-                hdc_rm.extend(["-t", TARGET])
-            if platform.system() == "Windows":
-                subprocess.run(f'"{HDC}" {cmd_rm}', capture_output=True, text=True, timeout=5, shell=True)
-            else:
-                subprocess.run(hdc_rm + cmd_rm.split(), capture_output=True, text=True, timeout=5)
-        except Exception:
-            pass
+    finally:
+        if args.forwarding == "self":
+            cleanup_fport(TARGET)
         server.server_close()
 
 

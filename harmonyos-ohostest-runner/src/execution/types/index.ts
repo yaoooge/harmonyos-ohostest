@@ -20,7 +20,8 @@ export type BlockedReason =
   | "install_failed"
   | "test_command_failed"
   | "test_output_unparseable"
-  | "fold_server_start_failed";
+  | "fold_server_start_failed"
+  | "fold_cleanup_failed";
 
 export interface RawExecutionConfig {
   product?: string;

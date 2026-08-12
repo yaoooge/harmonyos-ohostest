@@ -13,8 +13,8 @@ import { buildAaTestCommand, parseAaTestOutput } from "./ohostest.js";
 import { deriveExecutionStatus } from "./result.js";
 import {
   deployFoldTrigger,
-  killFoldServer,
-  startFoldServer,
+  startManagedFoldServer,
+  stopManagedFoldServer,
 } from "../fold/server.js";
 import type { FoldServerInstance } from "../fold/server.js";
 import { createLoggedCommandExecutor } from "../logging/command.js";
@@ -230,28 +230,33 @@ function shouldWaitBeforeNextEmulatorStart(
 async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
   const started = Date.now();
   let foldServer: FoldServerInstance | undefined;
+  let result: DeviceRunResult;
 
   try {
     const emulatorBlock = await startEmulatorIfNeeded(input, started);
-    if (emulatorBlock) return emulatorBlock;
-
-    await prepareRunDevice(input);
-
-    const foldResult = await startFoldSupportIfNeeded(input, started);
-    if (foldResult.blocked) return foldResult.blocked;
-    foldServer = foldResult.foldServer;
-
-    await installRunHaps(input);
-    const suiteResults = await runDeviceSuites(input, started);
-    if (isBlockedDeviceResult(suiteResults)) return suiteResults;
-
-    return passedDevice(input, started, suiteResults, foldServer);
+    if (emulatorBlock) {
+      result = emulatorBlock;
+    } else {
+      await prepareRunDevice(input);
+      const foldResult = await startFoldSupportIfNeeded(input, started);
+      if (foldResult.blocked) {
+        result = foldResult.blocked;
+      } else {
+        foldServer = foldResult.foldServer;
+        if (foldServer) await deployDeviceFoldTrigger(input, foldServer);
+        await installRunHaps(input);
+        const suiteResults = await runDeviceSuites(input, started);
+        result = isBlockedDeviceResult(suiteResults)
+          ? suiteResults
+          : passedDevice(input, started, suiteResults, foldServer);
+      }
+    }
   } catch (error) {
     const reason = reasonFromError(error);
-    return blockedDevice(input, started, reason);
-  } finally {
-    await cleanupRunDevice(input, foldServer);
+    result = blockedDevice(input, started, reason);
   }
+  const foldCleanupFailed = await cleanupRunDevice(input, foldServer);
+  return foldCleanupFailed ? applyFoldCleanupFailure(result) : result;
 }
 
 async function startEmulatorIfNeeded(
@@ -287,15 +292,20 @@ async function startFoldSupportIfNeeded(
     return {};
   }
   try {
-    const foldServer = await startFoldServer(
-      input.device,
-      input.config.paths.foldServerScript,
-    );
-    await deployDeviceFoldTrigger(input, foldServer);
+    const foldServer = await startManagedFoldServer({
+      device: input.device,
+      foldServerScript: input.config.paths.foldServerScript,
+      hdc: input.config.paths.hdc,
+      runCommand: input.runCommand,
+    });
     return { foldServer };
-  } catch {
+  } catch (error) {
+    const blockedReason =
+      error instanceof Error && error.message.includes("fold_cleanup_failed")
+        ? "fold_cleanup_failed"
+        : "fold_server_start_failed";
     return {
-      blocked: blockedDevice(input, started, "fold_server_start_failed"),
+      blocked: blockedDevice(input, started, blockedReason),
     };
   }
 }
@@ -401,12 +411,23 @@ function passedDevice(
 async function cleanupRunDevice(
   input: DeviceRunInput,
   foldServer: FoldServerInstance | undefined,
-): Promise<void> {
+): Promise<boolean> {
+  let foldCleanupFailed = false;
   if (foldServer) {
-    killFoldServer(foldServer);
+    const cleanup = await stopManagedFoldServer({
+      instance: foldServer,
+      hdc: input.config.paths.hdc,
+      runCommand: input.runCommand,
+    });
+    if (!cleanup.ok) {
+      foldCleanupFailed = true;
+      input.logger.recordError(new Error(cleanup.diagnostics.join("; ")), {
+        errorCode: "FOLD_CLEANUP_FAILED",
+      });
+    }
   }
   if (!input.device.startEmulator || input.keepEmulators) {
-    return;
+    return foldCleanupFailed;
   }
   await input.runDetached(buildStopEmulatorCommand(input.config, input.device));
   await waitForTargetDisconnected({
@@ -418,6 +439,7 @@ async function cleanupRunDevice(
     pollCommand: (command) => input.executor(command, input.config.project),
     logger: input.logger,
   });
+  return foldCleanupFailed;
 }
 
 function blockedDevice(
@@ -606,5 +628,18 @@ function reasonFromError(error: unknown): DeviceRunResult["blockedReason"] {
   if (message.includes("test_output_unparseable")) {
     return "test_output_unparseable";
   }
+  if (message.includes("fold_cleanup_failed")) {
+    return "fold_cleanup_failed";
+  }
   return "test_command_failed";
+}
+
+export function applyFoldCleanupFailure(
+  result: DeviceRunResult,
+): DeviceRunResult {
+  return {
+    ...result,
+    status: "blocked",
+    blockedReason: "fold_cleanup_failed",
+  };
 }

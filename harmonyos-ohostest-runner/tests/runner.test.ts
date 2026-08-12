@@ -5,6 +5,12 @@ import path from "node:path";
 import test from "node:test";
 import { runOhosTestMatrix } from "../src/matrix/runner.js";
 import { isRetriableTestLaunchResult } from "../src/execution/runner.js";
+import * as executionRunner from "../src/execution/runner.js";
+import type { DeviceRunResult } from "../src/execution/types/index.js";
+import {
+  readFoldServerState,
+  removeFoldServerState,
+} from "../src/fold/server.js";
 
 async function makeProject(
   t: test.TestContext,
@@ -110,31 +116,86 @@ async function makeProject(
   return root;
 }
 
-async function makeMachineConfig(project: string): Promise<string> {
+async function makeMachineConfig(
+  project: string,
+  options: {
+    foldServerScript?: string;
+    hdc?: string;
+    devices?: Array<Record<string, unknown>>;
+  } = {},
+): Promise<string> {
   const machineConfigPath = path.join(project, "machine.json");
   await fs.writeFile(
     machineConfigPath,
     JSON.stringify({
       paths: {
-        hdc: "/fake/hdc",
+        hdc: options.hdc ?? "/fake/hdc",
         hvigorw: "/fake/hvigorw",
         ohpm: "/fake/ohpm",
         emulatorBin: "/fake/Emulator",
         emulatorDeployedDir: "/fake/deployed",
+        ...(options.foldServerScript
+          ? { foldServerScript: options.foldServerScript }
+          : {}),
       },
-      devices: [
-        {
-          id: "phone",
-          target: "127.0.0.1:15001",
-          profile: "Mate 80 Pro",
-          hdcPort: 15001,
-        },
-      ],
+      devices: options.devices ?? [
+          {
+            id: "phone",
+            target: "127.0.0.1:15001",
+            profile: "Mate 80 Pro",
+            hdcPort: 15001,
+            ...(options.foldServerScript ? { foldControl: true } : {}),
+          },
+        ],
     }),
     "utf-8",
   );
   return machineConfigPath;
 }
+
+test("fold cleanup failure blocks the device without discarding test results", () => {
+  const applyCleanupFailure = (
+    executionRunner as unknown as {
+      applyFoldCleanupFailure?: (
+        result: DeviceRunResult,
+      ) => DeviceRunResult;
+    }
+  ).applyFoldCleanupFailure;
+  assert.equal(typeof applyCleanupFailure, "function");
+  const result: DeviceRunResult = {
+    id: "foldable",
+    target: "127.0.0.1:15003",
+    status: "passed",
+    testsRun: 3,
+    failures: 0,
+    errors: 0,
+    passes: 3,
+    ignored: 0,
+    suiteResults: [
+      {
+        suiteClass: "FoldControlTest",
+        status: "passed",
+        testsRun: 3,
+        failures: 0,
+        errors: 0,
+        passes: 3,
+        ignored: 0,
+        reportCode: 0,
+        ok: true,
+        testCases: [],
+      },
+    ],
+    durationMs: 10,
+    log: "commands.jsonl",
+    foldServerPort: 8766,
+  };
+
+  assert.deepEqual(applyCleanupFailure!(result), {
+    ...result,
+    status: "blocked",
+    blockedReason: "fold_cleanup_failed",
+  });
+});
 
 test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", async (t) => {
   const project = await makeProject(t, { withSharedModule: true });
@@ -226,6 +287,243 @@ test("runOhosTestMatrix builds, installs, runs tests, and writes artifacts", asy
     1,
   );
 });
+
+test("runOhosTestMatrix manages forwarding around a fold-enabled device run", async (t) => {
+  const project = await makeProject(t);
+  await prepareRunnerArtifacts(project);
+  const machineConfigPath = await makeMachineConfig(project, {
+    foldServerScript: path.resolve("src/fold/assets/fold-server.py"),
+    hdc: "/fake/hdc-runner-managed",
+  });
+  const out = path.join(project, ".ohostest-runs/fold/result.json");
+  const commands: string[] = [];
+
+  const commandExecutor = async (command: string) => {
+    commands.push(command);
+    if (command.includes("list targets")) {
+      return commandResult("127.0.0.1:15001\tConnected\n");
+    }
+    if (command.includes(" rport ") || command.includes(" fport rm ")) {
+      return commandResult("OK");
+    }
+    if (command.endsWith("fport ls")) {
+      return commandResult("[Empty]");
+    }
+    if (command.includes("aa test")) {
+      return commandResult(
+        "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n",
+      );
+    }
+    return commandResult("");
+  };
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out,
+    commandExecutor,
+  });
+  const repeated = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, ".ohostest-runs/fold-repeat/result.json"),
+    commandExecutor,
+  });
+
+  assert.equal(result.devices[0]?.status, "passed");
+  assert.equal(repeated.devices[0]?.status, "passed");
+  const addIndex = commands.findIndex((command) => command.includes(" rport "));
+  const testIndex = commands.findIndex((command) => command.includes("aa test"));
+  const removeIndex = commands.findIndex(
+    (command, index) => index > testIndex && command.includes(" fport rm "),
+  );
+  assert.ok(addIndex >= 0 && addIndex < testIndex);
+  assert.ok(removeIndex > testIndex);
+  assert.equal(commands.filter((command) => command.includes(" rport ")).length, 2);
+  assert.equal(commands.filter((command) => command.includes(" fport rm ")).length, 2);
+});
+
+test("runOhosTestMatrix releases one fold device before starting the next", async (t) => {
+  const project = await makeProject(t);
+  await prepareRunnerArtifacts(project);
+  const hdc = "/fake/hdc-runner-multi-fold";
+  const targets = ["127.0.0.1:15001", "127.0.0.1:15002"];
+  const machineConfigPath = await makeMachineConfig(project, {
+    foldServerScript: path.resolve("src/fold/assets/fold-server.py"),
+    hdc,
+    devices: targets.map((target, index) => ({
+      id: `fold-${index + 1}`,
+      target,
+      profile: `Mate X${index + 7}`,
+      hdcPort: 15001 + index,
+      foldControl: true,
+    })),
+  });
+  const commands: string[] = [];
+  t.after(async () => {
+    for (const target of targets) {
+      const stored = await readFoldServerState(hdc, target);
+      if (!stored) continue;
+      try {
+        process.kill(stored.state.pid, "SIGTERM");
+      } catch {
+        // The runner may already have stopped it.
+      }
+      await removeFoldServerState(stored.stateFile);
+    }
+  });
+
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, ".ohostest-runs/fold-multi/result.json"),
+    commandExecutor: async (command) => {
+      commands.push(command);
+      if (command.includes("list targets")) {
+        return commandResult(targets.map((target) => `${target}\tConnected`).join("\n"));
+      }
+      if (command.includes(" rport ") || command.includes(" fport rm ")) {
+        return commandResult("OK");
+      }
+      if (command.endsWith("fport ls")) return commandResult("[Empty]");
+      if (command.includes("aa test")) {
+        return commandResult(
+          "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n",
+        );
+      }
+      return commandResult("");
+    },
+  });
+
+  assert.deepEqual(result.devices.map((device) => device.status), ["passed", "passed"]);
+  const firstTest = commands.findIndex(
+    (command) => command.includes(`-t ${targets[0]}`) && command.includes("aa test"),
+  );
+  const firstRemove = commands.findIndex(
+    (command) => command.includes(`-t ${targets[0]}`) && command.includes(" fport rm "),
+  );
+  const secondAdd = commands.findIndex(
+    (command) => command.includes(`-t ${targets[1]}`) && command.includes(" rport "),
+  );
+  assert.ok(firstTest >= 0 && firstRemove > firstTest && secondAdd > firstRemove);
+});
+
+test("runOhosTestMatrix cleans fold resources when trigger deployment throws", async (t) => {
+  const project = await makeProject(t);
+  await prepareRunnerArtifacts(project);
+  const machineConfigPath = await makeMachineConfig(project, {
+    foldServerScript: path.resolve("src/fold/assets/fold-server.py"),
+    hdc: "/fake/hdc-runner-deploy-error",
+  });
+  const commands: string[] = [];
+  t.after(async () => {
+    const stored = await readFoldServerState(
+      "/fake/hdc-runner-deploy-error",
+      "127.0.0.1:15001",
+    );
+    if (!stored) return;
+    try {
+      process.kill(stored.state.pid, "SIGTERM");
+    } catch {
+      // The runner may already have stopped it.
+    }
+    await removeFoldServerState(stored.stateFile);
+  });
+
+  await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, ".ohostest-runs/fold-error/result.json"),
+    commandExecutor: async (command) => {
+      commands.push(command);
+      if (command.includes("list targets")) {
+        return commandResult("127.0.0.1:15001\tConnected\n");
+      }
+      if (command.includes(" rport ") || command.includes(" fport rm ")) {
+        return commandResult("OK");
+      }
+      if (command.endsWith("fport ls")) {
+        return commandResult("[Empty]");
+      }
+      if (command.includes("@ohosTest") && !command.includes("--stacktrace")) {
+        throw new Error("test hap rebuild failed");
+      }
+      return commandResult("");
+    },
+  });
+
+  assert.ok(commands.some((command) => command.includes(" rport ")));
+  assert.ok(commands.some((command) => command.includes(" fport rm ")));
+});
+
+test("runOhosTestMatrix preserves test counts when fold cleanup remains blocked", async (t) => {
+  const project = await makeProject(t);
+  await prepareRunnerArtifacts(project);
+  const machineConfigPath = await makeMachineConfig(project, {
+    foldServerScript: path.resolve("src/fold/assets/fold-server.py"),
+    hdc: "/fake/hdc-runner-cleanup-error",
+  });
+  t.after(async () => {
+    const stored = await readFoldServerState(
+      "/fake/hdc-runner-cleanup-error",
+      "127.0.0.1:15001",
+    );
+    if (stored) await removeFoldServerState(stored.stateFile);
+  });
+  const occupiedTasks = Array.from(
+    { length: 100 },
+    (_value, offset) => `tcp:${8765 + offset} tcp:${8766 + offset}`,
+  ).join("\n");
+
+  const result = await runOhosTestMatrix({
+    project,
+    machineConfigPath,
+    out: path.join(project, ".ohostest-runs/fold-cleanup/result.json"),
+    commandExecutor: async (command) => {
+      if (command.includes("list targets")) {
+        return commandResult("127.0.0.1:15001\tConnected\n");
+      }
+      if (command.includes(" rport ") || command.includes(" fport rm ")) {
+        return commandResult("OK");
+      }
+      if (command.endsWith("fport ls")) {
+        return commandResult(occupiedTasks);
+      }
+      if (command.includes("aa test")) {
+        return commandResult(
+          "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n",
+        );
+      }
+      return commandResult("");
+    },
+  });
+
+  assert.equal(result.devices[0]?.status, "blocked");
+  assert.equal(result.devices[0]?.blockedReason, "fold_cleanup_failed");
+  assert.equal(result.devices[0]?.testsRun, 1);
+  assert.equal(result.devices[0]?.passes, 1);
+});
+
+async function prepareRunnerArtifacts(project: string): Promise<void> {
+  const appOutput = path.join(
+    project,
+    "products/entry/build/default/outputs/default",
+  );
+  const testOutput = path.join(
+    project,
+    "products/entry/build/default/outputs/ohosTest",
+  );
+  await fs.mkdir(appOutput, { recursive: true });
+  await fs.mkdir(testOutput, { recursive: true });
+  await fs.writeFile(path.join(appOutput, "entry-default-unsigned.hap"), "");
+  await fs.writeFile(
+    path.join(testOutput, "entry-ohosTest-unsigned.hap"),
+    "",
+  );
+}
+
+function commandResult(stdout: string) {
+  return { stdout, stderr: "", exitCode: 0, durationMs: 1 };
+}
 
 test("runOhosTestMatrix wakes and retries once when aa test reports a locked screen", async (t) => {
   const project = await makeProject(t);

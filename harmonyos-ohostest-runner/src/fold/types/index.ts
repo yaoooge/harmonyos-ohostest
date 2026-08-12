@@ -1,1 +1,1 @@
-export type { FoldServerInstance } from "./server.js";
+export type { ManagedFoldServerInstance as FoldServerInstance } from "../resourceManager.js";

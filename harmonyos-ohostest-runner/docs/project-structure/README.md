@@ -28,13 +28,18 @@ src/                              # 源码根目录
       json5ish.ts                 # 解析 HarmonyOS 配置中的 JSON5 风格文本
       projectDiscovery.ts         # 发现 product、entry module、bundle、test module 和 HAP 路径
   fold/                           # 折叠屏和旋转控制
-    server.ts                     # 启停 fold-server、健康检查、部署 FoldTrigger.ets
+    server.ts                     # 导出受管生命周期、健康检查和 FoldTrigger 部署接口
+    resourceManager.ts            # 管理 fold-server 进程、端口、转发和残留恢复
+    forwarding.ts                 # 构造带 target 的跨平台 HDC 转发命令
+    state.ts                      # 原子保存 target 级 fold-server 状态
     foldTriggerTemplate.ts        # 生成注入端口后的 FoldTrigger.ets 内容
     assets/                       # 折叠屏控制运行资产
       FoldTrigger.ets             # 设备端折叠/旋转触发工具源码
       fold-server.py              # 宿主机 HTTP 服务，调用 DevEco Emulator 命令
     types/                        # 折叠屏控制类型
     utils/                        # 折叠屏控制辅助工具
+      healthCheck.ts              # 校验 fold-server 健康状态和 owner token
+      ports.ts                    # 查找可用宿主机/设备端口对
   shared/                         # 共享基础能力
     command.ts                    # 命令执行、detached 进程启动和命令日志记录
     types/                        # 共享类型

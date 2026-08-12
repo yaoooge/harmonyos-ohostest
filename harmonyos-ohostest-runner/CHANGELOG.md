@@ -5,6 +5,14 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [未发布]
+
+### 修复
+
+- 由 runner 统一管理 fold-server 进程、宿主机端口和 HDC 反向转发，支持重复执行、SWE→Answer、多设备串行及异常中断后的 target 级残留恢复。
+- 使用 owner token 校验 fold-server 身份；端口被外部服务占用时不误杀，并通过 `fold_cleanup_failed` 保留已有测试统计后阻断设备。
+- fold-server 增加 `self`/`external` 转发模式，HDC 和 Emulator 改用参数数组执行，修复 Windows 空格路径、target 丢失和负 PID 终止问题。
+
 ## [0.1.8] - 2026-08-11
 
 ### 新增
