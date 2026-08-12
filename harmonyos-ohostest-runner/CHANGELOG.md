@@ -5,7 +5,7 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
-## [未发布]
+## [0.1.9] - 2026-08-12
 
 ### 修复
 
