@@ -63,8 +63,54 @@ async function makeTempProject(
   return { project, modulePath, original };
 }
 
+async function addHspModule(
+  project: string,
+  options: { deviceTypes?: string[]; applyToProducts?: string[] } = {},
+): Promise<{ modulePath: string; original: string }> {
+  const buildProfilePath = path.join(project, "build-profile.json5");
+  const buildProfile = parseJson5ish(
+    await fs.readFile(buildProfilePath, "utf-8"),
+  ) as { app: object; modules: object[] };
+  buildProfile.modules.push({
+    name: "common",
+    srcPath: "./commons/common",
+    ...(options.applyToProducts
+      ? {
+          targets: [
+            { name: "default", applyToProducts: options.applyToProducts },
+          ],
+        }
+      : {}),
+  });
+  await fs.writeFile(
+    buildProfilePath,
+    `${JSON.stringify(buildProfile, null, 2)}\n`,
+    "utf-8",
+  );
+  const moduleRoot = path.join(project, "commons", "common");
+  await fs.mkdir(moduleRoot, { recursive: true });
+  await fs.writeFile(
+    path.join(moduleRoot, "hvigorfile.ts"),
+    "import { hspTasks } from '@ohos/hvigor-ohos-plugin';\nexport default { system: hspTasks, plugins: [] };\n",
+    "utf-8",
+  );
+  const modulePath = path.join(moduleRoot, "src", "main", "module.json5");
+  await fs.mkdir(path.dirname(modulePath), { recursive: true });
+  const original = `{
+    // Preserve the HSP config too.
+    "module": {
+      "name": "common",
+      "type": "shared",
+      "deviceTypes": ${JSON.stringify(options.deviceTypes ?? ["phone"])}
+    }
+  }\n`;
+  await fs.writeFile(modulePath, original, "utf-8");
+  return { modulePath, original };
+}
+
 test("withSweTabletCompatibility temporarily adds tablet and restores the original file", async (t) => {
   const { project, modulePath, original } = await makeTempProject(t);
+  const hsp = await addHspModule(project);
 
   const result = await withSweTabletCompatibility({
     project,
@@ -74,16 +120,22 @@ test("withSweTabletCompatibility temporarily adds tablet and restores the origin
         module: { deviceTypes: string[] };
       };
       assert.deepEqual(config.module.deviceTypes, ["phone", "tablet"]);
+      const hspConfig = parseJson5ish(
+        await fs.readFile(hsp.modulePath, "utf-8"),
+      ) as { module: { deviceTypes: string[] } };
+      assert.deepEqual(hspConfig.module.deviceTypes, ["phone", "tablet"]);
       return "completed";
     },
   });
 
   assert.equal(result, "completed");
   assert.equal(await fs.readFile(modulePath, "utf-8"), original);
+  assert.equal(await fs.readFile(hsp.modulePath, "utf-8"), hsp.original);
 });
 
 test("withSweTabletCompatibility restores the original file and rethrows callback errors", async (t) => {
   const { project, modulePath, original } = await makeTempProject(t);
+  const hsp = await addHspModule(project);
   const expectedError = new Error("run failed");
 
   await assert.rejects(
@@ -97,6 +149,20 @@ test("withSweTabletCompatibility restores the original file and rethrows callbac
     (error) => error === expectedError,
   );
   assert.equal(await fs.readFile(modulePath, "utf-8"), original);
+  assert.equal(await fs.readFile(hsp.modulePath, "utf-8"), hsp.original);
+});
+
+test("withSweTabletCompatibility ignores HSP modules outside the selected product", async (t) => {
+  const { project } = await makeTempProject(t);
+  const hsp = await addHspModule(project, { applyToProducts: ["tablet"] });
+
+  await withSweTabletCompatibility({
+    project,
+    enabled: true,
+    run: async () => {
+      assert.equal(await fs.readFile(hsp.modulePath, "utf-8"), hsp.original);
+    },
+  });
 });
 
 test("withSweTabletCompatibility rejects invalid deviceTypes with a stable error", async (t) => {

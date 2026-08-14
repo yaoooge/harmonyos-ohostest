@@ -26,34 +26,46 @@ export async function withSweTabletCompatibility<T>(input: {
     return input.run();
   }
 
-  const modulePath = await resolveEntryMainModulePath(
+  const modulePaths = await resolveCompatibilityModulePaths(
     input.project,
     input.module,
   );
-  const original = await readCompatibilityFile(modulePath);
-  const config = readMainModuleConfig(original, modulePath);
-  const deviceTypes = readDeviceTypes(config, modulePath);
-  if (deviceTypes.includes("tablet")) {
+  const compatibilityFiles = await Promise.all(
+    modulePaths.map(async (modulePath) => {
+      const original = await readCompatibilityFile(modulePath);
+      const config = readMainModuleConfig(original, modulePath);
+      const deviceTypes = readDeviceTypes(config, modulePath);
+      return { modulePath, original, config, deviceTypes };
+    }),
+  );
+  const filesToUpdate = compatibilityFiles.filter(
+    ({ deviceTypes }) => !deviceTypes.includes("tablet"),
+  );
+  if (filesToUpdate.length === 0) {
     return input.run();
   }
 
-  config.module!.deviceTypes = [...deviceTypes, "tablet"];
-  await writeTemporaryConfig(modulePath, config);
+  const updatedFiles: typeof filesToUpdate = [];
   let runError: unknown;
   try {
+    for (const file of filesToUpdate) {
+      file.config.module!.deviceTypes = [...file.deviceTypes, "tablet"];
+      updatedFiles.push(file);
+      await writeTemporaryConfig(file.modulePath, file.config);
+    }
     return await input.run();
   } catch (error) {
     runError = error;
     throw error;
   } finally {
-    await restoreOriginalConfig(modulePath, original, runError);
+    await restoreOriginalConfigs(updatedFiles, runError);
   }
 }
 
-async function resolveEntryMainModulePath(
+async function resolveCompatibilityModulePaths(
   project: string,
   module?: string,
-): Promise<string> {
+): Promise<string[]> {
   const buildProfilePath = path.join(project, "build-profile.json5");
   let buildProfile: BuildProfile;
   try {
@@ -83,12 +95,50 @@ async function resolveEntryMainModulePath(
       `swe_tablet_compatibility_entry_module_not_found: ${buildProfilePath}`,
     );
   }
-  return path.join(
+  const entryModulePath = path.join(
     project,
     normalizeModuleSrcPath(srcPath),
     "src",
     "main",
     "module.json5",
+  );
+  const hspModulePaths = await resolveHspMainModulePaths(
+    project,
+    product,
+    buildProfile.modules,
+  );
+  return [entryModulePath, ...hspModulePaths];
+}
+
+async function resolveHspMainModulePaths(
+  project: string,
+  product: string,
+  modules: ProjectModuleInfo[],
+): Promise<string[]> {
+  const modulePaths: string[] = [];
+  for (const moduleInfo of modules) {
+    const srcPath = moduleInfo.srcPath?.trim();
+    if (!srcPath || !appliesToProduct(moduleInfo, product)) continue;
+    const normalizedSrcPath = normalizeModuleSrcPath(srcPath);
+    const hvigorfile = await fs.readFile(
+      path.join(project, normalizedSrcPath, "hvigorfile.ts"),
+      "utf-8",
+    );
+    if (!/\bhspTasks\b/.test(hvigorfile)) continue;
+    modulePaths.push(
+      path.join(project, normalizedSrcPath, "src", "main", "module.json5"),
+    );
+  }
+  return modulePaths;
+}
+
+function appliesToProduct(
+  moduleInfo: ProjectModuleInfo,
+  product: string,
+): boolean {
+  if (!moduleInfo.targets || moduleInfo.targets.length === 0) return true;
+  return moduleInfo.targets.some((target) =>
+    target.applyToProducts?.includes(product),
   );
 }
 
@@ -162,6 +212,17 @@ async function restoreOriginalConfig(
       `swe_tablet_compatibility_restore_failed: ${modulePath}: ${formatError(error)}${runFailure}`,
     );
   }
+}
+
+async function restoreOriginalConfigs(
+  files: Array<{ modulePath: string; original: string }>,
+  runError: unknown,
+): Promise<void> {
+  await Promise.all(
+    files.map((file) =>
+      restoreOriginalConfig(file.modulePath, file.original, runError),
+    ),
+  );
 }
 
 function formatError(error: unknown): string {
