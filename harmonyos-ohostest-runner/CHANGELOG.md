@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.10] - 2026-08-14
+
+### 修复
+
+- case 模式执行包含 tablet 的 SWE 工程时，除目标 HAP 外也为当前 product 下的 HSP 模块临时补充 `tablet` 设备类型，并在执行完成或异常后恢复原始配置。
+
 ## [0.1.9] - 2026-08-12
 
 ### 修复
