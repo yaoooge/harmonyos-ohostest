@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.11] - 2026-08-18
+
+### 新增
+
+- case 模式支持通过 `bundle_name_isolation`为swe、answer重新分配包名，默认值为false。开启时：SWE 轮包名 → <bundleName>.swe；Answer 轮 → <bundleName>.answer.<Date.now()>。每轮安装前自动 bm dump -a 扫描并卸载<bundleName>. 前缀历史残留包（旧时间戳包与 .swe 包均会被清理）
+
 ## [0.1.10] - 2026-08-14
 
 ### 修复

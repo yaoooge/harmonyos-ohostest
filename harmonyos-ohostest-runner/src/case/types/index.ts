@@ -34,6 +34,7 @@ export interface CaseMetadata {
   testCaseTimeoutMs: number;
   failToPass: string[];
   passToPass: string[];
+  bundleNameIsolation?: boolean;
   deviceTestSuites?: Record<string, CaseDeviceSuite[]>;
   enabledDevices?: string[];
   deviceHapModules?: DeviceHapModules;

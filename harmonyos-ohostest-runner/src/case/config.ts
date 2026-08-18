@@ -20,6 +20,7 @@ interface RawCaseMetadata {
   test_case_timeout_ms?: unknown;
   fail_to_pass?: unknown;
   pass_to_pass?: unknown;
+  bundle_name_isolation?: unknown;
   device_test_suites?: unknown;
   enabled_devices?: unknown;
   device_hap_modules?: unknown;
@@ -72,6 +73,10 @@ export async function loadCaseMetadata(
       testCaseTimeoutMs: readTestCaseTimeoutMs(raw.test_case_timeout_ms),
       failToPass: readStringArray(raw.fail_to_pass, "metadata.fail_to_pass"),
       passToPass: readStringArray(raw.pass_to_pass, "metadata.pass_to_pass"),
+      bundleNameIsolation: readOptionalBoolean(
+        raw.bundle_name_isolation,
+        "metadata.bundle_name_isolation",
+      ),
       deviceTestSuites: readDeviceTestSuites(raw.device_test_suites),
       enabledDevices: readOptionalStringArray(
         raw.enabled_devices,
@@ -306,6 +311,17 @@ function readOptionalStringArray(
     throw new Error(`${label} must contain at least one device.`);
   }
   return dedupe(values);
+}
+
+function readOptionalBoolean(
+  value: unknown,
+  label: string,
+): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new Error(`${label} must be a boolean.`);
+  }
+  return value;
 }
 
 function readDeviceTestSuites(

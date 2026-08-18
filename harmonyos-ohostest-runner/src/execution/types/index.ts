@@ -61,6 +61,11 @@ export interface RawDeviceConfig {
   testSuites?: unknown;
 }
 
+export interface BundleNameCleanup {
+  prefixes: string[];
+  keep: string[];
+}
+
 export interface ExecutionConfig {
   project: string;
   product: string;
@@ -68,6 +73,7 @@ export interface ExecutionConfig {
   moduleSrcPath: string;
   sharedModules: SharedModuleInfo[];
   bundleName: string;
+  bundleNameCleanup?: BundleNameCleanup;
   testModule: string;
   testRunner: string;
   testClass?: string;

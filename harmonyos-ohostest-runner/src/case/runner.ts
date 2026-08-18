@@ -22,6 +22,13 @@ import {
 } from "./config.js";
 import { applyPatch, copyBaseProject } from "./patch.js";
 import {
+  applyBundleNameCleanup,
+  buildIsolatedBundleNames,
+  cleanupTargetsFor,
+  readBundleName,
+  rewriteBundleName,
+} from "./bundleIsolation.js";
+import {
   deriveCaseStatus,
   metadataForResult,
   renderCaseSummary,
@@ -141,24 +148,38 @@ async function runCaseComparisons(
     commandExecutor: runPatchCommand,
   });
 
-  const { executionGroups, deviceSelection } = await prepareCaseExecution(
-    input,
-    context,
-  );
+  const isolateBundles = context.metadata.bundleNameIsolation === true;
+  const originalBundleName = isolateBundles
+    ? await readBundleName(context.workProject)
+    : undefined;
+  const isolatedNames = originalBundleName
+    ? buildIsolatedBundleNames(originalBundleName)
+    : undefined;
+
+  let prepared = await prepareCaseExecution(input, context);
+  if (isolatedNames && originalBundleName) {
+    await rewriteBundleName(context.workProject, isolatedNames.swe);
+    prepared = await prepareCaseExecution(input, context);
+    applyBundleNameCleanup(
+      prepared.executionGroups,
+      cleanupTargetsFor(originalBundleName, [isolatedNames.swe]),
+    );
+  }
+
   if (runMode === "swe" || runMode === "all") {
-    const tabletModule = executionGroups.find((group) =>
+    const tabletModule = prepared.executionGroups.find((group) =>
       group.deviceSelection.devices.includes("tablet"),
     )?.module;
     context.runs.swe = await withSweTabletCompatibility({
       project: context.workProject,
       module: tabletModule,
-      enabled: deviceSelection.devices.includes("tablet"),
+      enabled: prepared.deviceSelection.devices.includes("tablet"),
       run: () =>
         runCaseExecution(
           input,
           context,
-          executionGroups,
-          deviceSelection,
+          prepared.executionGroups,
+          prepared.deviceSelection,
           "swe",
         ),
     });
@@ -171,11 +192,20 @@ async function runCaseComparisons(
       label: "golden_patch",
       commandExecutor: runPatchCommand,
     });
+    if (isolatedNames && originalBundleName) {
+      const answerBundleName = isolatedNames.answer();
+      await rewriteBundleName(context.workProject, answerBundleName);
+      prepared = await prepareCaseExecution(input, context);
+      applyBundleNameCleanup(
+        prepared.executionGroups,
+        cleanupTargetsFor(originalBundleName, [answerBundleName]),
+      );
+    }
     context.runs.answer = await runCaseExecution(
       input,
       context,
-      executionGroups,
-      deviceSelection,
+      prepared.executionGroups,
+      prepared.deviceSelection,
       "answer",
     );
   }
