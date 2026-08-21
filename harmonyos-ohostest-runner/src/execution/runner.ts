@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 import { defaultCommandExecutor, runDetachedCommand } from "./command.js";
 import { sleep } from "./utils/sleep.js";
@@ -135,9 +136,13 @@ async function createExecutionRunContext(
     runDetached: bindLoggedCommandExecutor(
       detachedExecutor,
       input.logger,
-      config.project,
+      detachedCommandCwd(),
     ),
   };
+}
+
+function detachedCommandCwd(): string {
+  return os.tmpdir();
 }
 
 async function deployDefaultFoldTriggerIfNeeded(
@@ -179,7 +184,7 @@ async function runSelectedDevices(
         runDetached: bindLoggedCommandExecutor(
           (command, cwd) => runDetachedCommand(command, cwd),
           logger,
-          context.config.project,
+          detachedCommandCwd(),
         ),
       }),
     );

@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.12] - 2026-08-21
+
+### 修复
+
+- Windows 上模拟器 start/stop 分离进程以工作目录为 cwd，导致运行结束后删除 `work/` 目录时报 EBUSY 而静默保留；分离命令改用系统临时目录作为 cwd，目录清理增加最多 10 次重试，清理失败时输出警告并写入 diagnostics。
+
 ## [0.1.11] - 2026-08-18
 
 ### 新增

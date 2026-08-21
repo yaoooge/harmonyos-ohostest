@@ -623,11 +623,15 @@ async function cleanupCaseWorkdir(
       await fs.rm(path.join(context.outDir, "work"), {
         recursive: true,
         force: true,
+        maxRetries: 10,
+        retryDelay: 500,
       });
     } catch (error) {
-      result.diagnostics.push(
-        `cleanup_failed: ${error instanceof Error ? error.message : String(error)}`,
+      const message = `cleanup_failed: ${error instanceof Error ? error.message : String(error)}`;
+      console.warn(
+        `警告：清理 work 目录失败（${path.join(context.outDir, "work")}）：${message}`,
       );
+      result.diagnostics.push(message);
       await fs.writeFile(
         context.out,
         `${JSON.stringify(result, null, 2)}\n`,

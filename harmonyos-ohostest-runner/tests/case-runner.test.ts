@@ -919,6 +919,44 @@ test("runOhosTestCase writes configuration failures to result and command log", 
   assert.match(commandLog, /build-profile\.json5/);
 });
 
+test("runOhosTestCase removes the work directory when keepWorkdir is not set", async (t) => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "ohostest-case-cleanup-"),
+  );
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeProject(root);
+  const caseDir = await writeCase(root);
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs");
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    skipBuild: true,
+    commandExecutor: async (command) => ({
+      stdout: command.includes("aa test")
+        ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+        : command.includes("list targets")
+          ? "127.0.0.1:15001\tConnected\n"
+          : "",
+      stderr: "",
+      exitCode: 0,
+      durationMs: 1,
+    }),
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.artifacts.workdir, undefined);
+  assert.ok(result.diagnostics.every((item) => !item.includes("cleanup_failed")));
+  await assert.rejects(
+    fs.stat(path.join(out, "work")),
+    (error: NodeJS.ErrnoException) => error.code === "ENOENT",
+  );
+});
+
 test("runOhosTestCase logs metadata failures before context creation", async (t) => {
   const root = await fs.mkdtemp(
     path.join(os.tmpdir(), "ohostest-case-metadata-error-"),
