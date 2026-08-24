@@ -40,7 +40,10 @@ import type {
   CaseResult,
   RunCaseInput,
 } from "./types/index.js";
-import { withSweTabletCompatibility } from "./deviceCompatibility.js";
+import {
+  applyAnswerDeviceTypeChecks,
+  withCaseDeviceTypeCompatibility,
+} from "./deviceCompatibility.js";
 
 interface CaseRunContext {
   startedTime: number;
@@ -167,22 +170,13 @@ async function runCaseComparisons(
   }
 
   if (runMode === "swe" || runMode === "all") {
-    const tabletModule = prepared.executionGroups.find((group) =>
-      group.deviceSelection.devices.includes("tablet"),
-    )?.module;
-    context.runs.swe = await withSweTabletCompatibility({
-      project: context.workProject,
-      module: tabletModule,
-      enabled: prepared.deviceSelection.devices.includes("tablet"),
-      run: () =>
-        runCaseExecution(
-          input,
-          context,
-          prepared.executionGroups,
-          prepared.deviceSelection,
-          "swe",
-        ),
-    });
+    context.runs.swe = await runCaseExecution(
+      input,
+      context,
+      prepared.executionGroups,
+      prepared.deviceSelection,
+      "swe",
+    );
   }
 
   if (runMode === "answer" || runMode === "all") {
@@ -393,23 +387,34 @@ async function runPreparedExecutionGroup(
   outDir: string,
   phase: "swe" | "answer",
 ): Promise<ExecutionResult> {
-  const execution = await runExecution({
-    config: group.executionConfig,
-    plan: buildExecutionPlan(group.executionConfig, {
-      devices: group.deviceSelection.devices,
-      suitesByDevice: group.deviceSelection.deviceSuiteOverrides,
-      runAllTests: group.deviceSelection.runAllTests,
-    }),
-    outDir,
-    skipBuild: input.skipBuild,
-    keepEmulators: input.keepEmulators,
-    commandExecutor: input.commandExecutor,
-    logger: context.logger.child({
-      phase,
-      ...(group.module ? { module: group.module } : {}),
-    }),
+  const compatibility = await withCaseDeviceTypeCompatibility({
+    project: context.workProject,
+    module: group.module,
+    deviceIds: group.deviceSelection.devices,
+    run: () =>
+      runExecution({
+        config: group.executionConfig,
+        plan: buildExecutionPlan(group.executionConfig, {
+          devices: group.deviceSelection.devices,
+          suitesByDevice: group.deviceSelection.deviceSuiteOverrides,
+          runAllTests: group.deviceSelection.runAllTests,
+        }),
+        outDir,
+        skipBuild: input.skipBuild,
+        keepEmulators: input.keepEmulators,
+        commandExecutor: input.commandExecutor,
+        logger: context.logger.child({
+          phase,
+          ...(group.module ? { module: group.module } : {}),
+        }),
+      }),
   });
-  return execution;
+  return phase === "answer"
+    ? applyAnswerDeviceTypeChecks(
+        compatibility.value,
+        compatibility.assessment,
+      )
+    : compatibility.value;
 }
 
 async function writeCaseRunResult(

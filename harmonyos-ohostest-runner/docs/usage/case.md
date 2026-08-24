@@ -230,6 +230,31 @@ case 模式按以下优先级决定设备与 suite：
 配置 `device_hap_modules` 后，每轮先按 HAP 模块分组，再分别构建、安装和执行。
 例如上述映射会将 phone、wide_fold、foldable、tablet 放入默认 HAP 组，将 pc 放入 PC HAP 组。
 
+### deviceTypes 兼容执行与检查
+
+case runner 会根据每个执行组最终选中的设备计算 HAP 所需的 `module.deviceTypes`：
+
+| 设备 ID | module.deviceTypes |
+| --- | --- |
+| `phone`、`wide_fold`、`foldable` | `phone` |
+| `tablet` | `tablet` |
+| `pc`、`2in1` | `2in1` |
+| `tv`、`wearable`、`car` | 同名类型 |
+
+自定义设备 ID 无法可靠推断类型，runner 会在构建前报告 `case_device_type_unmapped`。
+
+SWE 和 Answer 每个 HAP 执行组构建前，runner 都会保存目标 HAP 以及当前 product 下 HSP
+的原始 `src/main/module.json5`，临时补充缺失类型，并在构建、安装和测试结束或异常后逐字恢复。
+该兼容层不会修改 `src/ohosTest/module.json5`。
+
+SWE 缺少设备类型视为基线状态，不额外计为失败。Answer 会根据临时补充前的 HAP 原始声明，
+为每台设备追加 `ModuleDeviceTypeCompatibility` 检查：声明正确时通过；缺失时即使后续 UT
+已经执行，也会产生 `should_declare_<deviceType>_device_type` 失败。临时兼容只保证测试可执行，
+不会掩盖答案漏改 `deviceTypes` 的问题。
+
+`CaseResult.status` 仍表示执行链是否完成。Answer 的声明错误通过设备的 `failed` 状态、测试
+失败计数和 case summary 中的 `runner_check`/`incorrect` 表达。
+
 ## 输出结果
 
 默认输出目录：
@@ -321,6 +346,9 @@ test case 分类只来自 `metadata.json`：
 - `metadata.fail_to_pass` 中的 test case 归为 `fail_to_pass`。
 - 同时出现在两边时归为 `conflict`，固定判为 `incorrect`。
 - 未出现在任一数组中时归为 `unclassified`，固定判为 `incorrect`。
+
+runner 生成的 `ModuleDeviceTypeCompatibility` 用例归为 `runner_check`，只要求 Answer 通过；
+它不参与 SWE 侧统计，也不要求写入 `pass_to_pass` 或 `fail_to_pass`。
 
 当 suite 没有解析到 test case 明细时，输出 `none parsed` 行，并用 suite 级状态作为 actual，但分类为 `unclassified`。
 

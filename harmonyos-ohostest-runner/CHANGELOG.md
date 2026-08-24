@@ -5,6 +5,14 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.1.13] - 2026-08-24
+
+### 修复
+
+- case 模式按执行组为 SWE 和 Answer 临时补齐 HAP/HSP 所需的 `deviceTypes`，避免答案漏声明目标设备时在 UT 执行前被构建或安装阻断。
+- Answer 使用临时补齐前的 HAP 原始声明生成 `ModuleDeviceTypeCompatibility` 检查，在继续执行后续 UT 的同时保留 `deviceTypes` 能力点判定。
+- 支持 phone、折叠设备、tablet、PC/2in1、TV、wearable 和 car 的规范设备类型映射，多 HAP 各组独立修改并恢复原始配置。
+
 ## [0.1.12] - 2026-08-21
 
 ### 修复
