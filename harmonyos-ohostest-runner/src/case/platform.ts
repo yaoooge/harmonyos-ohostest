@@ -6,7 +6,8 @@ export function readPlatformSettings(raw: { platform?: unknown }): {
   if (
     raw.platform !== undefined &&
     raw.platform !== "native" &&
-    raw.platform !== "web"
+    raw.platform !== "web" &&
+    raw.platform !== "rn"
   ) {
     throw new Error(`case_platform_unsupported: ${String(raw.platform)}`);
   }

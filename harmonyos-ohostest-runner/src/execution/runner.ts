@@ -44,8 +44,8 @@ interface ExecutionRunContext {
   diagnostics: string[];
   logger: RunnerLogger;
   executor: NonNullable<RunExecutionInput["commandExecutor"]>;
-  runCommand: (command: string) => Promise<CommandResult>;
-  runDetached: (command: string) => Promise<CommandResult>;
+  runCommand: (command: string, runCwd?: string) => Promise<CommandResult>;
+  runDetached: (command: string, runCwd?: string) => Promise<CommandResult>;
 }
 
 interface DeviceRunInput {
@@ -57,8 +57,8 @@ interface DeviceRunInput {
   keepEmulators: boolean;
   logger: RunnerLogger;
   executor: NonNullable<RunExecutionInput["commandExecutor"]>;
-  runCommand: (command: string) => Promise<CommandResult>;
-  runDetached: (command: string) => Promise<CommandResult>;
+  runCommand: (command: string, runCwd?: string) => Promise<CommandResult>;
+  runDetached: (command: string, runCwd?: string) => Promise<CommandResult>;
 }
 
 type TestRunInput = Pick<
@@ -546,9 +546,9 @@ function bindLoggedCommandExecutor(
   executor: NonNullable<RunExecutionInput["commandExecutor"]>,
   logger: RunnerLogger,
   cwd: string,
-): (command: string) => Promise<CommandResult> {
+): (command: string, runCwd?: string) => Promise<CommandResult> {
   const logged = createLoggedCommandExecutor(executor, logger, cwd);
-  return (command) => logged(command, cwd);
+  return (command, runCwd) => logged(command, runCwd ?? cwd);
 }
 
 function emptySuiteResult(

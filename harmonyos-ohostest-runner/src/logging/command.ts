@@ -8,10 +8,10 @@ export function createLoggedCommandExecutor(
   executor: CommandExecutor,
   logger: RunnerLogger,
   cwd: string,
-): CommandExecutor {
-  return async (command: string): Promise<CommandResult> => {
+): (command: string, runCwd?: string) => Promise<CommandResult> {
+  return async (command: string, runCwd?: string): Promise<CommandResult> => {
     try {
-      const result = await executor(command, cwd);
+      const result = await executor(command, runCwd ?? cwd);
       logger.recordCommand(command, result);
       return result;
     } catch (error) {

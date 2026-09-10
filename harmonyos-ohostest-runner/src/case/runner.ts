@@ -9,6 +9,7 @@ import { defaultCommandExecutor } from "../execution/command.js";
 import { createLoggedCommandExecutor } from "../logging/command.js";
 import { RunnerLogger } from "../logging/logger.js";
 import { formatRunnerError } from "../logging/types.js";
+import { removeWithRetry, stopHvigorDaemon } from "../execution/utils/rm.js";
 import type {
   CommandResult,
   BuildResult,
@@ -58,6 +59,7 @@ interface CaseRunContext extends CaseWorkspace {
   metadata: CaseMetadata;
   outDir: string;
   out: string;
+  hvigorw: string;
   diagnostics: string[];
   runs: CaseResult["runs"];
   logger: RunnerLogger;
@@ -157,7 +159,7 @@ async function runCaseComparisons(
 
   const isolateBundles = context.metadata.bundleNameIsolation === true;
   const originalBundleName = isolateBundles
-    ? await readBundleName(context.workProject)
+    ? await readBundleName(caseHarmonyProject(context))
     : undefined;
   const isolatedNames = originalBundleName
     ? buildIsolatedBundleNames(originalBundleName)
@@ -165,7 +167,7 @@ async function runCaseComparisons(
 
   let prepared = await prepareCaseExecution(input, context);
   if (isolatedNames && originalBundleName) {
-    await rewriteBundleName(context.workProject, isolatedNames.swe);
+    await rewriteBundleName(caseHarmonyProject(context), isolatedNames.swe);
     prepared = await prepareCaseExecution(input, context);
     applyBundleNameCleanup(
       prepared.executionGroups,
@@ -194,7 +196,7 @@ async function runCaseComparisons(
       prepared = await prepareCaseExecution(input, context);
     if (isolatedNames && originalBundleName) {
       const answerBundleName = isolatedNames.answer();
-      await rewriteBundleName(context.workProject, answerBundleName);
+      await rewriteBundleName(caseHarmonyProject(context), answerBundleName);
       prepared = await prepareCaseExecution(input, context);
       applyBundleNameCleanup(
         prepared.executionGroups,
@@ -246,7 +248,10 @@ async function prepareCaseExecution(
     module: initialModule,
     machineConfigPath: input.machineConfigPath,
     testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
+    ...(context.metadata.platform === "rn" ? { platform: "rn" } : {}),
   });
+  // 暴露 hvigorw 路径给 cleanupCaseWorkdir，用于关闭 daemon 释放文件锁定。
+  context.hvigorw = initialConfig.paths.hvigorw;
   const deviceSelection = buildCaseDeviceSelection(
     context.metadata,
     initialConfig,
@@ -266,6 +271,7 @@ async function prepareCaseExecution(
             module: group.module,
             machineConfigPath: input.machineConfigPath,
             testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
+            ...(context.metadata.platform === "rn" ? { platform: "rn" } : {}),
           });
     executionGroups.push({
       module: group.module,
@@ -283,6 +289,13 @@ function firstMappedModule(metadata: CaseMetadata): string | undefined {
   return metadata.deviceHapModules
     ? Object.values(metadata.deviceHapModules)[0]
     : undefined;
+}
+
+// rn 工程的鸿蒙壳在 workProject/harmony 子目录；其余平台的壳就是 workProject 本身。
+function caseHarmonyProject(context: CaseRunContext): string {
+  return context.metadata.platform === "rn"
+    ? path.join(context.workProject, "harmony")
+    : context.workProject;
 }
 
 function loggedPatchCommand(
@@ -311,6 +324,7 @@ function createCaseRunContext(
     outDir,
     out: path.join(outDir, "result.json"),
     ...caseWorkspace(metadata, outDir),
+    hvigorw: "",
     diagnostics: [],
     runs: {},
     logger,
@@ -416,7 +430,7 @@ async function runPreparedExecutionGroup(
   phase: "swe" | "answer",
 ): Promise<ExecutionResult> {
   const compatibility = await withCaseDeviceTypeCompatibility({
-    project: context.workProject,
+    project: group.executionConfig.project,
     module: group.module,
     deviceIds: group.deviceSelection.devices,
     run: () =>
@@ -438,10 +452,7 @@ async function runPreparedExecutionGroup(
       }),
   });
   return phase === "answer"
-    ? applyAnswerDeviceTypeChecks(
-        compatibility.value,
-        compatibility.assessment,
-      )
+    ? applyAnswerDeviceTypeChecks(compatibility.value, compatibility.assessment)
     : compatibility.value;
 }
 
@@ -658,12 +669,12 @@ async function cleanupCaseWorkdir(
 ): Promise<void> {
   if (!input.keepWorkdir) {
     try {
-      await fs.rm(path.join(context.outDir, "work"), {
-        recursive: true,
-        force: true,
-        maxRetries: 10,
-        retryDelay: 500,
-      });
+      // 先关闭 hvigor daemon，释放其对 work 目录内文件的锁定。
+      // 必须在删除目录前执行，否则 Windows 上 fs.rm 会报 EBUSY/resource busy or locked。
+      if (context.hvigorw) {
+        await stopHvigorDaemon(context.hvigorw, caseHarmonyProject(context));
+      }
+      await removeWithRetry(path.join(context.outDir, "work"));
     } catch (error) {
       const message = `cleanup_failed: ${error instanceof Error ? error.message : String(error)}`;
       console.warn(

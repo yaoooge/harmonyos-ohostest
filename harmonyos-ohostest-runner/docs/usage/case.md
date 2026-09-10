@@ -77,6 +77,7 @@ case/
 | 字段 | 说明 |
 |------|------|
 | `case_id` | case 标识 |
+| `platform` | 可选。`native`（缺省，纯鸿蒙工程）、`web`（Web 用例）、`rn`（RNOH 工程，见下文「platform 平台」） |
 | `base_project` | 基线工程目录名。运行器按 `<case>/<base_project>`、`<case>/../<base_project>` 顺序解析 |
 | `test_patch` | 测试 patch 文件名 |
 | `golden_patch` | 答案 patch 文件名 |
@@ -143,6 +144,44 @@ case 基线工程的模块发现规则与 matrix 模式一致：runner 通过模
 ["phone", "foldable"]
 ```
 
+## platform 平台
+
+`metadata.platform` 声明基线工程技术栈，缺省为 `native`（纯鸿蒙工程，行为不变）：
+
+| 取值 | 说明 |
+|------|------|
+| `native` | 缺省。`base_project` 即鸿蒙工程根目录 |
+| `web` | Web 用例。`base_project` 为 case 内相对路径，Case 需含 `web/` 目录；执行期间由 runner 拉起 dev 服务 |
+| `rn` | RNOH（React Native for OpenHarmony）工程 |
+
+`rn` 布局约定：`base_project` 根目录为 RN 侧（`package.json`、`metro.config.js`、RN 源码），
+鸿蒙壳工程固定位于 `base_project/harmony/` 子目录。runner 会把 hvigor/ohpm 的执行目录
+自动指向 `harmony/`，模块发现、产物路径、安装和 `aa test` 均与 native 模式一致。
+
+SWE 和 Answer 每轮构建都会在 RN 根目录完整执行一遍 RN 前置命令（顺序固定）：
+
+1. `npm install --force`（`--force` 规避 RN 依赖树的 ERESOLVE 冲突）
+2. `ohpm install`（在 `harmony/`；部分 HAR 以 `file:` 协议引用 `node_modules` 内产物，必须在 npm 安装之后）
+3. `npx react-native codegen-harmony --cpp-output-path ./harmony/<module>/src/main/cpp/generated --rnoh-module-path ./harmony/<module>/oh_modules/@rnoh/react-native-openharmony`（`--rnoh-module-path` 依赖 oh_modules，必须在 ohpm 安装之后）
+4. `npx react-native bundle-harmony --dev`（产物写入 `harmony/<module>/src/main/resources/rawfile/`，随后打进 HAP）
+
+应用 HAP 使用 `hvigorw --mode module -p product=<product> assembleHap --no-daemon`（模块模式，默认 debug）。
+RNOH 0.72 在 release 模式（项目级 `assembleApp` 的默认，含混淆与裁剪）下会破坏 NAPI 按名解析，
+导致应用启动即崩（jscrash：`NapiBridge postMessageToCpp undefined is not callable`），
+因此 rn 平台不使用 `assembleApp`。
+
+每轮重建是 SWE-bench 语义的要求：`golden_patch` 可能修改 RN 源码或 `package.json`，
+answer 轮必须重新生成 bundle 才能让 golden 的 RN 改动生效。
+
+注意事项：
+
+- `node`/`npm` 必须可用（PATH 或 `machine.json` 的 `paths.npm`）；`npx` 随 Node 提供。
+- codegen 的 ArkTS 产物与 `oh_modules/@rnoh/react-native-openharmony/ts.ts` 的
+  `export * from './generated/ts'` 注入由工程自身的 hvigor 脚本负责，runner 不做修改。
+- 产物为 unsigned HAP，直接 `hdc install -r` 安装到模拟器执行。
+- `hvigorw clean` 会对各 abi 目录执行 `ninja clean` 并删除 `CMakeCache.txt`，强制下次
+  构建重新 CMake configure，codegen 重新生成的 C++ 不会被 `.cxx` 陈旧缓存卡住；无需手动清理 `.cxx`。
+
 ## 配置来源
 
 case 模式使用 `machine.json` 中的机器相关配置：
@@ -193,6 +232,7 @@ config/machine.json
 |------|------|
 | `paths.hvigorw` | Hvigor 命令，必填；如果命令目录已加入环境变量，可填写 `hvigorw` |
 | `paths.ohpm` | ohpm 命令，可选；如果不配置，默认使用 `ohpm` |
+| `paths.npm` | npm 命令，可选；`platform: "rn"` 时用于 `npm install --force`，不配置默认用 PATH 上的 `npm` |
 | `paths.hdc` | hdc 命令，必填；如果命令目录已加入环境变量，可填写 `hdc` |
 | `paths.emulatorBin` | DevEco 模拟器命令，必填；如果模拟器目录已加入环境变量，可填写 `Emulator` |
 | `paths.emulatorDeployedDir` | 模拟器实例目录，必填 |
@@ -226,6 +266,9 @@ case 模式按以下优先级决定设备与 suite：
 6. `--run answer` 或 `--run all` 时在同一个 `work/project` 继续应用 `golden_patch`，再调用矩阵运行，输出到 `answer/result.json`。
 7. 写入 case 级 `result.json` 和 `summary.md`。未执行的一侧在 summary 中显示为 `not run`。
 8. `--keep-workdir` 为 `false` 时删除 `work/`。
+
+`platform: "rn"` 时，第 5、6 步每轮构建前会先在 RN 根目录执行 npm 安装、codegen 和
+bundle 构建（见「platform 平台」），再进入原有的 hvigor 构建、安装与测试流程。
 
 配置 `device_hap_modules` 后，每轮先按 HAP 模块分组，再分别构建、安装和执行。
 例如上述映射会将 phone、wide_fold、foldable、tablet 放入默认 HAP 组，将 pc 放入 PC HAP 组。

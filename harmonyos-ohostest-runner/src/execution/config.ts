@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { configFileError, readJsonConfigFile } from "../configFile.js";
 import type { ExecutionConfig, RawExecutionConfig } from "./types/index.js";
@@ -10,12 +11,17 @@ export interface LoadExecutionConfigInput {
   machineConfigPath?: string;
   testClass?: string;
   testCaseTimeoutMs?: number;
+  platform?: "rn";
 }
 
 export async function loadExecutionConfig(
   input: LoadExecutionConfigInput,
 ): Promise<ExecutionConfig> {
-  const project = path.resolve(input.project);
+  const requestedProject = path.resolve(input.project);
+  const project = await resolvePlatformProject(
+    requestedProject,
+    input.platform,
+  );
   const machineConfigPath = path.resolve(
     input.machineConfigPath ?? defaultMachineConfigPath(),
   );
@@ -36,10 +42,26 @@ export async function loadExecutionConfig(
       paths,
       devices,
       input,
+      rn: input.platform === "rn" ? { root: requestedProject } : undefined,
     });
   } catch (error) {
     throw configFileError(machineConfigPath, error);
   }
+}
+
+async function resolvePlatformProject(
+  project: string,
+  platform: "rn" | undefined,
+): Promise<string> {
+  if (platform !== "rn") return project;
+  const harmonyProject = path.join(project, "harmony");
+  const stat = await fs.stat(harmonyProject).catch(() => undefined);
+  if (!stat?.isDirectory()) {
+    throw new Error(
+      `case_rn_harmony_missing: rn platform requires a harmony project at ${harmonyProject}`,
+    );
+  }
+  return harmonyProject;
 }
 
 function validateRawConfig(raw: RawExecutionConfig): void {
@@ -115,8 +137,9 @@ function buildExecutionConfig(input: {
   paths: ExecutionConfig["paths"];
   devices: ExecutionConfig["devices"];
   input: LoadExecutionConfigInput;
+  rn: { root: string } | undefined;
 }): ExecutionConfig {
-  const { project, raw, projectInfo, paths, devices } = input;
+  const { project, raw, projectInfo, paths, devices, rn } = input;
   const testClass = input.input.testClass ?? raw.testClass;
   return {
     project,
@@ -131,6 +154,7 @@ function buildExecutionConfig(input: {
     testCaseTimeoutMs: input.input.testCaseTimeoutMs ?? AA_TEST_CASE_TIMEOUT_MS,
     timeoutMs: raw.timeoutMs ?? 120000,
     build: readBuildConfig(raw),
+    ...(rn ? { rn } : {}),
     paths: readResolvedPaths(paths),
     artifacts: readArtifactConfig(project, raw, projectInfo),
     devices,
@@ -151,6 +175,7 @@ function readResolvedPaths(
   return {
     hvigorw: paths.hvigorw,
     ohpm: paths.ohpm,
+    ...(paths.npm ? { npm: paths.npm } : {}),
     hdc: paths.hdc,
     emulatorBin: paths.emulatorBin,
     emulatorDeployedDir: paths.emulatorDeployedDir,
@@ -186,6 +211,7 @@ function readToolPaths(
       "config.paths.hvigorw",
     ),
     ohpm: rawPaths?.ohpm?.trim() || "ohpm",
+    ...(rawPaths?.npm?.trim() ? { npm: rawPaths.npm.trim() } : {}),
     hdc: readRequiredConfigString(rawPaths?.hdc, "config.paths.hdc"),
     emulatorBin: readRequiredConfigString(
       rawPaths?.emulatorBin,

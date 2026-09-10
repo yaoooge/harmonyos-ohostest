@@ -3,6 +3,7 @@ import type { Stats } from "node:fs";
 import path from "node:path";
 import createIgnore, { type Ignore } from "ignore";
 import { defaultCommandExecutor } from "../execution/command.js";
+import { removeWithRetry } from "../execution/utils/rm.js";
 import { shellQuote } from "../execution/utils/shellQuote.js";
 import type { CommandExecutor } from "../execution/types/index.js";
 
@@ -10,7 +11,7 @@ export async function copyBaseProject(input: {
   baseProject: string;
   workProject: string;
 }): Promise<void> {
-  await fs.rm(input.workProject, { recursive: true, force: true });
+  await removeWithRetry(input.workProject);
   await fs.mkdir(path.dirname(input.workProject), { recursive: true });
   await copyProjectEntry(input.baseProject, input.workProject, "", []);
 }

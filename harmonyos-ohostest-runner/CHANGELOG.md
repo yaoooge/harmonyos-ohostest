@@ -5,6 +5,17 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.1] - 2026-09-10
+
+### 新增
+
+- Case 支持 `metadata.platform: "rn"`（RNOH 工程）：`base_project` 根目录为 RN 侧、鸿蒙壳固定位于 `harmony/` 子目录，runner 自动把构建目录指向壳工程。SWE、Answer 每轮构建前在 RN 根目录完整执行 `npm install --force` → `ohpm install` → `react-native codegen-harmony` → `react-native bundle-harmony --dev`，再进入 hvigor 构建、安装与 ohosTest 流程；应用 HAP 使用模块模式 `assembleHap`（RNOH 0.72 的 release 产物会破坏 NAPI 按名解析导致启动即崩）。每轮重建保证 `golden_patch` 对 RN 源码和依赖的修改进入 bundle。
+- `machine.json` 新增可选 `paths.npm`（默认使用 PATH 上的 `npm`）。
+
+### 修复
+
+- JSON5 配置解析支持不带引号的属性名（DevEco/RNOH 模板风格，如 `app: {`、`bundleName: 'x'`），此前会在工程发现阶段报 `config_file_parse_failed`。
+
 ## [0.2.0] - 2026-09-10
 
 ### 新增

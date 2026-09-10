@@ -39,6 +39,7 @@ export interface RawExecutionConfig {
   paths?: {
     hvigorw?: string;
     ohpm?: string;
+    npm?: string;
     hdc?: string;
     emulatorBin?: string;
     emulatorDeployedDir?: string;
@@ -84,9 +85,13 @@ export interface ExecutionConfig {
     appTask: string;
     testTask: string;
   };
+  rn?: {
+    root: string;
+  };
   paths: {
     hvigorw: string;
     ohpm: string;
+    npm?: string;
     hdc: string;
     emulatorBin: string;
     emulatorDeployedDir: string;
@@ -139,6 +144,11 @@ export interface BuildResult {
   testHap: string;
   durationMs?: number;
   blockedReason?: string;
+}
+
+export interface BuildCommand {
+  command: string;
+  cwd: string;
 }
 
 export interface InstallArtifacts {

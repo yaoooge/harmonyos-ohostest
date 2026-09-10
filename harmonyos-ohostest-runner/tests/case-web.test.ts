@@ -18,7 +18,10 @@ test("platform settings preserve native defaults and recognize web without host 
   assert.deepEqual(readPlatformSettings({ platform: "web" }), {
     platform: "web",
   });
-  for (const platform of ["rn", "", null, 42])
+  assert.deepEqual(readPlatformSettings({ platform: "rn" }), {
+    platform: "rn",
+  });
+  for (const platform of ["flutter", "", null, 42])
     assert.throws(
       () => readPlatformSettings({ platform }),
       /case_platform_unsupported/,

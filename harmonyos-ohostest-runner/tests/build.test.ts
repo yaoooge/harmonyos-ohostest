@@ -72,6 +72,52 @@ test("runBuild installs dependencies before clean and Hvigor builds", async (t) 
   assert.deepEqual(outcome.installArtifacts?.hspPaths, []);
 });
 
+test("runBuild prepares the RN workspace around the Hvigor commands for rn cases", async (t) => {
+  const config = await makeBuildConfig(t);
+  config.rn = { root: path.join(path.dirname(config.project), "rn-root") };
+  const steps: Array<{ command: string; cwd: string }> = [];
+
+  const outcome = await runBuild({
+    config,
+    skipBuild: false,
+    diagnostics: [],
+    runCommand: async (command, cwd) => {
+      steps.push({ command, cwd });
+      return {
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  const rnRoot = config.rn.root;
+  const project = config.project;
+  assert.deepEqual(steps, [
+    { command: "npm install --force", cwd: rnRoot },
+    { command: "ohpm install", cwd: project },
+    {
+      command:
+        "npx react-native codegen-harmony --cpp-output-path ./harmony/entry/src/main/cpp/generated --rnoh-module-path ./harmony/entry/oh_modules/@rnoh/react-native-openharmony",
+      cwd: rnRoot,
+    },
+    { command: "npx react-native bundle-harmony --dev", cwd: rnRoot },
+    { command: "hvigorw clean --no-daemon", cwd: project },
+    {
+      command:
+        "hvigorw --mode module -p product=default assembleHap --no-daemon",
+      cwd: project,
+    },
+    {
+      command:
+        "hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap --no-daemon --stacktrace",
+      cwd: project,
+    },
+  ]);
+  assert.equal(outcome.result.status, "passed");
+});
+
 test("runBuild stops when clean fails", async (t) => {
   const config = await makeBuildConfig(t);
   const commands: string[] = [];
