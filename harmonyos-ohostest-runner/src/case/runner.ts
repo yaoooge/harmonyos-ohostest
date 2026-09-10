@@ -20,7 +20,14 @@ import {
   buildCaseExecutionGroups,
   loadCaseMetadata,
 } from "./config.js";
-import { applyPatch, copyBaseProject } from "./patch.js";
+import { applyPatch } from "./patch.js";
+import {
+  caseWorkspace,
+  prepareCaseWorkspace,
+  type CaseWorkspace,
+} from "./workspace.js";
+import { withWebService } from "./web/service.js";
+import { WEB_READY_URL } from "./web/constants.js";
 import {
   applyBundleNameCleanup,
   buildIsolatedBundleNames,
@@ -45,13 +52,12 @@ import {
   withCaseDeviceTypeCompatibility,
 } from "./deviceCompatibility.js";
 
-interface CaseRunContext {
+interface CaseRunContext extends CaseWorkspace {
   startedTime: number;
   startedAt: string;
   metadata: CaseMetadata;
   outDir: string;
   out: string;
-  workProject: string;
   diagnostics: string[];
   runs: CaseResult["runs"];
   logger: RunnerLogger;
@@ -101,8 +107,16 @@ async function runCaseWithLogger(
   bootstrap: CaseRunBootstrap,
 ): Promise<CaseResult> {
   let metadata: CaseMetadata;
+  let context: CaseRunContext;
   try {
     metadata = await loadCaseMetadata(bootstrap.caseDir);
+    context = createCaseRunContext(
+      input,
+      bootstrap.startedTime,
+      bootstrap.outDir,
+      metadata,
+      bootstrap.logger,
+    );
   } catch (error) {
     bootstrap.logger.recordError(error);
     const result = failedCaseResult(
@@ -115,13 +129,6 @@ async function runCaseWithLogger(
     await writeFailedCaseArtifacts(result, bootstrap.outDir);
     return result;
   }
-  const context = createCaseRunContext(
-    input,
-    bootstrap.startedTime,
-    bootstrap.outDir,
-    metadata,
-    bootstrap.logger,
-  );
   try {
     await runCaseComparisons(input, context);
   } catch (error) {
@@ -140,12 +147,9 @@ async function runCaseComparisons(
 ): Promise<void> {
   const runMode = input.runMode ?? "answer";
   const runPatchCommand = loggedPatchCommand(input, context);
-  await copyBaseProject({
-    baseProject: context.metadata.baseProject,
-    workProject: context.workProject,
-  });
+  await prepareCaseWorkspace(context.metadata, context);
   await applyPatch({
-    project: context.workProject,
+    project: context.patchRoot,
     patchFile: context.metadata.testPatch,
     label: "test_patch",
     commandExecutor: runPatchCommand,
@@ -170,7 +174,7 @@ async function runCaseComparisons(
   }
 
   if (runMode === "swe" || runMode === "all") {
-    context.runs.swe = await runCaseExecution(
+    context.runs.swe = await runCasePhase(
       input,
       context,
       prepared.executionGroups,
@@ -181,11 +185,13 @@ async function runCaseComparisons(
 
   if (runMode === "answer" || runMode === "all") {
     await applyPatch({
-      project: context.workProject,
+      project: context.patchRoot,
       patchFile: context.metadata.goldenPatch,
       label: "golden_patch",
       commandExecutor: runPatchCommand,
     });
+    if (context.webProject)
+      prepared = await prepareCaseExecution(input, context);
     if (isolatedNames && originalBundleName) {
       const answerBundleName = isolatedNames.answer();
       await rewriteBundleName(context.workProject, answerBundleName);
@@ -195,7 +201,7 @@ async function runCaseComparisons(
         cleanupTargetsFor(originalBundleName, [answerBundleName]),
       );
     }
-    context.runs.answer = await runCaseExecution(
+    context.runs.answer = await runCasePhase(
       input,
       context,
       prepared.executionGroups,
@@ -203,6 +209,28 @@ async function runCaseComparisons(
       "answer",
     );
   }
+}
+
+async function runCasePhase(
+  input: RunCaseInput,
+  context: CaseRunContext,
+  executionGroups: PreparedExecutionGroup[],
+  deviceSelection: CaseDeviceSelection,
+  phase: "swe" | "answer",
+): Promise<NonNullable<CaseResult["runs"]["swe"]>> {
+  const run = () =>
+    runCaseExecution(input, context, executionGroups, deviceSelection, phase);
+  if (!context.webProject) return run();
+  return withWebService(
+    {
+      project: context.webProject,
+      readyUrl: WEB_READY_URL,
+      outDir: context.outDir,
+      phase,
+      logger: context.logger.child({ phase }),
+    },
+    run,
+  );
 }
 
 async function prepareCaseExecution(
@@ -264,9 +292,9 @@ function loggedPatchCommand(
   const logged = createLoggedCommandExecutor(
     input.patchCommandExecutor ?? defaultCommandExecutor,
     context.logger,
-    context.workProject,
+    context.patchRoot,
   );
-  return (command) => logged(command, context.workProject);
+  return (command) => logged(command, context.patchRoot);
 }
 
 function createCaseRunContext(
@@ -282,7 +310,7 @@ function createCaseRunContext(
     metadata,
     outDir,
     out: path.join(outDir, "result.json"),
-    workProject: path.join(outDir, "work", "project"),
+    ...caseWorkspace(metadata, outDir),
     diagnostics: [],
     runs: {},
     logger,
@@ -541,7 +569,12 @@ function buildCaseArtifacts(
           ),
         }
       : {}),
-    ...(input.keepWorkdir ? { workdir: context.workProject } : {}),
+    ...(input.keepWorkdir ? { workdir: context.patchRoot } : {}),
+    ...(context.webProject
+      ? {
+          webLogs: relativeToCaseDir(context, path.join(context.outDir, "web")),
+        }
+      : {}),
   };
 }
 

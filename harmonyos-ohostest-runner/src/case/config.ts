@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { configFileError, readJsonConfigFile } from "../configFile.js";
 import { AA_TEST_CASE_TIMEOUT_MS } from "../execution/ohostest.js";
+import { readPlatformSettings } from "./platform.js";
 import type { ExecutionConfig } from "../execution/types/index.js";
 import type {
   CaseDeviceSelection,
@@ -13,6 +14,7 @@ import type {
 } from "./types/index.js";
 
 interface RawCaseMetadata {
+  platform?: unknown;
   case_id?: string;
   base_project?: string;
   test_patch?: string;
@@ -65,6 +67,7 @@ export async function loadCaseMetadata(
     );
 
     return {
+      ...readPlatformSettings(raw),
       caseId,
       caseDir,
       baseProject,

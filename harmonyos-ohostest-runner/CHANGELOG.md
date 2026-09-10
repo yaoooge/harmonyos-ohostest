@@ -5,6 +5,14 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.0] - 2026-09-10
+
+### 新增
+
+- Case 支持 `metadata.platform: "web"`：保留鸿蒙 `base_project` 与同级 `web`，在 Case 工作副本根目录应用测试和答案补丁，在鸿蒙子目录执行构建与 ohosTest；缺省 platform 的原生用例保持原有行为。
+- SWE、Answer 每轮先在 Web 副本中执行 `npm ci`，再启动 `npm run dev`，等待 HTTP 就绪后执行鸿蒙流程，结束或失败后回收本轮进程。两轮间重启服务，确保答案补丁不会通过热更新影响 SWE。
+- Web 服务支持端口占用检查、60 秒启动等待、意外退出检测和进程树清理；`npm ci` 等待成功、失败或用户取消，不设 Runner 总耗时上限；npm 缓存、临时文件及每轮日志保存在运行输出目录。
+
 ## [0.1.13] - 2026-08-24
 
 ### 修复

@@ -99,6 +99,7 @@ export function metadataForResult(
   metadata: CaseMetadata,
 ): CaseResult["metadata"] {
   return {
+    ...(metadata.platform ? { platform: metadata.platform } : {}),
     testCaseTimeoutMs: metadata.testCaseTimeoutMs,
     failToPass: metadata.failToPass,
     passToPass: metadata.passToPass,
