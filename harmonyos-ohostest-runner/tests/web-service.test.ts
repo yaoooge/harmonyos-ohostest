@@ -167,12 +167,128 @@ test("HTTP 503 never marks a Web server ready; a timeout still permits owned pro
   await assertPortFree(f.url);
 });
 
-test("Web dependency validation fails explicitly", async (t) => {
+test("Web validation accepts a missing lockfile but still requires a dev script", async (t) => {
   const f = await webFixture(t);
   await fs.unlink(path.join(f.project, "package-lock.json"));
-  await assert.rejects(validateWebProject(f.project), /web_lockfile_missing/);
+  await validateWebProject(f.project);
   await writeFile(f.project, "package.json", '{"scripts":{}}');
   await assert.rejects(validateWebProject(f.project), /web_dev_script_missing/);
+});
+
+test("Web service uses npm ci with npm-shrinkwrap.json", async (t) => {
+  const f = await webFixture(t);
+  const lockPath = path.join(f.project, "npm-shrinkwrap.json");
+  await fs.rename(path.join(f.project, "package-lock.json"), lockPath);
+  const originalLock = await fs.readFile(lockPath, "utf-8");
+  const logPath = path.join(f.out, "commands.jsonl");
+  const logger = RunnerLogger.create(logPath);
+  try {
+    await withWebService(
+      {
+        project: f.project,
+        outDir: f.out,
+        readyUrl: f.url,
+        phase: "swe",
+        logger,
+      },
+      async () => assert.equal(await (await fetch(f.url)).text(), "swe"),
+    );
+  } finally {
+    await logger.close();
+  }
+  assert.equal(await fs.readFile(lockPath, "utf-8"), originalLock);
+  await assert.rejects(fs.access(path.join(f.project, "package-lock.json")));
+  assert.match(
+    await fs.readFile(logPath, "utf-8"),
+    /npm ci --no-audit --no-fund/,
+  );
+  await assertPortFree(f.url);
+});
+
+test("Web service does not fall back to install when npm ci rejects an outdated lockfile", async (t) => {
+  const f = await webFixture(t);
+  await writeFile(
+    f.root,
+    "local-dependency/package.json",
+    JSON.stringify({ name: "local-dependency", version: "1.0.0" }),
+  );
+  const manifestPath = path.join(f.project, "package.json");
+  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf-8"));
+  manifest.dependencies = { "local-dependency": "file:../../local-dependency" };
+  await fs.writeFile(manifestPath, JSON.stringify(manifest));
+  const lockPath = path.join(f.project, "package-lock.json");
+  const originalLock = await fs.readFile(lockPath, "utf-8");
+  const logPath = path.join(f.out, "commands.jsonl");
+  const logger = RunnerLogger.create(logPath);
+  try {
+    await assert.rejects(
+      withWebService(
+        {
+          project: f.project,
+          outDir: f.out,
+          readyUrl: f.url,
+          phase: "swe",
+          logger,
+        },
+        async () => assert.fail("native work must not run"),
+      ),
+      /web_install_failed/,
+    );
+  } finally {
+    await logger.close();
+  }
+  const log = await fs.readFile(logPath, "utf-8");
+  assert.match(log, /npm ci --no-audit --no-fund/);
+  assert.doesNotMatch(log, /npm install/);
+  assert.equal(await fs.readFile(lockPath, "utf-8"), originalLock);
+  await assert.rejects(fs.access(path.join(f.out, "web/swe/dev.log")));
+});
+
+test("Unlocked Web installs local dependencies and refreshes them in each phase without generating a lock", async (t) => {
+  const f = await webFixture(t);
+  await fs.unlink(path.join(f.project, "package-lock.json"));
+  const manifest = JSON.parse(
+    await fs.readFile(path.join(f.project, "package.json"), "utf8"),
+  );
+  manifest.dependencies = {};
+  const logPath = path.join(f.out, "commands.jsonl");
+  const logger = RunnerLogger.create(logPath);
+  try {
+    for (const phase of ["swe", "answer"] as const) {
+      const dependency = `${phase}-fixture-dependency`;
+      await writeFile(
+        f.root,
+        `${dependency}/package.json`,
+        JSON.stringify({ name: dependency, version: "1.0.0" }),
+      );
+      manifest.dependencies[dependency] = `file:../../${dependency}`;
+      await writeFile(f.project, "package.json", JSON.stringify(manifest));
+      await withWebService(
+        { project: f.project, outDir: f.out, readyUrl: f.url, phase, logger },
+        async () => {
+          const installed = JSON.parse(
+            await fs.readFile(
+              path.join(f.project, "node_modules", dependency, "package.json"),
+              "utf8",
+            ),
+          );
+          assert.equal(installed.name, dependency);
+          assert.equal(await (await fetch(f.url)).text(), "swe");
+        },
+      );
+      await assert.rejects(
+        fs.access(path.join(f.project, "package-lock.json")),
+      );
+    }
+  } finally {
+    await logger.close();
+  }
+  assert.equal(
+    (await fs.readFile(logPath, "utf8")).split(
+      "npm install --no-audit --no-fund --package-lock=false",
+    ).length - 1,
+    2,
+  );
 });
 
 test("npm process wait has no wall-clock deadline and removes its abort listener after completion", async (t) => {

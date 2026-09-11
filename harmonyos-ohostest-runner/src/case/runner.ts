@@ -36,7 +36,7 @@ import {
   type CaseWorkspace,
 } from "./workspace.js";
 import { withWebService } from "./web/service.js";
-import { WEB_READY_URL } from "./web/constants.js";
+import { WEB_READY_URL, WEB_SERVER_PORT } from "./web/constants.js";
 import {
   applyBundleNameCleanup,
   buildIsolatedBundleNames,
@@ -577,6 +577,7 @@ async function runPreparedExecutionGroup(
         outDir,
         skipBuild: input.skipBuild,
         keepEmulators: input.keepEmulators,
+        webServerPort: context.webProject ? WEB_SERVER_PORT : undefined,
         commandExecutor: input.commandExecutor,
         logger: context.logger.child({
           phase,

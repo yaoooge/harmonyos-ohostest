@@ -32,15 +32,22 @@ export async function validateWebProject(project: string): Promise<void> {
   ) {
     throw new Error("web_dev_script_missing: package.json scripts.dev");
   }
+}
+
+export async function resolveNpmInstallCommand(
+  project: string,
+): Promise<"ci" | "install"> {
   const hasLock = await Promise.all(
     ["package-lock.json", "npm-shrinkwrap.json"].map(async (file) =>
       (
-        await fs.stat(path.join(project, file)).catch(() => undefined)
+        await fs.stat(path.join(project, file)).catch((error: unknown) => {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          return undefined;
+        })
       )?.isFile(),
     ),
   );
-  if (!hasLock.some(Boolean))
-    throw new Error("web_lockfile_missing: npm ci requires a lockfile");
+  return hasLock.some(Boolean) ? "ci" : "install";
 }
 
 export async function webEnvironment(

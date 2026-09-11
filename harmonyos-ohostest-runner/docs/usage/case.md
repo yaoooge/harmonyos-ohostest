@@ -155,6 +155,39 @@ case 基线工程的模块发现规则与 matrix 模式一致：runner 通过模
 | `rn` | RNOH（React Native for OpenHarmony）工程 |
 | `flutter` | Flutter（flutter_flutter ohos 分支）工程，需配置 `paths.flutter`（见下文） |
 
+### Web 用例
+
+`platform: "web"` 的 Case 保留鸿蒙 `base_project` 和同级 `web/`。鸿蒙应用的
+`Web.src` 统一使用 `http://127.0.0.1:5175`；`web/package.json` 必须提供 `dev` 脚本，
+确保开发服务监听宿主机的 `127.0.0.1:5175` 或 `0.0.0.0:5175`。以 Vite 为例，
+建议设置 `server.port: 5175` 和 `server.strictPort: true`，避免端口占用时自动换端口。
+
+SWE、Answer 每轮应用补丁后分别判断工作副本的 lock 文件：
+
+- 有 `package-lock.json` 或 `npm-shrinkwrap.json`：执行 `npm ci --no-audit --no-fund`。
+- 无上述文件：执行 `npm install --no-audit --no-fund --package-lock=false`。
+
+无 lock 时不生成新的 lock，避免 SWE 的安装产物改变 Answer 的安装策略。
+已有 lock 不匹配或安装失败时会直接报告错误，不自动切换安装命令。安装不设 Runner
+总耗时上限；每轮的实际命令写入 `commands.jsonl`，输出保存在 `web/<阶段>/install.log`。
+
+Web 服务启动并通过宿主机 HTTP 检查后，Runner 等待每台设备 HDC 连接就绪，再执行
+`hdc -t <target> rport tcp:5175 tcp:5175`，然后安装应用并执行该设备的测试套。
+每台设备结束后清理本次创建的转发；即使保留模拟器或使用手动启动的设备也会清理。
+已有相同映射会复用并保留，其他设备或其他端口的映射不会被删除；同一设备端口的
+不同映射、端口占用或建立失败会阻止该设备执行并报告 `web_forward_failed`。
+转发清理失败报告 `web_forward_cleanup_failed`，已收集的测试数据仍保留。
+
+多设备各自使用设备内的 5175 端口，串行访问同一轮宿主机服务；此能力不依赖
+`foldControl`，也不新增 `machine.json` 或 metadata 配置项。仅 Web Case 自动启用。
+Runner 不会自动改写 Case 中原有的 `10.0.2.2` URL；旧用例需同步修改页面地址及相关
+绝对资源地址。通过 IDE 单独运行应用时，需要另行建立 HDC 转发。
+
+ArkWeb 默认让回环地址绕过代理，但显式覆盖该规则的应用仍需验证。宿主机 HTTP
+就绪和 HDC 转发建立成功不等于页面业务加载已验证，页面内容仍由用例测试。
+
+### Flutter 用例
+
 `flutter` 布局约定：`base_project` 根目录为 Flutter 工程（`pubspec.yaml`、`lib/`），
 鸿蒙宿主工程固定位于 `base_project/ohos/` 子目录（`hvigorfile.ts` 在 `ohos/` 下而非工程根）。
 runner 复制基线工程后把 hvigor/ohpm 的执行目录自动指向 `ohos/`，模块发现、产物路径、
@@ -181,6 +214,8 @@ runner 复制基线工程后把 hvigor/ohpm 的执行目录自动指向 `ohos/`�
   建议用 `--out` 把输出目录指到短路径（如 `--out E:\w\<case>`），否则构建报
   `00306001 The length of path exceeds the maximum length`。
 - 产物为 unsigned HAP，直接 `hdc install -r` 安装到模拟器执行。
+
+### RN 用例
 
 `rn` 布局约定：`base_project` 根目录为 RN 侧（`package.json`、`metro.config.js`、RN 源码），
 鸿蒙壳工程固定位于 `base_project/harmony/` 子目录。runner 会把 hvigor/ohpm 的执行目录

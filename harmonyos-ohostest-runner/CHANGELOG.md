@@ -5,6 +5,16 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.3] - 2026-09-11
+
+### 新增
+
+- Web Case 在每台设备连接就绪后自动建立设备 `5175` 到宿主机 `5175` 的 HDC 反向端口转发，鸿蒙应用可统一使用 `http://127.0.0.1:5175` 访问 Web 服务。支持多设备、多测试套及 SWE/Answer 串行流程，不依赖折叠控制开关；每台设备结束时清理本轮创建的映射，保留已有相同映射，转发冲突、建立失败和清理失败会记录明确原因。
+
+### 变更
+
+- Web 依赖安装按每轮工程文件选择：存在 `package-lock.json` 或 `npm-shrinkwrap.json` 时使用 `npm ci`，否则使用 `npm install --package-lock=false`，兼容未提供 lock 的工程，避免 SWE 生成的 lock 影响 Answer。`npm ci` 失败不会自动回退；安装命令、缓存、日志和取消机制保持可追踪，不设安装总耗时上限。
+
 ## [0.2.2] - 2026-09-11
 
 ### 新增

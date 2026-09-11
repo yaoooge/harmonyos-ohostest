@@ -12,6 +12,7 @@ import {
 } from "./device.js";
 import { buildAaTestCommand, parseAaTestOutput } from "./ohostest.js";
 import { deriveExecutionStatus } from "./result.js";
+import { WebPortForwarding } from "./webForwarding.js";
 import {
   deployFoldTrigger,
   startManagedFoldServer,
@@ -55,6 +56,7 @@ interface DeviceRunInput {
   outDir: string;
   commandLog: string;
   keepEmulators: boolean;
+  webServerPort?: number;
   logger: RunnerLogger;
   executor: NonNullable<RunExecutionInput["commandExecutor"]>;
   runCommand: (command: string, runCwd?: string) => Promise<CommandResult>;
@@ -174,6 +176,7 @@ async function runSelectedDevices(
         device,
         installArtifacts,
         keepEmulators: input.keepEmulators ?? false,
+        webServerPort: input.webServerPort,
         logger,
         executor: context.executor,
         runCommand: bindLoggedCommandExecutor(
@@ -235,6 +238,7 @@ function shouldWaitBeforeNextEmulatorStart(
 async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
   const started = Date.now();
   let foldServer: FoldServerInstance | undefined;
+  let webForwarding: WebPortForwarding | undefined;
   let result: DeviceRunResult;
 
   try {
@@ -243,6 +247,15 @@ async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
       result = emulatorBlock;
     } else {
       await prepareRunDevice(input);
+      if (input.webServerPort !== undefined) {
+        webForwarding = new WebPortForwarding({
+          hdc: input.config.paths.hdc,
+          target: input.device.target,
+          port: input.webServerPort,
+          runCommand: input.runCommand,
+        });
+        await webForwarding.start();
+      }
       const foldResult = await startFoldSupportIfNeeded(input, started);
       if (foldResult.blocked) {
         result = foldResult.blocked;
@@ -258,10 +271,32 @@ async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
     }
   } catch (error) {
     const reason = reasonFromError(error);
+    if (reason === "web_forward_failed")
+      input.logger.recordError(error, { errorCode: "WEB_FORWARD_FAILED" });
     result = blockedDevice(input, started, reason);
   }
+  const webCleanupFailed = await cleanupWebForwarding(input, webForwarding);
   const foldCleanupFailed = await cleanupRunDevice(input, foldServer);
+  if (webCleanupFailed)
+    return {
+      ...result,
+      status: "blocked",
+      blockedReason: "web_forward_cleanup_failed",
+    };
   return foldCleanupFailed ? applyFoldCleanupFailure(result) : result;
+}
+
+async function cleanupWebForwarding(
+  input: DeviceRunInput,
+  forwarding: WebPortForwarding | undefined,
+): Promise<boolean> {
+  try {
+    await forwarding?.stop();
+    return false;
+  } catch (error) {
+    input.logger.recordError(error, { errorCode: "WEB_FORWARD_CLEANUP_FAILED" });
+    return true;
+  }
 }
 
 async function startEmulatorIfNeeded(
@@ -624,6 +659,7 @@ function aggregateSuites(
 
 function reasonFromError(error: unknown): DeviceRunResult["blockedReason"] {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("web_forward_failed")) return "web_forward_failed";
   if (message.includes("install_failed")) {
     return "install_failed";
   }

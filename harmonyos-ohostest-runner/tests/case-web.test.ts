@@ -9,6 +9,7 @@ import { readPlatformSettings } from "../src/case/platform.js";
 import { assertPortFree } from "../src/case/web/readiness.js";
 import { WEB_READY_URL } from "../src/case/web/constants.js";
 import { webFixture } from "./helpers/web-case.js";
+import { WebHdc } from "./helpers/web-hdc.js";
 
 test("platform settings preserve native defaults and recognize web without host configuration", () => {
   assert.deepEqual(readPlatformSettings({}), {});
@@ -68,62 +69,82 @@ test("web workspace preserves sibling projects, ignore rules, and protects sourc
   );
 });
 
-test("platform-only web Case uses real root patches and fresh npm services for SWE and Answer, while native execution stays in base", async (t) => {
-  const f = await webFixture(t, Number(new URL(WEB_READY_URL).port));
-  const observed: string[] = [];
-  const result = await runOhosTestCase({
-    caseDir: f.caseDir,
-    out: f.out,
-    machineConfigPath: f.machine,
-    runMode: "all",
-    skipBuild: true,
-    keepWorkdir: true,
-    commandExecutor: async (command, cwd) => {
-      if (command.includes("aa test")) {
-        assert.equal(cwd, path.join(f.out, "work/project/base"));
-        assert.match(
-          await fs.readFile(
-            path.join(cwd, "entry/src/ohosTest/ets/test/Web.test.ets"),
-            "utf-8",
-          ),
-          /webTest/,
-        );
-        observed.push(await (await fetch(f.url)).text());
-      }
-      return {
-        stdout: command.includes("list targets")
-          ? "127.0.0.1:15001\tConnected\n"
-          : command.includes("aa test")
-            ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
-            : "",
-        stderr: "",
-        exitCode: 0,
-        durationMs: 1,
-      };
-    },
-  });
-  assert.equal(result.status, "completed", JSON.stringify(result.diagnostics));
-  assert.deepEqual(observed, ["swe", "answer"]);
-  assert.equal(result.metadata.platform, "web");
-  assert.equal(Object.hasOwn(result.metadata, "web"), false);
-  assert.equal(result.artifacts.workdir, path.join(f.out, "work/project"));
-  assert.ok(result.artifacts.webLogs);
-  assert.equal(
-    await fs.readFile(path.join(f.project, "source.txt"), "utf-8"),
-    "swe\n",
-  );
-  await assert.rejects(fs.access(path.join(f.project, "node_modules")));
-  for (const phase of ["swe", "answer"]) {
-    assert.match(
-      await fs.readFile(path.join(f.out, "web", phase, "dev.log"), "utf-8"),
-      new RegExp(`boot:${phase}`),
+for (const hasLock of [true, false]) {
+  test(`platform-only web Case uses real root patches and fresh npm services for SWE and Answer, while native execution stays in base (${hasLock ? "locked" : "unlocked"})`, async (t) => {
+    const f = await webFixture(t, Number(new URL(WEB_READY_URL).port));
+    if (!hasLock) await fs.unlink(path.join(f.project, "package-lock.json"));
+    const observed: string[] = [];
+    const hdc = new WebHdc();
+    const result = await runOhosTestCase({
+      caseDir: f.caseDir,
+      out: f.out,
+      machineConfigPath: f.machine,
+      runMode: "all",
+      skipBuild: true,
+      keepWorkdir: true,
+      commandExecutor: async (command, cwd) => {
+        if (command.includes("aa test")) {
+          assert.equal(hdc.mappings.get(hdc.targets[0]), "tcp:5175");
+          assert.equal(cwd, path.join(f.out, "work/project/base"));
+          assert.match(
+            await fs.readFile(
+              path.join(cwd, "entry/src/ohosTest/ets/test/Web.test.ets"),
+              "utf-8",
+            ),
+            /webTest/,
+          );
+          observed.push(await (await fetch(f.url)).text());
+        }
+        return hdc.run(command);
+      },
+    });
+    assert.equal(
+      result.status,
+      "completed",
+      JSON.stringify(result.diagnostics),
     );
-    assert.ok(await fs.stat(path.join(f.out, "web", phase, "install.log")));
-  }
-  const log = await fs.readFile(path.join(f.out, "commands.jsonl"), "utf-8");
-  assert.equal((log.match(/npm ci --no-audit --no-fund/g) ?? []).length, 2);
-  await assertPortFree(f.url);
-});
+    assert.deepEqual(observed, ["swe", "answer"]);
+    assert.deepEqual(hdc.events, [
+      "add:127.0.0.1:15001",
+      "test:127.0.0.1:15001",
+      "remove:127.0.0.1:15001",
+      "add:127.0.0.1:15001",
+      "test:127.0.0.1:15001",
+      "remove:127.0.0.1:15001",
+    ]);
+    assert.equal(hdc.mappings.size, 0);
+    assert.equal(result.metadata.platform, "web");
+    assert.equal(Object.hasOwn(result.metadata, "web"), false);
+    assert.equal(result.artifacts.workdir, path.join(f.out, "work/project"));
+    assert.ok(result.artifacts.webLogs);
+    assert.equal(
+      await fs.readFile(path.join(f.project, "source.txt"), "utf-8"),
+      "swe\n",
+    );
+    await assert.rejects(fs.access(path.join(f.project, "node_modules")));
+    for (const phase of ["swe", "answer"]) {
+      assert.match(
+        await fs.readFile(path.join(f.out, "web", phase, "dev.log"), "utf-8"),
+        new RegExp(`boot:${phase}`),
+      );
+      assert.ok(await fs.stat(path.join(f.out, "web", phase, "install.log")));
+    }
+    const log = await fs.readFile(path.join(f.out, "commands.jsonl"), "utf-8");
+    const installCommand = hasLock
+      ? "npm ci --no-audit --no-fund"
+      : "npm install --no-audit --no-fund --package-lock=false";
+    assert.equal(log.split(installCommand).length - 1, 2);
+    if (!hasLock) {
+      await assert.rejects(
+        fs.access(path.join(f.project, "package-lock.json")),
+      );
+      await assert.rejects(
+        fs.access(path.join(f.out, "work/project/web/package-lock.json")),
+      );
+    }
+    await assertPortFree(f.url);
+  });
+}
 
 test("web Case default Answer cleans its workspace and records npm failure before any device commands", async (t) => {
   const f = await webFixture(t, Number(new URL(WEB_READY_URL).port));

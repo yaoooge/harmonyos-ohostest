@@ -21,7 +21,9 @@ export type BlockedReason =
   | "test_command_failed"
   | "test_output_unparseable"
   | "fold_server_start_failed"
-  | "fold_cleanup_failed";
+  | "fold_cleanup_failed"
+  | "web_forward_failed"
+  | "web_forward_cleanup_failed";
 
 export interface RawExecutionConfig {
   product?: string;
@@ -229,6 +231,8 @@ export interface RunExecutionInput {
   outDir: string;
   skipBuild?: boolean;
   keepEmulators?: boolean;
+  /** Case-owned Web service port; forwarded from each selected device. */
+  webServerPort?: number;
   commandExecutor?: CommandExecutor;
   logger: import("../../logging/logger.js").RunnerLogger;
 }

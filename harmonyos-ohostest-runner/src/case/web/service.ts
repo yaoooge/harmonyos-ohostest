@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { RunnerLogger } from "../../logging/logger.js";
-import { resolveNpmCli, validateWebProject, webEnvironment } from "./npm.js";
+import {
+  resolveNpmCli,
+  resolveNpmInstallCommand,
+  validateWebProject,
+  webEnvironment,
+} from "./npm.js";
 import { assertPortFree, waitForWebReady } from "./readiness.js";
 import { WEB_STARTUP_TIMEOUT_MS } from "./constants.js";
 import {
@@ -117,14 +122,14 @@ function launch(
 }
 
 async function installDependencies(session: WebSession): Promise<void> {
+  const command = await resolveNpmInstallCommand(session.input.project);
+  const args = [command, "--no-audit", "--no-fund"];
+  // A generated SWE lock must not change how an unlocked Answer is installed.
+  if (command === "install") args.push("--package-lock=false");
   const started = Date.now();
   let exitCode = 1;
   try {
-    const owned = launch(
-      session,
-      ["ci", "--no-audit", "--no-fund"],
-      "install.log",
-    );
+    const owned = launch(session, args, "install.log");
     const result = await waitForExit(owned, session.signal);
     exitCode = result.code ?? 1;
     if (exitCode !== 0)
@@ -132,7 +137,7 @@ async function installDependencies(session: WebSession): Promise<void> {
         `web_install_failed: ${JSON.stringify(result)}; see ${session.logDir}/install.log`,
       );
   } finally {
-    session.input.logger.recordCommand("npm ci --no-audit --no-fund", {
+    session.input.logger.recordCommand(`npm ${args.join(" ")}`, {
       exitCode,
       durationMs: Date.now() - started,
       stdout: `log: ${path.join(session.logDir, "install.log")}`,
