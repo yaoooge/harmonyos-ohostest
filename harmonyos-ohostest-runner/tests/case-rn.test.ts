@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { runOhosTestCase } from "../src/index.js";
 import { loadExecutionConfig } from "../src/execution/config.js";
+import { readRnBuildSettings } from "../src/case/platform.js";
 
 async function makeRnProject(root: string): Promise<string> {
   const rnRoot = path.join(root, "base");
@@ -315,4 +316,116 @@ test("rn Case rebuilds the RN bundle each round from the RN root", async (t) => 
     await fs.readFile(path.join(out, "result.json"), "utf-8"),
   ) as { metadata: { platform?: string } };
   assert.equal(resultJson.metadata.platform, "rn");
+});
+
+test("readRnBuildSettings validates bundle_commands and its rn-only usage", () => {
+  assert.deepEqual(readRnBuildSettings({}), {});
+  assert.deepEqual(
+    readRnBuildSettings({
+      platform: "rn",
+      rn_build: { bundle_commands: ["npm run dev:all"] },
+    }),
+    { rnBuild: { bundleCommands: ["npm run dev:all"] } },
+  );
+  assert.deepEqual(
+    readRnBuildSettings({
+      platform: "rn",
+      rn_build: {
+        bundle_commands: ["npm run dev:basic", "npm run dev:base"],
+      },
+    }),
+    { rnBuild: { bundleCommands: ["npm run dev:basic", "npm run dev:base"] } },
+  );
+  assert.throws(
+    () => readRnBuildSettings({ platform: "native", rn_build: {} }),
+    /rn_build is only valid/,
+  );
+  assert.throws(
+    () => readRnBuildSettings({ platform: "rn", rn_build: {} }),
+    /bundle_commands is required/,
+  );
+  assert.throws(
+    () => readRnBuildSettings({ platform: "rn", rn_build: [] }),
+    /must be an object/,
+  );
+  assert.throws(
+    () =>
+      readRnBuildSettings({
+        platform: "rn",
+        rn_build: { bundle_commands: [] },
+      }),
+    /non-empty array/,
+  );
+  assert.throws(
+    () =>
+      readRnBuildSettings({
+        platform: "rn",
+        rn_build: { bundle_commands: ["  "] },
+      }),
+    /non-empty string/,
+  );
+});
+
+test("rn Case uses configured bundle_commands instead of the default bundle step", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-rn-custom-"));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await makeRnProject(root);
+  const caseDir = await writeRnCase(root);
+  // 覆写 metadata 增加 rn_build.bundle_commands（补丁沿用 writeRnCase 的合法内容）。
+  const metadataPath = path.join(caseDir, "metadata.json");
+  const metadata = JSON.parse(await fs.readFile(metadataPath, "utf-8"));
+  metadata.rn_build = {
+    bundle_commands: ["npm run dev:basic", "npm run dev:base"],
+  };
+  await fs.writeFile(metadataPath, JSON.stringify(metadata), "utf-8");
+  const machineConfigPath = await writeMachineConfig(root);
+  const out = path.join(root, "runs");
+  const workProject = path.join(out, "work", "project");
+  const steps: Array<{ command: string; cwd: string }> = [];
+
+  const result = await runOhosTestCase({
+    caseDir,
+    machineConfigPath,
+    out,
+    runMode: "swe",
+    commandExecutor: async (command, cwd) => {
+      steps.push({ command, cwd });
+      return {
+        stdout: command.includes("aa test")
+          ? "OHOS_REPORT_RESULT: stream=Tests run: 1, Failure: 0, Error: 0, Pass: 1, Ignore: 0\nOHOS_REPORT_CODE: 0\n"
+          : command.includes("list targets")
+            ? "127.0.0.1:15001\tConnected"
+            : "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.equal(result.status, "completed");
+  const bundleSteps = steps.filter((step) =>
+    ["npm run dev:basic", "npm run dev:base"].includes(step.command),
+  );
+  assert.deepEqual(bundleSteps, [
+    { command: "npm run dev:basic", cwd: workProject },
+    { command: "npm run dev:base", cwd: workProject },
+  ]);
+  assert.equal(
+    steps.filter((step) => step.command.includes("bundle-harmony")).length,
+    0,
+    "configured bundle_commands must replace the default bundle-harmony step",
+  );
+  // codegen 与 npm 安装保持 runner 合成命令。
+  assert.equal(
+    steps.filter((step) => step.command.startsWith("npm install --force"))
+      .length,
+    1,
+  );
+  assert.equal(
+    steps.filter((step) => step.command.includes("codegen-harmony")).length,
+    1,
+  );
 });

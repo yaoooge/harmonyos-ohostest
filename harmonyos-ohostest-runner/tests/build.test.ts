@@ -335,3 +335,43 @@ test("runBuild blocks and lists ambiguous shared HSP candidates", async (t) => {
   assert.match(diagnostics.join("\n"), new RegExp(first));
   assert.match(diagnostics.join("\n"), new RegExp(second));
 });
+
+test("runBuild honors configured rn bundle commands in place of the default one", async (t) => {
+  const config = await makeBuildConfig(t);
+  config.rn = {
+    root: path.join(path.dirname(config.project), "rn-root"),
+    bundleCommands: ["npm run dev:basic", "npm run dev:base"],
+  };
+  const steps: Array<{ command: string; cwd: string }> = [];
+
+  const outcome = await runBuild({
+    config,
+    skipBuild: false,
+    diagnostics: [],
+    runCommand: async (command, cwd) => {
+      steps.push({ command, cwd });
+      return { stdout: "", stderr: "", exitCode: 0, durationMs: 1 };
+    },
+  });
+
+  const rnRoot = config.rn.root;
+  const project = config.project;
+  assert.deepEqual(
+    steps.slice(0, 5).map(({ command }) => command),
+    [
+      "npm install --force",
+      "ohpm install",
+      "npx react-native codegen-harmony --cpp-output-path ./harmony/entry/src/main/cpp/generated --rnoh-module-path ./harmony/entry/oh_modules/@rnoh/react-native-openharmony",
+      "npm run dev:basic",
+      "npm run dev:base",
+    ],
+  );
+  assert.deepEqual(steps[3], { command: "npm run dev:basic", cwd: rnRoot });
+  assert.deepEqual(steps[4], { command: "npm run dev:base", cwd: rnRoot });
+  assert.equal(steps.length, 8);
+  assert.equal(
+    steps.filter((step) => step.command.includes("bundle-harmony")).length,
+    0,
+  );
+  assert.equal(outcome.result.status, "passed");
+});

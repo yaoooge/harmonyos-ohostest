@@ -252,13 +252,12 @@ async function prepareCaseExecution(
   deviceSelection: CaseDeviceSelection;
 }> {
   const initialModule = firstMappedModule(context.metadata);
-  const platform = executionPlatform(context.metadata);
   const initialConfig = await loadExecutionConfig({
     project: context.workProject,
     module: initialModule,
     machineConfigPath: input.machineConfigPath,
     testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
-    ...(platform ? { platform } : {}),
+    ...platformExecutionOptions(context.metadata),
   });
   // 暴露 hvigorw 路径给 cleanupCaseWorkdir，用于关闭 daemon 释放文件锁定。
   context.hvigorw = initialConfig.paths.hvigorw;
@@ -281,7 +280,7 @@ async function prepareCaseExecution(
             module: group.module,
             machineConfigPath: input.machineConfigPath,
             testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
-            ...(platform ? { platform } : {}),
+            ...platformExecutionOptions(context.metadata),
           });
     executionGroups.push({
       module: group.module,
@@ -299,6 +298,19 @@ function firstMappedModule(metadata: CaseMetadata): string | undefined {
   return metadata.deviceHapModules
     ? Object.values(metadata.deviceHapModules)[0]
     : undefined;
+}
+
+// 平台执行选项：rn/flutter 壳工程重定位的平台标记 + rn 的 bundle 命令覆盖。
+function platformExecutionOptions(
+  metadata: CaseMetadata,
+): { platform?: "rn" | "flutter"; rnBundleCommands?: string[] } {
+  const platform = executionPlatform(metadata);
+  return {
+    ...(platform ? { platform } : {}),
+    ...(metadata.rnBuild
+      ? { rnBundleCommands: metadata.rnBuild.bundleCommands }
+      : {}),
+  };
 }
 
 // rn 的鸿蒙壳在 workProject/harmony 子目录，flutter 的在 workProject/ohos 子目录；

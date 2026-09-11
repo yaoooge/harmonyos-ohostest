@@ -165,12 +165,12 @@ function buildCommands(config: ExecutionConfig): BuildCommand[] {
     return [flutterPrepareCommands(config)[0]!, ...core];
   }
   const [ohpmInstall, clean, , testHap] = core;
-  const [rnInstall, rnCodegen, rnBundle] = rnPrepareCommands(config);
+  const [rnInstall, rnCodegen, ...rnBundleSteps] = rnPrepareCommands(config);
   return [
     rnInstall,
     ohpmInstall!,
     rnCodegen!,
-    rnBundle!,
+    ...rnBundleSteps,
     clean!,
     {
       // RNOH 0.72 的 release 产物（assembleApp 项目模式默认 release + 混淆）会破坏

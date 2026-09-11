@@ -78,6 +78,7 @@ case/
 |------|------|
 | `case_id` | case 标识 |
 | `platform` | 可选。`native`（缺省，纯鸿蒙工程）、`web`（Web 用例）、`rn`（RNOH 工程，见下文「platform 平台」） |
+| `rn_build` | 可选。仅 `platform: "rn"` 时有效；`bundle_commands` 覆盖默认 bundle 命令（见下文） |
 | `base_project` | 基线工程目录名。运行器按 `<case>/<base_project>`、`<case>/../<base_project>` 顺序解析 |
 | `test_patch` | 测试 patch 文件名 |
 | `golden_patch` | 答案 patch 文件名 |
@@ -227,6 +228,22 @@ SWE 和 Answer 每轮构建都会在 RN 根目录完整执行一遍 RN 前置命
 2. `ohpm install`（在 `harmony/`；部分 HAR 以 `file:` 协议引用 `node_modules` 内产物，必须在 npm 安装之后）
 3. `npx react-native codegen-harmony --cpp-output-path ./harmony/<module>/src/main/cpp/generated --rnoh-module-path ./harmony/<module>/oh_modules/@rnoh/react-native-openharmony`（`--rnoh-module-path` 依赖 oh_modules，必须在 ohpm 安装之后）
 4. `npx react-native bundle-harmony --dev`（产物写入 `harmony/<module>/src/main/resources/rawfile/`，随后打进 HAP）
+
+第 4 步的 bundle 命令可用 `rn_build.bundle_commands` 覆盖，用于多 bundle 或自定义入口的工程
+（codegen 路径由 RNOH 模板固定，无需也无法配置）：
+
+```json
+{
+  "platform": "rn",
+  "rn_build": {
+    "bundle_commands": ["npm run dev:basic", "npm run dev:base"]
+  }
+}
+```
+
+- `bundle_commands` 为非空字符串数组，按顺序在 RN 根目录执行，替代默认的
+  `npx react-native bundle-harmony --dev`；
+- 仅 `platform: "rn"` 时允许配置；标准单 bundle 模板工程无需配置。
 
 应用 HAP 使用 `hvigorw --mode module -p product=<product> assembleHap --no-daemon`（模块模式，默认 debug）。
 RNOH 0.72 在 release 模式（项目级 `assembleApp` 的默认，含混淆与裁剪）下会破坏 NAPI 按名解析，

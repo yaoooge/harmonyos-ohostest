@@ -12,6 +12,7 @@ export interface LoadExecutionConfigInput {
   testClass?: string;
   testCaseTimeoutMs?: number;
   platform?: "rn" | "flutter";
+  rnBundleCommands?: string[];
 }
 
 export async function loadExecutionConfig(
@@ -42,7 +43,15 @@ export async function loadExecutionConfig(
       paths,
       devices,
       input,
-      rn: input.platform === "rn" ? { root: requestedProject } : undefined,
+      rn:
+        input.platform === "rn"
+          ? {
+              root: requestedProject,
+              ...(input.rnBundleCommands
+                ? { bundleCommands: input.rnBundleCommands }
+                : {}),
+            }
+          : undefined,
       flutter:
         input.platform === "flutter" ? { root: requestedProject } : undefined,
     });
@@ -151,8 +160,8 @@ function buildExecutionConfig(input: {
   paths: ExecutionConfig["paths"];
   devices: ExecutionConfig["devices"];
   input: LoadExecutionConfigInput;
-  rn: { root: string } | undefined;
-  flutter: { root: string } | undefined;
+  rn: ExecutionConfig["rn"];
+  flutter: ExecutionConfig["flutter"];
 }): ExecutionConfig {
   const { project, raw, projectInfo, paths, devices, rn, flutter } = input;
   const testClass = input.input.testClass ?? raw.testClass;

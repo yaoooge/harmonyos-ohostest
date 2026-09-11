@@ -5,15 +5,20 @@ import type { BuildCommand, ExecutionConfig } from "./types/index.js";
 // npm install（HAR file: 引用依赖 node_modules）→ ohpm install（build.ts 基础命令）
 // → codegen（--rnoh-module-path 依赖 oh_modules，必须在 ohpm install 之后）
 // → bundle-harmony（产物写入 harmony/entry/src/main/resources/rawfile/）。
+// bundle 支持用 metadata.rn_build.bundle_commands 覆盖（多 bundle / 自定义入口的工程）。
 export function rnPrepareCommands(config: ExecutionConfig): BuildCommand[] {
-  const root = config.rn?.root;
-  if (!root) {
+  const rn = config.rn;
+  if (!rn) {
     throw new Error("case_rn_root_missing: ExecutionConfig.rn is required");
   }
+  const bundleSteps = rn.bundleCommands?.map((command) => ({
+    command,
+    cwd: rn.root,
+  })) ?? [{ command: rnBundleCommand(), cwd: rn.root }];
   return [
-    { command: rnInstallCommand(config), cwd: root },
-    { command: rnCodegenCommand(config), cwd: root },
-    { command: rnBundleCommand(), cwd: root },
+    { command: rnInstallCommand(config), cwd: rn.root },
+    { command: rnCodegenCommand(config), cwd: rn.root },
+    ...bundleSteps,
   ];
 }
 

@@ -4,6 +4,10 @@ import type { ExecutionResult } from "../../execution/types/index.js";
 export type CaseRunMode = "answer" | "swe" | "all";
 export type CasePlatform = "native" | "web" | "rn" | "flutter";
 
+export interface RnBuildSettings {
+  bundleCommands: string[];
+}
+
 export interface RunCaseInput {
   caseDir: string;
   devices?: string[];
@@ -28,6 +32,7 @@ export type DeviceHapModules = Partial<Record<DeviceDeploymentType, string>>;
 
 export interface CaseMetadata {
   platform?: CasePlatform;
+  rnBuild?: RnBuildSettings;
   caseId: string;
   caseDir: string;
   baseProject: string;

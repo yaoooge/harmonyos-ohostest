@@ -90,6 +90,7 @@ export interface ExecutionConfig {
   };
   rn?: {
     root: string;
+    bundleCommands?: string[];
   };
   flutter?: {
     root: string;

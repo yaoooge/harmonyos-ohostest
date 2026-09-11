@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { configFileError, readJsonConfigFile } from "../configFile.js";
 import { AA_TEST_CASE_TIMEOUT_MS } from "../execution/ohostest.js";
-import { readPlatformSettings } from "./platform.js";
+import { readPlatformSettings, readRnBuildSettings } from "./platform.js";
 import type { ExecutionConfig } from "../execution/types/index.js";
 import type {
   CaseDeviceSelection,
@@ -15,6 +15,7 @@ import type {
 
 interface RawCaseMetadata {
   platform?: unknown;
+  rn_build?: unknown;
   case_id?: string;
   base_project?: string;
   test_patch?: string;
@@ -68,6 +69,7 @@ export async function loadCaseMetadata(
 
     return {
       ...readPlatformSettings(raw),
+      ...readRnBuildSettings(raw),
       caseId,
       caseDir,
       baseProject,
@@ -113,9 +115,7 @@ export function buildCaseExecutionGroups(
       module,
       selection: {
         devices: [],
-        ...(selection.deviceSuiteOverrides
-          ? { deviceSuiteOverrides: {} }
-          : {}),
+        ...(selection.deviceSuiteOverrides ? { deviceSuiteOverrides: {} } : {}),
         runAllTests: selection.runAllTests,
       },
     };
@@ -370,7 +370,9 @@ function readDeviceHapModules(value: unknown): DeviceHapModules | undefined {
   }
   const result: DeviceHapModules = {};
   for (const [deploymentType, module] of entries) {
-    if (!DEVICE_DEPLOYMENT_TYPES.includes(deploymentType as DeviceDeploymentType)) {
+    if (
+      !DEVICE_DEPLOYMENT_TYPES.includes(deploymentType as DeviceDeploymentType)
+    ) {
       throw new Error(
         "metadata.device_hap_modules supports only phone, tablet, and pc.",
       );

@@ -5,6 +5,12 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.4] - 2026-09-11
+
+### 新增
+
+- `metadata.rn_build.bundle_commands`：`platform: "rn"` 的 Case 可覆盖默认 bundle 命令，支持多 bundle / 自定义入口的 RNOH 工程（如 `["npm run dev:basic", "npm run dev:base"]`），按顺序在 RN 根目录执行；未配置时保持默认 `npx react-native bundle-harmony --dev`。codegen 命令由 RNOH 模板固定，维持 runner 合成。
+
 ## [0.2.3] - 2026-09-11
 
 ### 新增
