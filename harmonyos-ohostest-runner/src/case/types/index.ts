@@ -2,7 +2,7 @@ import type { CommandExecutor } from "../../execution/types/index.js";
 import type { ExecutionResult } from "../../execution/types/index.js";
 
 export type CaseRunMode = "answer" | "swe" | "all";
-export type CasePlatform = "native" | "web" | "rn";
+export type CasePlatform = "native" | "web" | "rn" | "flutter";
 
 export interface RunCaseInput {
   caseDir: string;

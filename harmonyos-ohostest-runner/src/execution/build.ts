@@ -3,6 +3,7 @@ import path from "node:path";
 import { verifyFileExists } from "./utils/file.js";
 import { shellQuote } from "./utils/shellQuote.js";
 import { rnPrepareCommands } from "./rn.js";
+import { flutterPrepareCommands } from "./flutter.js";
 import type {
   BuildCommand,
   BuildOutcome,
@@ -155,8 +156,13 @@ function buildCommands(config: ExecutionConfig): BuildCommand[] {
       cwd: config.project,
     },
   ];
-  if (!config.rn) {
+  if (!config.rn && !config.flutter) {
     return core;
+  }
+  if (config.flutter) {
+    // flutter 只需在补丁后的每轮构建前刷新 Dart 依赖，hvigor 序列与 native 一致；
+    // Dart 编译与引擎产物由 flutter-hvigor-plugin 在构建内完成。
+    return [flutterPrepareCommands(config)[0]!, ...core];
   }
   const [ohpmInstall, clean, , testHap] = core;
   const [rnInstall, rnCodegen, rnBundle] = rnPrepareCommands(config);

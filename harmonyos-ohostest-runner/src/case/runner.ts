@@ -1,5 +1,13 @@
 import fs from "node:fs/promises";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
+import { readJsonConfigFile } from "../configFile.js";
 import { loadExecutionConfig } from "../execution/config.js";
 import { buildExecutionPlan } from "../execution/plan.js";
 import { runExecution } from "../execution/runner.js";
@@ -150,6 +158,7 @@ async function runCaseComparisons(
   const runMode = input.runMode ?? "answer";
   const runPatchCommand = loggedPatchCommand(input, context);
   await prepareCaseWorkspace(context.metadata, context);
+  await prepareFlutterWorkProject(input, context);
   await applyPatch({
     project: context.patchRoot,
     patchFile: context.metadata.testPatch,
@@ -243,12 +252,13 @@ async function prepareCaseExecution(
   deviceSelection: CaseDeviceSelection;
 }> {
   const initialModule = firstMappedModule(context.metadata);
+  const platform = executionPlatform(context.metadata);
   const initialConfig = await loadExecutionConfig({
     project: context.workProject,
     module: initialModule,
     machineConfigPath: input.machineConfigPath,
     testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
-    ...(context.metadata.platform === "rn" ? { platform: "rn" } : {}),
+    ...(platform ? { platform } : {}),
   });
   // 暴露 hvigorw 路径给 cleanupCaseWorkdir，用于关闭 daemon 释放文件锁定。
   context.hvigorw = initialConfig.paths.hvigorw;
@@ -271,7 +281,7 @@ async function prepareCaseExecution(
             module: group.module,
             machineConfigPath: input.machineConfigPath,
             testCaseTimeoutMs: context.metadata.testCaseTimeoutMs,
-            ...(context.metadata.platform === "rn" ? { platform: "rn" } : {}),
+            ...(platform ? { platform } : {}),
           });
     executionGroups.push({
       module: group.module,
@@ -291,11 +301,25 @@ function firstMappedModule(metadata: CaseMetadata): string | undefined {
     : undefined;
 }
 
-// rn 工程的鸿蒙壳在 workProject/harmony 子目录；其余平台的壳就是 workProject 本身。
+// rn 的鸿蒙壳在 workProject/harmony 子目录，flutter 的在 workProject/ohos 子目录；
+// 其余平台的壳就是 workProject 本身。
 function caseHarmonyProject(context: CaseRunContext): string {
-  return context.metadata.platform === "rn"
-    ? path.join(context.workProject, "harmony")
-    : context.workProject;
+  if (context.metadata.platform === "rn") {
+    return path.join(context.workProject, "harmony");
+  }
+  if (context.metadata.platform === "flutter") {
+    return path.join(context.workProject, "ohos");
+  }
+  return context.workProject;
+}
+
+// rn/flutter 的鸿蒙壳位于子目录，由执行层解析构建工程；native/web 的壳就是工程根。
+function executionPlatform(
+  metadata: CaseMetadata,
+): "rn" | "flutter" | undefined {
+  return metadata.platform === "rn" || metadata.platform === "flutter"
+    ? metadata.platform
+    : undefined;
 }
 
 function loggedPatchCommand(
@@ -344,6 +368,115 @@ function resolveOutDir(
         timestampForPath(new Date(startedTime)),
       ),
   );
+}
+
+// flutter-ohos 工程：base_project 为 Flutter 工程根（pubspec.yaml 与 ohos/ 同级），
+// hvigorfile.ts 位于 ohos/ 宿主内而非工程根，鸿蒙壳由执行层解析到 ohos/。
+// 复制后仅做文件系统自愈（均不写 context.diagnostics——deriveCaseStatus 将非空
+// diagnostics 判为 failed，工程形态识别不是错误；自愈失败由后续构建错误显式暴露）：
+// local.properties 由 machine.json paths.flutter 生成（case 不携带本机路径），
+// node_modules junction 补齐复制被排除的 flutter-hvigor-plugin；
+// flutter pub get 在每轮构建命令中执行（golden_patch 可能新增 Dart 依赖，必须
+// 在补丁应用后、hvigor 内 flutter assemble 前刷新 .dart_tool）。
+async function prepareFlutterWorkProject(
+  input: RunCaseInput,
+  context: CaseRunContext,
+): Promise<void> {
+  const work = context.patchRoot;
+  const ohosProject = path.join(work, "ohos");
+  const isFlutterLayout =
+    !existsSync(path.join(work, "hvigorfile.ts")) &&
+    existsSync(path.join(ohosProject, "hvigorfile.ts"));
+  if (context.metadata.platform === "flutter" && !isFlutterLayout) {
+    throw new Error(
+      "case_flutter_project_invalid: flutter platform requires a Flutter project root with an ohos host",
+    );
+  }
+  if (!isFlutterLayout) return;
+  if (context.metadata.platform !== "flutter") {
+    // 未声明 platform 的 flutter 形态（旧用例）：执行层无法解析壳工程，
+    // 直接把构建工程重定向到 ohos/，按原生工程处理。
+    context.workProject = ohosProject;
+  }
+  const flutterSdk = await resolveFlutterSdk(
+    input.machineConfigPath,
+    ohosProject,
+  );
+  if (!flutterSdk) return;
+  ensureFlutterSdkProperties(ohosProject, flutterSdk);
+  ensureFlutterHvigorPlugin(ohosProject, flutterSdk);
+}
+
+// flutter-hvigor-plugin 构建期从 ohos/local.properties 读取 flutter.sdk；case 不携带
+// 本机绝对路径，SDK 位置优先取 machine.json paths.flutter，其次回退 case 自带值。
+async function resolveFlutterSdk(
+  machineConfigPath: string | undefined,
+  ohosProject: string,
+): Promise<string> {
+  try {
+    const raw = await readJsonConfigFile<{ paths?: { flutter?: string } }>(
+      path.resolve(machineConfigPath ?? path.resolve("config", "machine.json")),
+    );
+    const configured = raw.paths?.flutter?.trim();
+    if (configured) return configured;
+  } catch {
+    // machine 配置不可读时回退 local.properties，最终由构建错误显式暴露
+  }
+  const properties = await fs
+    .readFile(path.join(ohosProject, "local.properties"), "utf8")
+    .catch(() => "");
+  const match = properties.match(/^flutter\.sdk=(.+)$/m);
+  return match ? match[1].trim() : "";
+}
+
+function ensureFlutterSdkProperties(
+  ohosProject: string,
+  flutterSdk: string,
+): void {
+  const propertiesPath = path.join(ohosProject, "local.properties");
+  try {
+    const existing = existsSync(propertiesPath)
+      ? readFileSync(propertiesPath, "utf8")
+      : "";
+    if (/^flutter\.sdk=/m.test(existing)) return;
+    const lineEnding = existing && !existing.endsWith("\n") ? "\n" : "";
+    writeFileSync(
+      propertiesPath,
+      `${existing}${lineEnding}flutter.sdk=${flutterSdk.replace(/\\/g, "/")}\n`,
+      "utf8",
+    );
+  } catch {
+    // 写入失败不阻断：若 case 自带完整 local.properties，插件仍可正常解析
+  }
+}
+
+// .dart_tool 与 flutter 依赖刷新由每轮构建命令中的 `flutter pub get` 完成，
+// 此处不重复执行。
+
+// 工程复制排除 node_modules 后，flutter-hvigor-plugin 缺失会使 hvigor 启动即失败；
+// 依据 SDK 路径把 SDK 内插件目录以 junction 链入宿主 node_modules。
+function ensureFlutterHvigorPlugin(
+  ohosProject: string,
+  flutterSdk: string,
+): void {
+  const pluginDir = path.join(
+    ohosProject,
+    "node_modules",
+    "flutter-hvigor-plugin",
+  );
+  if (existsSync(pluginDir)) return;
+  const sdkPlugin = path.join(flutterSdk, "packages", "flutter_tools", "hvigor");
+  if (!existsSync(sdkPlugin)) return;
+  try {
+    mkdirSync(path.dirname(pluginDir), { recursive: true });
+    symlinkSync(
+      sdkPlugin,
+      pluginDir,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+  } catch {
+    // 链接失败不阻断：由后续构建错误显式暴露
+  }
 }
 
 async function runCaseExecution(
@@ -691,5 +824,9 @@ async function cleanupCaseWorkdir(
 }
 
 function timestampForPath(date: Date): string {
-  return date.toISOString().replace(/[:.]/g, "-");
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
 }

@@ -11,7 +11,7 @@ export interface LoadExecutionConfigInput {
   machineConfigPath?: string;
   testClass?: string;
   testCaseTimeoutMs?: number;
-  platform?: "rn";
+  platform?: "rn" | "flutter";
 }
 
 export async function loadExecutionConfig(
@@ -43,6 +43,8 @@ export async function loadExecutionConfig(
       devices,
       input,
       rn: input.platform === "rn" ? { root: requestedProject } : undefined,
+      flutter:
+        input.platform === "flutter" ? { root: requestedProject } : undefined,
     });
   } catch (error) {
     throw configFileError(machineConfigPath, error);
@@ -51,17 +53,29 @@ export async function loadExecutionConfig(
 
 async function resolvePlatformProject(
   project: string,
-  platform: "rn" | undefined,
+  platform: "rn" | "flutter" | undefined,
 ): Promise<string> {
-  if (platform !== "rn") return project;
-  const harmonyProject = path.join(project, "harmony");
-  const stat = await fs.stat(harmonyProject).catch(() => undefined);
-  if (!stat?.isDirectory()) {
-    throw new Error(
-      `case_rn_harmony_missing: rn platform requires a harmony project at ${harmonyProject}`,
-    );
+  if (platform === "rn") {
+    const harmonyProject = path.join(project, "harmony");
+    const stat = await fs.stat(harmonyProject).catch(() => undefined);
+    if (!stat?.isDirectory()) {
+      throw new Error(
+        `case_rn_harmony_missing: rn platform requires a harmony project at ${harmonyProject}`,
+      );
+    }
+    return harmonyProject;
   }
-  return harmonyProject;
+  if (platform === "flutter") {
+    const ohosProject = path.join(project, "ohos");
+    const stat = await fs.stat(ohosProject).catch(() => undefined);
+    if (!stat?.isDirectory()) {
+      throw new Error(
+        `case_flutter_ohos_missing: flutter platform requires an ohos project at ${ohosProject}`,
+      );
+    }
+    return ohosProject;
+  }
+  return project;
 }
 
 function validateRawConfig(raw: RawExecutionConfig): void {
@@ -138,8 +152,9 @@ function buildExecutionConfig(input: {
   devices: ExecutionConfig["devices"];
   input: LoadExecutionConfigInput;
   rn: { root: string } | undefined;
+  flutter: { root: string } | undefined;
 }): ExecutionConfig {
-  const { project, raw, projectInfo, paths, devices, rn } = input;
+  const { project, raw, projectInfo, paths, devices, rn, flutter } = input;
   const testClass = input.input.testClass ?? raw.testClass;
   return {
     project,
@@ -155,6 +170,7 @@ function buildExecutionConfig(input: {
     timeoutMs: raw.timeoutMs ?? 120000,
     build: readBuildConfig(raw),
     ...(rn ? { rn } : {}),
+    ...(flutter ? { flutter } : {}),
     paths: readResolvedPaths(paths),
     artifacts: readArtifactConfig(project, raw, projectInfo),
     devices,
@@ -176,6 +192,7 @@ function readResolvedPaths(
     hvigorw: paths.hvigorw,
     ohpm: paths.ohpm,
     ...(paths.npm ? { npm: paths.npm } : {}),
+    ...(paths.flutter ? { flutter: paths.flutter } : {}),
     hdc: paths.hdc,
     emulatorBin: paths.emulatorBin,
     emulatorDeployedDir: paths.emulatorDeployedDir,
@@ -212,6 +229,7 @@ function readToolPaths(
     ),
     ohpm: rawPaths?.ohpm?.trim() || "ohpm",
     ...(rawPaths?.npm?.trim() ? { npm: rawPaths.npm.trim() } : {}),
+    ...(rawPaths?.flutter?.trim() ? { flutter: rawPaths.flutter.trim() } : {}),
     hdc: readRequiredConfigString(rawPaths?.hdc, "config.paths.hdc"),
     emulatorBin: readRequiredConfigString(
       rawPaths?.emulatorBin,

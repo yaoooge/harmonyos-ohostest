@@ -3,6 +3,7 @@
     "hvigorw": "hvigorw",
     "ohpm": "ohpm",
     "hdc": "/Users/guoyutong/command-line-tools/sdk/default/openharmony/toolchains/hdc",
+    "flutter": "E:/flutter/flutter_flutter",
     "emulatorBin": "/Applications/DevEco-Studio.app/Contents/tools/emulator/Emulator",
     "emulatorDeployedDir": "/Users/guoyutong/.Huawei/Emulator/deployed",
     "foldServerScript": "src/fold/assets/fold-server.py"

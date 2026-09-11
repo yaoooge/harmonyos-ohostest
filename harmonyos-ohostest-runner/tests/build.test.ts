@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { runBuild } from "../src/execution/build.js";
+import { shellQuote } from "../src/execution/utils/shellQuote.js";
 import type { MatrixConfig } from "../src/matrix/types/index.js";
 
 async function makeBuildConfig(t: test.TestContext): Promise<MatrixConfig> {
@@ -114,6 +115,44 @@ test("runBuild prepares the RN workspace around the Hvigor commands for rn cases
         "hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap --no-daemon --stacktrace",
       cwd: project,
     },
+  ]);
+  assert.equal(outcome.result.status, "passed");
+});
+
+test("runBuild prepends flutter pub get to the native sequence for flutter cases", async (t) => {
+  const config = await makeBuildConfig(t);
+  const flutterRoot = path.join(path.dirname(config.project), "flutter-root");
+  config.flutter = { root: flutterRoot };
+  // paths.flutter 是 SDK 根目录，命令应取其 bin 下的 flutter 可执行文件。
+  config.paths.flutter = "flutter-sdk";
+  const flutterBin = path.join(
+    "flutter-sdk",
+    "bin",
+    process.platform === "win32" ? "flutter.bat" : "flutter",
+  );
+  const commands: string[] = [];
+
+  const outcome = await runBuild({
+    config,
+    skipBuild: false,
+    diagnostics: [],
+    runCommand: async (command) => {
+      commands.push(command);
+      return {
+        stdout: "",
+        stderr: "",
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+
+  assert.deepEqual(commands, [
+    `${shellQuote(flutterBin)} pub get`,
+    "ohpm install",
+    "hvigorw clean --no-daemon",
+    "hvigorw --mode project -p product=default assembleApp --analyze=normal --parallel --incremental --no-daemon",
+    "hvigorw --mode module -p module=entry@ohosTest ohosTest@PackageHap --no-daemon --stacktrace",
   ]);
   assert.equal(outcome.result.status, "passed");
 });

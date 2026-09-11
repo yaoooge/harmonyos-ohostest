@@ -7,7 +7,8 @@ export function readPlatformSettings(raw: { platform?: unknown }): {
     raw.platform !== undefined &&
     raw.platform !== "native" &&
     raw.platform !== "web" &&
-    raw.platform !== "rn"
+    raw.platform !== "rn" &&
+    raw.platform !== "flutter"
   ) {
     throw new Error(`case_platform_unsupported: ${String(raw.platform)}`);
   }

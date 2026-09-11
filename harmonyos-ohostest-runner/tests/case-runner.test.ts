@@ -1149,3 +1149,19 @@ test("runOhosTestCase logs metadata failures before context creation", async (t)
     /config_file_parse_failed/,
   );
 });
+
+test("default output dir uses a compact local timestamp", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ohostest-timestamp-"));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const caseDir = path.join(root, "case");
+
+  const result = await runOhosTestCase({ caseDir });
+
+  assert.equal(result.status, "failed");
+  assert.match(
+    result.artifacts.result.replace(/\\/g, "/"),
+    /^\.ohostest-runs\/(\d{14})\/result\.json$/,
+  );
+});

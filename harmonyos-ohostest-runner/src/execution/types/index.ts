@@ -40,6 +40,7 @@ export interface RawExecutionConfig {
     hvigorw?: string;
     ohpm?: string;
     npm?: string;
+    flutter?: string;
     hdc?: string;
     emulatorBin?: string;
     emulatorDeployedDir?: string;
@@ -88,10 +89,14 @@ export interface ExecutionConfig {
   rn?: {
     root: string;
   };
+  flutter?: {
+    root: string;
+  };
   paths: {
     hvigorw: string;
     ohpm: string;
     npm?: string;
+    flutter?: string;
     hdc: string;
     emulatorBin: string;
     emulatorDeployedDir: string;

@@ -153,6 +153,34 @@ case 基线工程的模块发现规则与 matrix 模式一致：runner 通过模
 | `native` | 缺省。`base_project` 即鸿蒙工程根目录 |
 | `web` | Web 用例。`base_project` 为 case 内相对路径，Case 需含 `web/` 目录；执行期间由 runner 拉起 dev 服务 |
 | `rn` | RNOH（React Native for OpenHarmony）工程 |
+| `flutter` | Flutter（flutter_flutter ohos 分支）工程，需配置 `paths.flutter`（见下文） |
+
+`flutter` 布局约定：`base_project` 根目录为 Flutter 工程（`pubspec.yaml`、`lib/`），
+鸿蒙宿主工程固定位于 `base_project/ohos/` 子目录（`hvigorfile.ts` 在 `ohos/` 下而非工程根）。
+runner 复制基线工程后把 hvigor/ohpm 的执行目录自动指向 `ohos/`，模块发现、产物路径、
+安装和 `aa test` 均与 native 模式一致；flutter 工具链从 `ohos/` 向上即可找到工程根的
+`pubspec.yaml`。补丁仍打在 Flutter 工程根（`test_patch` 中的路径需带 `ohos/` 前缀）。
+
+构建由 `flutter-hvigor-plugin` 完成：hvigor 构建时插件现场执行 `flutter assemble`
+编译 Dart 并注入引擎 HAR 与 `flutter_assets`，因此构建命令序列与 native 完全一致，
+不需要单独执行 `flutter build hap`。runner 复制基线工程后会做三项自愈（均不阻断，
+失败由后续构建错误显式暴露）：
+
+1. 生成 `ohos/local.properties` 的 `flutter.sdk=<paths.flutter>`（case 不携带本机绝对路径；case 自带该文件时保持原值）
+2. `.dart_tool/package_config.json` 缺失时执行 `flutter pub get`（`.dart_tool` 被 .gitignore 排除，复制不带入）
+3. `ohos/node_modules/flutter-hvigor-plugin` 缺失时建立指向 `<paths.flutter>/packages/flutter_tools/hvigor` 的目录链接（node_modules 被复制排除）
+
+注意事项：
+
+- `machine.json` 的 `paths.flutter` 必须指向 flutter_flutter ohos 分支 SDK 根目录
+  （其 `bin/flutter`、`packages/flutter_tools/hvigor` 存在）；未配置时回退 case 自带
+  `ohos/local.properties` 的 `flutter.sdk`。
+- flutter 工程根的 `.gitignore` 排除的文件（`ohos/node_modules`、`.dart_tool`、
+  `**/libs/**/libapp.so` 等）不会随基线工程复制，均由上述自愈和 hvigor 构建期生成补齐。
+- hvigor 对构建路径长度有 259 字符上限，flutter 构建中间产物路径较深；case 路径较长时
+  建议用 `--out` 把输出目录指到短路径（如 `--out E:\w\<case>`），否则构建报
+  `00306001 The length of path exceeds the maximum length`。
+- 产物为 unsigned HAP，直接 `hdc install -r` 安装到模拟器执行。
 
 `rn` 布局约定：`base_project` 根目录为 RN 侧（`package.json`、`metro.config.js`、RN 源码），
 鸿蒙壳工程固定位于 `base_project/harmony/` 子目录。runner 会把 hvigor/ohpm 的执行目录
@@ -233,6 +261,7 @@ config/machine.json
 | `paths.hvigorw` | Hvigor 命令，必填；如果命令目录已加入环境变量，可填写 `hvigorw` |
 | `paths.ohpm` | ohpm 命令，可选；如果不配置，默认使用 `ohpm` |
 | `paths.npm` | npm 命令，可选；`platform: "rn"` 时用于 `npm install --force`，不配置默认用 PATH 上的 `npm` |
+| `paths.flutter` | flutter_flutter ohos 分支 SDK 根目录，可选；`platform: "flutter"` 时必配（用于 pub get、hvigor 插件链接与 `local.properties` 生成），不配置回退 case 自带 `ohos/local.properties` 的 `flutter.sdk` |
 | `paths.hdc` | hdc 命令，必填；如果命令目录已加入环境变量，可填写 `hdc` |
 | `paths.emulatorBin` | DevEco 模拟器命令，必填；如果模拟器目录已加入环境变量，可填写 `Emulator` |
 | `paths.emulatorDeployedDir` | 模拟器实例目录，必填 |
@@ -300,7 +329,7 @@ SWE 缺少设备类型视为基线状态，不额外计为失败。Answer 会根
 
 ## 输出结果
 
-默认输出目录：
+默认输出目录（`<timestamp>` 为 `yyyymmddhhmmss` 本地时间，如 `20260911014420`）：
 
 ```text
 <case>/.ohostest-runs/<timestamp>/

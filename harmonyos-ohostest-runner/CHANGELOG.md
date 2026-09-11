@@ -5,6 +5,18 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.2] - 2026-09-11
+
+### 新增
+
+- Case 支持 `metadata.platform: "flutter"`（flutter_flutter ohos 分支工程）：`base_project` 根目录为 Flutter 工程、鸿蒙壳固定位于 `ohos/` 子目录，执行层把 hvigor/ohpm 构建工程解析到 `ohos/`，模块发现、产物路径、安装与 `aa test` 与 native 一致；补丁仍打在 Flutter 工程根。`machine.json` 新增可选 `paths.flutter`（flutter_flutter SDK 根目录）。
+- Flutter 工程复制后自动自愈：按 `paths.flutter` 生成壳工程 `local.properties` 的 `flutter.sdk`（case 自带时保持原值）；为被复制排除的 `node_modules/flutter-hvigor-plugin` 建立指向 SDK 内插件目录的链接。Dart 依赖刷新（`flutter pub get`）进入每轮构建命令序列（在补丁应用后执行），保证 `golden_patch` 新增的 Dart 依赖在 answer 轮生效；Dart 编译、引擎 HAR 与 flutter_assets 注入由 flutter-hvigor-plugin 在 hvigor 构建内完成。
+- 未声明 `platform` 但结构为 Flutter 工程（工程根无 `hvigorfile.ts`、`ohos/` 有）的旧用例保持兼容：构建工程自动重定向到 `ohos/`。声明 `platform: "flutter"` 但工程形态不符时快速失败（`case_flutter_project_invalid`）。
+
+### 变更
+
+- 默认输出目录 `.ohostest-runs/<时间戳>` 的时间戳从 ISO 风格（`2026-09-11T01-44-20-413Z`，UTC）改为 `yyyymmddhhmmss` 本地时间（如 `20260911014420`），case 与 matrix 两种模式一致，目录名更短且可读。
+
 ## [0.2.1] - 2026-09-10
 
 ### 新增
