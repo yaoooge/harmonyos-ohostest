@@ -35,6 +35,10 @@ npm install
 
 ## 快速运行
 
+Windows Web Case 随附 Job Object 控制模块，部署时需保留 `native/windows-job`，用于清理完整 Web 进程组及 Runner 崩溃后的服务回收。macOS/Linux 继续使用原有进程组机制，无需此模块或编译器。支持范围与重建方式见 [Windows Web 进程控制](native/windows-job/README.md)。
+
+Windows 下，Runner 调用 HDC 时使用系统临时目录根作为工作目录，避免新启动的 HDC 后台服务占用 Case 的 `work` 目录。该处理覆盖设备探测、安装、测试和端口转发，构建仍在工程目录执行。它不会重启已有的共享 HDC 服务；如果旧服务已经持有历史工作目录，需要等该服务退出后才能释放。macOS/Linux 保持原有工作目录行为。
+
 ```bash
 npm run ohostest:matrix -- \
   --project /path/to/ResponsiveRepeatLayout

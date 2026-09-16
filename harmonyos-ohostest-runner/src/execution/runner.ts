@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { defaultCommandExecutor, runDetachedCommand } from "./command.js";
+import { withHdcWorkingDirectory } from "./hdc.js";
 import { sleep } from "./utils/sleep.js";
 import { buildTestHapCommand, runBuild } from "./build.js";
 import {
@@ -116,7 +117,10 @@ async function createExecutionRunContext(
   const config = input.config;
   const selectedDevices = input.plan.devices;
   const outDir = path.resolve(input.outDir);
-  const executor = input.commandExecutor ?? defaultCommandExecutor;
+  const executor = withHdcWorkingDirectory(
+    input.commandExecutor ?? defaultCommandExecutor,
+    config.paths.hdc,
+  );
   const detachedExecutor = (command: string, cwd: string) =>
     runDetachedCommand(command, cwd);
 

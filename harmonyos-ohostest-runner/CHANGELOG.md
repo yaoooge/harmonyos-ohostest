@@ -5,6 +5,16 @@
 本文档格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
 本项目遵循[语义化版本](https://semver.org/spec/v2.0.0.html)。
 
+## [0.2.5] - 2026-09-16
+
+### 修复
+
+- Windows Web 依赖安装和开发服务改由 Runner 直接持有的 Job Object 管理：创建进程时即加入 Job，结束阶段整组终止并确认进程数归零，避免 npm 父进程退出后 `taskkill` 无法覆盖残留服务。Runner 被强制结束时，系统关闭 Job 句柄并回收其成员进程。
+- Windows 清理完成后检查 Web 端口是否释放；控制模块缺失、加载或进程纳管失败时明确报错，不回退为失去控制的启动方式。随附原生模块源码与预编译文件，部署时需保留 `native/windows-job`。
+- macOS/Linux 保持原有 detached 进程组启动和 SIGTERM/SIGKILL 清理，不加载或编译 Windows 模块。
+- 测试结束后临时工作目录未能完全删除时，改为提示剩余文件已保留、测试结果不受影响，并说明可使用新的输出目录继续测试，避免用户误认为本次执行失败。详细清理错误仍保存在 `result.json` 的 `diagnostics` 中；Web 服务清理错误和测试状态判定保持不变。
+- Windows 下 Runner 生成的 HDC 命令统一从系统临时目录根执行，避免新启动的 HDC 后台服务继承 Case 临时工程工作目录并阻止清理；相对 HDC 程序路径先按原工作目录解析。构建命令、输出目录语义及 macOS/Linux 执行方式保持不变。不会停止或重启已有的共享 HDC 服务，因此已有服务持有的历史目录仍需在其退出后清理。
+
 ## [0.2.4] - 2026-09-11
 
 ### 新增
