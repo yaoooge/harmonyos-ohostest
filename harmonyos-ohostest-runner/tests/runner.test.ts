@@ -995,7 +995,9 @@ test("runOhosTestMatrix runs configured test suites separately and aggregates re
   const testCommand = events.find(
     (event) =>
       event.event === "command" &&
+      String(event.command).includes("aa test") &&
       String(event.command).includes("MdFailToPassTest"),
   );
+  // 屏幕截图命令的文件名同样包含 suite 名，必须只匹配 aa test 命令本身。
   assert.equal(testCommand?.stdout, undefined);
 });

@@ -4,8 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  createStreamingCommandExecutor,
   decodeCommandOutput,
   runDetachedCommand,
+  runStreamedCommand,
 } from "../src/execution/command.js";
 import { createLoggedCommandExecutor } from "../src/logging/command.js";
 import { RunnerLogger } from "../src/logging/logger.js";
@@ -26,6 +28,52 @@ test("decodeCommandOutput decodes Windows GB18030 command output", () => {
   );
 
   assert.equal(output, "\u4f60\u597d");
+});
+
+test("runStreamedCommand delivers stdout lines while the command runs", async () => {
+  const script = [
+    "process.stdout.write('line-1\\n');",
+    "setTimeout(() => {",
+    "  process.stdout.write('line-2\\nline-3');",
+    "  process.exit(5);",
+    "}, 50);",
+  ].join("");
+  const command = `${shellQuote(process.execPath)} -e ${shellQuote(script)}`;
+
+  const lines: string[] = [];
+  const result = await runStreamedCommand(command, process.cwd(), {
+    onStdoutLine: (line) => lines.push(line),
+  });
+
+  assert.deepEqual(lines, ["line-1", "line-2", "line-3"]);
+  assert.equal(result.exitCode, 5);
+  assert.match(result.stdout, /line-1/);
+});
+
+test("runStreamedCommand resolves with the spawn failure instead of throwing", async () => {
+  const result = await runStreamedCommand(
+    `${shellQuote(process.execPath)} -e process.exit(3)`,
+    process.cwd(),
+  );
+
+  assert.equal(result.exitCode, 3);
+});
+
+test("streaming executor over a buffered base delivers lines after completion", async () => {
+  const lines: string[] = [];
+  const executor = createStreamingCommandExecutor(async () => ({
+    stdout: "alpha\nbeta\r\ngamma\n",
+    stderr: "",
+    exitCode: 0,
+    durationMs: 1,
+  }));
+
+  const result = await executor("any command", ".", {
+    onStdoutLine: (line) => lines.push(line),
+  });
+
+  assert.deepEqual(lines, ["alpha", "beta", "gamma"]);
+  assert.equal(result.exitCode, 0);
 });
 
 test("RunnerLogger writes structured commands and runner errors", async (t) => {

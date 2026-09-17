@@ -1,6 +1,11 @@
 import { exec, spawn, type ChildProcess } from "node:child_process";
 import { TextDecoder, promisify } from "node:util";
-import type { CommandExecutor, CommandResult } from "./types/index.js";
+import type {
+  CommandExecutor,
+  CommandResult,
+  StreamedCommandHandlers,
+  StreamingCommandExecutor,
+} from "./types/index.js";
 
 const execAsync = promisify(exec);
 const utf8Decoder = new TextDecoder("utf-8");
@@ -34,6 +39,81 @@ export const defaultCommandExecutor: CommandExecutor = async (command, cwd) => {
     };
   }
 };
+
+/**
+ * Builds a streaming executor. Without a base executor it spawns the command
+ * and delivers stdout lines while it runs; with one (tests, custom executors)
+ * it falls back to buffered execution and delivers all lines once it settles.
+ */
+export function createStreamingCommandExecutor(
+  base?: CommandExecutor,
+): StreamingCommandExecutor {
+  if (base) {
+    return async (command, cwd, handlers = {}) => {
+      const result = await base(command, cwd);
+      deliverOutputLines(result.stdout, handlers);
+      return result;
+    };
+  }
+  return (command, cwd, handlers = {}) =>
+    runStreamedCommand(command, cwd, handlers);
+}
+
+export async function runStreamedCommand(
+  command: string,
+  cwd: string,
+  handlers: StreamedCommandHandlers = {},
+): Promise<CommandResult> {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let lineBuffer = "";
+    let settled = false;
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const finish = (result: Omit<CommandResult, "durationMs">): void => {
+      if (settled) return;
+      settled = true;
+      resolve({ ...result, durationMs: Date.now() - started });
+    };
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = decodeCommandOutput(chunk);
+      stdout = appendTextOutput(stdout, text);
+      lineBuffer += text;
+      const lines = lineBuffer.split(/\r?\n/);
+      lineBuffer = lines.pop() ?? "";
+      for (const line of lines) handlers.onStdoutLine?.(line);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr = appendTextOutput(stderr, decodeCommandOutput(chunk));
+    });
+    child.on("error", (error) =>
+      finish({ stdout, stderr: stderr || error.message, exitCode: 1 }),
+    );
+    child.on("close", (code) => {
+      if (lineBuffer.length > 0) handlers.onStdoutLine?.(lineBuffer);
+      finish({ stdout, stderr, exitCode: code ?? 0 });
+    });
+  });
+}
+
+function deliverOutputLines(
+  output: string,
+  handlers: StreamedCommandHandlers,
+): void {
+  if (!handlers.onStdoutLine || output.length === 0) return;
+  const lines = output.split(/\r?\n/);
+  if (lines[lines.length - 1]?.length === 0) lines.pop();
+  for (const line of lines) handlers.onStdoutLine(line);
+}
+
+function appendTextOutput(current: string, text: string): string {
+  return `${current}${text}`.slice(-1024 * 1024);
+}
 
 export async function runDetachedCommand(
   command: string,

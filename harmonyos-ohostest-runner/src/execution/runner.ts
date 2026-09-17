@@ -1,16 +1,22 @@
 import os from "node:os";
 import path from "node:path";
-import { defaultCommandExecutor, runDetachedCommand } from "./command.js";
+import {
+  createStreamingCommandExecutor,
+  defaultCommandExecutor,
+  runDetachedCommand,
+} from "./command.js";
 import { withHdcWorkingDirectory } from "./hdc.js";
 import { sleep } from "./utils/sleep.js";
 import { buildTestHapCommand, runBuild } from "./build.js";
 import {
   buildStartEmulatorCommand,
   buildStopEmulatorCommand,
+  hdcFor,
   installHaps,
   prepareDevice,
   waitForTargetDisconnected,
 } from "./device.js";
+import { DeviceScreenCapture } from "./screenshots.js";
 import { buildAaTestCommand, parseAaTestOutput } from "./ohostest.js";
 import { deriveExecutionStatus } from "./result.js";
 import { WebPortForwarding } from "./webForwarding.js";
@@ -30,6 +36,7 @@ import type {
   ExecutionResult,
   ParsedAaTestOutput,
   RunExecutionInput,
+  StreamingCommandExecutor,
   SuiteRunResult,
 } from "./types/index.js";
 
@@ -46,6 +53,7 @@ interface ExecutionRunContext {
   diagnostics: string[];
   logger: RunnerLogger;
   executor: NonNullable<RunExecutionInput["commandExecutor"]>;
+  streamExecutor: StreamingCommandExecutor;
   runCommand: (command: string, runCwd?: string) => Promise<CommandResult>;
   runDetached: (command: string, runCwd?: string) => Promise<CommandResult>;
 }
@@ -60,13 +68,16 @@ interface DeviceRunInput {
   webServerPort?: number;
   logger: RunnerLogger;
   executor: NonNullable<RunExecutionInput["commandExecutor"]>;
+  streamExecutor: StreamingCommandExecutor;
   runCommand: (command: string, runCwd?: string) => Promise<CommandResult>;
   runDetached: (command: string, runCwd?: string) => Promise<CommandResult>;
+  /** Mutable collector; filled by screen captures during test execution. */
+  screenshots: string[];
 }
 
 type TestRunInput = Pick<
   DeviceRunInput,
-  "config" | "device" | "executor" | "logger"
+  "config" | "device" | "outDir" | "screenshots" | "executor" | "streamExecutor" | "logger"
 >;
 
 interface LoggedTestRun {
@@ -121,6 +132,10 @@ async function createExecutionRunContext(
     input.commandExecutor ?? defaultCommandExecutor,
     config.paths.hdc,
   );
+  const streamExecutor = withHdcWorkingDirectory(
+    createStreamingCommandExecutor(input.commandExecutor),
+    config.paths.hdc,
+  );
   const detachedExecutor = (command: string, cwd: string) =>
     runDetachedCommand(command, cwd);
 
@@ -134,6 +149,7 @@ async function createExecutionRunContext(
     diagnostics: [],
     logger: input.logger,
     executor,
+    streamExecutor,
     runCommand: bindLoggedCommandExecutor(
       executor,
       input.logger,
@@ -183,6 +199,7 @@ async function runSelectedDevices(
         webServerPort: input.webServerPort,
         logger,
         executor: context.executor,
+        streamExecutor: context.streamExecutor,
         runCommand: bindLoggedCommandExecutor(
           context.executor,
           logger,
@@ -193,6 +210,7 @@ async function runSelectedDevices(
           logger,
           detachedCommandCwd(),
         ),
+        screenshots: [],
       }),
     );
     if (
@@ -279,6 +297,7 @@ async function runDevice(input: DeviceRunInput): Promise<DeviceRunResult> {
       input.logger.recordError(error, { errorCode: "WEB_FORWARD_FAILED" });
     result = blockedDevice(input, started, reason);
   }
+  result = withCapturedScreenshots(result, input.screenshots);
   const webCleanupFailed = await cleanupWebForwarding(input, webForwarding);
   const foldCleanupFailed = await cleanupRunDevice(input, foldServer);
   if (webCleanupFailed)
@@ -536,13 +555,13 @@ async function runLoggedTestWithUnlockRetry(
   suiteClass: string,
   testClass?: string,
 ): Promise<LoggedTestRun> {
-  let testRun = await runLoggedTest(input, suiteClass, testClass);
+  let testRun = await runLoggedTest(input, suiteClass, testClass, 1);
   if (!isRetriableTestLaunchResult(testRun.commandResult)) {
     return testRun;
   }
   await prepareRunDevice(input);
   await sleep(screenUnlockSettleMs);
-  testRun = await runLoggedTest(input, suiteClass, testClass);
+  testRun = await runLoggedTest(input, suiteClass, testClass, 2);
   return testRun;
 }
 
@@ -556,15 +575,34 @@ async function runLoggedTest(
   input: TestRunInput,
   suiteClass: string,
   testClass?: string,
+  attempt = 1,
 ): Promise<LoggedTestRun> {
   const logger = input.logger.child({ suiteClass });
   const command = buildTestCommand(input.config, input.device, testClass);
+  const capture = new DeviceScreenCapture({
+    hdc: hdcFor(input.config, input.device),
+    localDir: path.join(input.outDir, "screenshots", input.device.id),
+    outDir: input.outDir,
+    prefix: `${safeScreenshotPrefix(suiteClass)}-${attempt}`,
+    attempt,
+    run: createLoggedCommandExecutor(
+      input.executor,
+      logger,
+      input.config.project,
+    ),
+    onCapture: (shot) => input.screenshots.push(shot),
+  });
   let commandResult: CommandResult;
   try {
-    commandResult = await input.executor(command, input.config.project);
+    capture.startDuringLoop();
+    commandResult = await input.streamExecutor(command, input.config.project, {
+      onStdoutLine: (line) => capture.onTestOutputLine(line),
+    });
   } catch (error) {
     logger.recordError(error, { command });
     throw error;
+  } finally {
+    await capture.finish();
   }
   const parsed = parseAaTestOutput(
     `${commandResult.stdout}\n${commandResult.stderr}`,
@@ -579,6 +617,10 @@ async function runLoggedTest(
     logger.recordTestCase(testCase);
   }
   return { commandResult, parsed, logger };
+}
+
+function safeScreenshotPrefix(value: string): string {
+  return value.replace(/[^A-Za-z0-9_.-]/g, "_");
 }
 
 function bindLoggedCommandExecutor(
@@ -659,6 +701,15 @@ function aggregateSuites(
     }),
     { testsRun: 0, failures: 0, errors: 0, passes: 0, ignored: 0 },
   );
+}
+
+function withCapturedScreenshots(
+  result: DeviceRunResult,
+  screenshots: string[],
+): DeviceRunResult {
+  return screenshots.length > 0
+    ? { ...result, screenshots: [...screenshots] }
+    : result;
 }
 
 function reasonFromError(error: unknown): DeviceRunResult["blockedReason"] {

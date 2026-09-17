@@ -10,6 +10,17 @@ export type CommandExecutor = (
   cwd: string,
 ) => Promise<CommandResult>;
 
+export interface StreamedCommandHandlers {
+  /** Called per complete stdout line while the command is running. */
+  onStdoutLine?: (line: string) => void;
+}
+
+export type StreamingCommandExecutor = (
+  command: string,
+  cwd: string,
+  handlers?: StreamedCommandHandlers,
+) => Promise<CommandResult>;
+
 export type ExecutionStatus = "completed" | "failed";
 
 export type DeviceRunStatus = "passed" | "failed" | "blocked";
@@ -213,6 +224,8 @@ export interface DeviceRunResult {
   log: string;
   blockedReason?: BlockedReason;
   foldServerPort?: number;
+  /** Captured screen snapshots, relative to the run output directory. */
+  screenshots?: string[];
 }
 
 export interface ExecutionResult {

@@ -391,9 +391,11 @@ SWE 缺少设备类型视为基线状态，不额外计为失败。Answer 会根
   swe/                 # 仅在执行 --run swe 或 --run all 时生成
     result.json        # swe 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
     summary.md         # swe 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
+    screenshots/       # 设备屏幕截图，按设备 ID 分目录（见下文"设备屏幕截图"）
   answer/              # 仅在执行 --run answer 或 --run all 时生成
     result.json        # answer 矩阵 JSON 报告，包含构建结果、设备结果、suite 结果、test case 明细
     summary.md         # answer 矩阵 Markdown 汇总，按设备和 suite 展示矩阵执行结果
+    screenshots/       # 设备屏幕截图，按设备 ID 分目录（见下文"设备屏幕截图"）
   work/                # 合成工程工作目录；--keep-workdir false 时运行结束后删除
     project/           # base_project + test_patch，answer/all 模式下还会继续应用 golden_patch
 ```
@@ -401,6 +403,25 @@ SWE 缺少设备类型视为基线状态，不额外计为失败。Answer 会根
 多 HAP 轮次会在 `swe/modules/<module>/` 或 `answer/modules/<module>/` 中写入各模块的
 `result.json` 和 `summary.md`。顶层矩阵结果保持现有格式，并可选增加 `module_runs`，记录
 每个模块对应的设备、构建产物、结果路径和诊断。单 HAP 用例不生成该字段。
+
+## 设备屏幕截图
+
+只为失败用例保留一张截图。`aa test` 经流式命令执行器运行并逐行解析实时输出；命令
+执行期间 Runner 每 3 秒滚动抓取一帧设备屏幕并覆盖同一张待定文件（此时 UiTest 驱动的
+被测应用在前台展示页面）。当一条用例上报失败时，滚动立即停止，最后一张待定帧——
+拍摄于 teardown 关闭应用之前——改名并以该失败用例名保留，内容即断言失败时的界面
+现场；若失败发生在任何一帧之前，则立即补拍一张尽力而为。通过、忽略的用例与无失败的
+运行不产生截图，待定帧即时删除。抓帧经 `hdc shell snapshot_display` 抓到设备端
+`/data/local/tmp`，再用 `hdc file recv` 拉回本地，并清理设备端临时文件。
+
+截图保存在对应轮次输出目录的 `screenshots/<deviceId>/` 下，以失败用例名命名：
+`<testCase>.jpeg`（用例名中的特殊字符会替换为 `_`；解锁重试的第二轮尝试追加
+`-2` 后缀）。设备结果的 `screenshots` 字段列出相对轮次目录的全部截图路径，轮次
+`summary.md` 的设备小节也会列出。
+
+截图是尽力而为的诊断手段：任一环节失败（含用例超时、命令抛错）只跳过该帧，不影响测试
+执行与结果判定；所有截图命令都会记入 `commands.jsonl`。注入自定义 `commandExecutor`
+时退化为缓冲执行，行事件在命令结束后投递。
 
 `swe/result.json` 和 `answer/result.json` 的命令日志路径均指向顶层
 `commands.jsonl`。可按 `phase`、`deviceId` 和 `suiteClass` 过滤对应事件；
