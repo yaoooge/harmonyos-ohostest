@@ -56,20 +56,32 @@ function makeCapture(harness: CaptureHarness, attempt = 1): DeviceScreenCapture 
     hdc: "hdc -t 127.0.0.1:15001",
     localDir: harness.localDir,
     outDir: harness.outDir,
-    prefix: "SmPassToPassTest-1",
+    prefix: "CommonTest-1",
     attempt,
     run: harness.run,
     onCapture: (shot) => harness.captured.push(shot),
   });
 }
 
+function startOf(name: string): string[] {
+  return [
+    "OHOS_REPORT_STATUS: class=CommonTest",
+    `OHOS_REPORT_STATUS: test=${name}`,
+    "OHOS_REPORT_STATUS_CODE: 1",
+  ];
+}
+
 function failureOf(name: string, code = -2): string[] {
   return [
-    "OHOS_REPORT_STATUS: class=SmPassToPassTest",
+    "OHOS_REPORT_STATUS: class=CommonTest",
     `OHOS_REPORT_STATUS: test=${name}`,
     `OHOS_REPORT_STATUS_CODE: ${code}`,
     "OHOS_REPORT_STATUS: consuming=239",
   ];
+}
+
+function snapshotCount(harness: CaptureHarness): number {
+  return harness.commands.filter((c) => c.includes("snapshot_display")).length;
 }
 
 async function waitFor(condition: () => boolean) {
@@ -78,130 +90,204 @@ async function waitFor(condition: () => boolean) {
   }
 }
 
-test("a reported failure promotes the rolling frame to the failed test name", async () => {
+async function waitForSnapshot(harness: CaptureHarness, minCount: number) {
+  for (let i = 0; i < 200 && snapshotCount(harness) < minCount; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+test("a rolling frame captured during the failing case is promoted", async () => {
   const harness = await makeHarness();
   const capture = makeCapture(harness);
 
   capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
-  );
-  for (const line of failureOf("should_fifty_fifty_columns_on_lg")) {
+  for (const line of startOf("should_fail_case")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitForSnapshot(harness, 1);
+  for (const line of failureOf("should_fail_case")) {
     capture.onTestOutputLine(line);
   }
   await waitFor(() => harness.captured.length > 0);
   await capture.finish();
 
-  assert.deepEqual(harness.captured, [
-    storedShot("should_fifty_fifty_columns_on_lg.jpeg"),
-  ]);
+  assert.deepEqual(harness.captured, [storedShot("should_fail_case.jpeg")]);
   assert.equal(
     (await fs.readdir(harness.localDir)).length,
     1,
-    "only the promoted frame remains",
+    "promoted frame only, no pending leftovers",
   );
-  assert.ok(
-    !harness.captured[0]!.includes("pending"),
-    "the pending frame is renamed, not kept",
-  );
-  const snapshotCount = harness.commands.filter((c) =>
-    c.includes("snapshot_display"),
-  ).length;
-  assert.equal(snapshotCount, 1, "the loop stops after the failure");
-  const saved = await fs.readFile(
-    path.join(harness.localDir, "should_fifty_fifty_columns_on_lg.jpeg"),
-  );
-  assert.equal(saved.toString(), "jpeg-bytes");
 });
 
-test("runs without failures delete the pending frame", async () => {
+test("a stale startup frame is never promoted; the failure is shot fresh", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  // Rolling frame taken BEFORE the case started (app startup scene).
+  capture.startDuringLoop(5);
+  await waitForSnapshot(harness, 1);
+  // The case starts, invalidating the startup frame, and fails quickly.
+  for (const line of startOf("should_fast_fail")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_fast_fail")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitFor(() => harness.captured.length > 0);
+  await capture.finish();
+
+  assert.deepEqual(harness.captured, [storedShot("should_fast_fail.jpeg")]);
+  // At least: one rolling snapshot + one fresh shot for the failure itself;
+  // the rolling loop keeps running for further cases.
+  assert.ok(snapshotCount(harness) >= 2);
+  assert.equal(
+    (await fs.readdir(harness.localDir)).length,
+    1,
+    "only the fresh shot remains",
+  );
+});
+
+test("each failing case gets its own fresh frame; passing ones get none", async () => {
   const harness = await makeHarness();
   const capture = makeCapture(harness);
 
   capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
+  for (const line of startOf("should_pass_one")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_pass_one", 0).slice(1)) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of startOf("should_fail_two")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitForSnapshot(harness, 1);
+  for (const line of failureOf("should_fail_two")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitFor(() => harness.captured.length >= 1);
+  for (const line of startOf("should_fail_three")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitForSnapshot(harness, 2);
+  for (const line of failureOf("should_fail_three")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitFor(() => harness.captured.length >= 2);
+  await capture.finish();
+
+  assert.deepEqual(harness.captured, [
+    storedShot("should_fail_two.jpeg"),
+    storedShot("should_fail_three.jpeg"),
+  ]);
+});
+
+test("a failure before any frame gets an immediate shot", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  for (const line of startOf("should_fail_md")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_fail_md")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitFor(() => harness.captured.length > 0);
+  await capture.finish();
+
+  assert.deepEqual(harness.captured, [storedShot("should_fail_md.jpeg")]);
+});
+
+test("a failing case reporting twice is only shot once", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  for (const line of startOf("should_fail_once")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_fail_once")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitFor(() => harness.captured.length > 0);
+  for (const line of failureOf("should_fail_once")) {
+    capture.onTestOutputLine(line);
+  }
+  await capture.finish();
+
+  assert.deepEqual(harness.captured, [storedShot("should_fail_once.jpeg")]);
+});
+
+test("a passed case never claims the leftover pending frame at finish", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  capture.startDuringLoop(5);
+  await waitForSnapshot(harness, 1);
+  for (const line of startOf("should_passed_case")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_passed_case", 0).slice(1)) {
+    capture.onTestOutputLine(line);
+  }
+  await capture.finish();
+
+  assert.deepEqual(
+    harness.captured,
+    [],
+    "a passing case must not receive a frame",
   );
+  assert.deepEqual(
+    await fs.readdir(harness.localDir),
+    [],
+    "the leftover pending frame is deleted",
+  );
+});
+
+test("a leftover pending frame at finish belongs to the case that never reported", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  capture.startDuringLoop(5);
+  for (const line of startOf("should_hanging_case")) {
+    capture.onTestOutputLine(line);
+  }
+  await waitForSnapshot(harness, 1);
+  // The command ends before the case reports (hang or timeout).
+  await capture.finish();
+
+  assert.deepEqual(harness.captured, [storedShot("should_hanging_case.jpeg")]);
+});
+
+test("runs without any reported case leave nothing behind", async () => {
+  const harness = await makeHarness();
+  const capture = makeCapture(harness);
+
+  capture.startDuringLoop(5);
+  await waitForSnapshot(harness, 1);
   await capture.finish();
 
   assert.deepEqual(harness.captured, []);
   assert.deepEqual(
     await fs.readdir(harness.localDir),
     [],
-    "no screenshot survives a run without failures",
+    "no pending frame survives a run without reported cases",
   );
   assert.ok(
     harness.commands.filter(
       (c) => c.includes("shell rm") && c.includes("pending"),
     ).length >= 1,
-    "the pending remote file is cleaned up",
   );
 });
 
-test("passing, ignored and running codes never trigger the promotion", async () => {
-  const harness = await makeHarness();
-  const capture = makeCapture(harness);
-
-  capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
-  );
-  for (const code of [0, -3, 1]) {
-    for (const line of failureOf(`should_case_${code}`, code)) {
-      capture.onTestOutputLine(line);
-    }
-  }
-  await capture.finish();
-
-  assert.deepEqual(harness.captured, []);
-});
-
-test("a failure before any frame falls back to one late shot", async () => {
-  const harness = await makeHarness();
-  const capture = makeCapture(harness);
-
-  // No rolling frame yet: report the failure immediately.
-  for (const line of failureOf("should_fail_md")) {
-    capture.onTestOutputLine(line);
-  }
-  await waitFor(() => harness.captured.length > 0);
-  await capture.finish();
-
-  assert.deepEqual(harness.captured, [storedShot("should_fail_md.jpeg")]);
-  assert.equal(
-    harness.commands.filter((c) => c.includes("snapshot_display")).length,
-    1,
-  );
-});
-
-test("only the first failure promotes; later failures are ignored", async () => {
-  const harness = await makeHarness();
-  const capture = makeCapture(harness);
-
-  capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
-  );
-  for (const line of failureOf("should_fail_md")) {
-    capture.onTestOutputLine(line);
-  }
-  await waitFor(() => harness.captured.length > 0);
-  for (const line of failureOf("should_fail_lg")) {
-    capture.onTestOutputLine(line);
-  }
-  await capture.finish();
-
-  assert.deepEqual(harness.captured, [storedShot("should_fail_md.jpeg")]);
-});
-
-test("sanitizes and suffixes retry attempts in the promoted name", async () => {
+test("sanitizes and suffixes retry attempts in the file name", async () => {
   const harness = await makeHarness();
   const capture = makeCapture(harness, 2);
 
   capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
-  );
+  await waitForSnapshot(harness, 1);
+  for (const line of startOf("should/a b:c")) {
+    capture.onTestOutputLine(line);
+  }
   for (const line of failureOf("should/a b:c")) {
     capture.onTestOutputLine(line);
   }
@@ -218,9 +304,10 @@ test("stays silent when snapshot_display fails", async () => {
   const capture = makeCapture(harness);
 
   capture.startDuringLoop(5);
-  await waitFor(
-    () => harness.commands.some((c) => c.includes("snapshot_display")),
-  );
+  await waitForSnapshot(harness, 1);
+  for (const line of startOf("should_fail_md")) {
+    capture.onTestOutputLine(line);
+  }
   for (const line of failureOf("should_fail_md")) {
     capture.onTestOutputLine(line);
   }
@@ -233,7 +320,7 @@ test("stays silent when snapshot_display fails", async () => {
   );
 });
 
-test("finish waits for the in-flight promotion before resolving", async () => {
+test("finish waits for the in-flight recv before resolving", async () => {
   let releaseRecv: (() => void) | undefined;
   const harness = await makeHarness((h) => {
     h.recvGate = new Promise<void>((resolve) => {
@@ -246,7 +333,10 @@ test("finish waits for the in-flight promotion before resolving", async () => {
   await waitFor(() =>
     harness.commands.some((c) => c.includes(" file recv ")),
   );
-  for (const line of failureOf("should_fail_md")) {
+  for (const line of startOf("should_slow_fail")) {
+    capture.onTestOutputLine(line);
+  }
+  for (const line of failureOf("should_slow_fail")) {
     capture.onTestOutputLine(line);
   }
   const finishing = capture.finish();
@@ -259,7 +349,7 @@ test("finish waits for the in-flight promotion before resolving", async () => {
   releaseRecv?.();
   await finishing;
 
-  assert.deepEqual(harness.captured, [storedShot("should_fail_md.jpeg")]);
+  assert.deepEqual(harness.captured, [storedShot("should_slow_fail.jpeg")]);
 });
 
 function storedShot(name: string): string {

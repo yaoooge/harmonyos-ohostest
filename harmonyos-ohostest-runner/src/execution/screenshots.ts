@@ -7,13 +7,13 @@ import { sleep } from "./utils/sleep.js";
 
 const remoteShotDir = "/data/local/tmp";
 
-/** Cadence of the rolling capture that tracks the screen during the run. */
-export const screenshotIntervalMs = 3000;
+/** Cadence of the rolling capture tracking the screen during each test case. */
+export const screenshotIntervalMs = 1000;
 
 export interface ScreenCaptureInput {
   /** Quoted `hdc -t <target>` prefix built by hdcFor(). */
   hdc: string;
-  /** Absolute directory receiving the captured file. */
+  /** Absolute directory receiving the captured files. */
   localDir: string;
   /** Absolute run output directory used to compute stored relative paths. */
   outDir: string;
@@ -27,25 +27,30 @@ export interface ScreenCaptureInput {
 
 /**
  * Keeps one screenshot per failing test case. While the test command runs, a
- * rolling capture overwrites a single pending frame every few seconds; the
- * UiTest-driven app stays on screen during this phase, so the latest frame
- * shows the current scene. When the live stream reports a failing test case,
- * the loop stops and the pending frame - taken before the teardown closed the
- * app - is renamed after that test case. Runs without failures delete the
- * pending frame, and a suite that failed before any frame was taken falls
- * back to one late, best-effort shot. Snapshot failures never interrupt the
- * surrounding test flow.
+ * rolling capture overwrites a single pending frame every few seconds; when
+ * a test case reports a failure, the pending frame - taken while that case
+ * was executing, before any teardown - is renamed after it and the loop keeps
+ * rolling for further failing cases. A case that fails before any frame was
+ * taken gets one immediate best-effort shot. Passing, ignored cases and runs
+ * without failures leave nothing behind; when the command settles, a
+ * leftover pending frame belongs to the case that never reported (hang or
+ * timeout) and is kept under its name. Snapshot failures never interrupt.
  */
 export class DeviceScreenCapture {
   private readonly input: ScreenCaptureInput;
   private readonly pendingLocal: string;
   private readonly pendingRemote: string;
   private lastTestCase: string | undefined;
-  private failedName: string | undefined;
+  private readonly reportedTestCases = new Set<string>();
+  private readonly shotTestCases = new Set<string>();
   private stopped = false;
   private hasPendingFrame = false;
+  /** Epoch of the running test case; bumped when a case starts. */
+  private caseEpoch = 0;
+  /** Epoch the pending frame was captured in; -1 when stale or absent. */
+  private pendingEpoch = -1;
   private loop: Promise<void> | undefined;
-  private finalizer: Promise<void> | undefined;
+  private queue: Promise<void> = Promise.resolve();
   private interruptWait: (() => void) | undefined;
 
   constructor(input: ScreenCaptureInput) {
@@ -65,16 +70,28 @@ export class DeviceScreenCapture {
       this.lastTestCase = name;
       return;
     }
-    if (this.failedName || !this.lastTestCase || this.stopped) return;
+    if (!this.lastTestCase || this.stopped) return;
     const code = /^OHOS_REPORT_STATUS_CODE:\s*(-?\d+)$/.exec(clean)?.[1];
     if (code === undefined) return;
     // STATUS_CODE: 1 running, 0 passed, -3 ignored; anything else failed.
     const value = Number(code);
-    if (value === 1 || value === 0 || value === -3) return;
-    this.failedName = this.lastTestCase;
-    this.stopped = true;
-    this.interruptWait?.();
-    this.finalizer = this.keepFailureShot(this.failedName);
+    if (value === 1) {
+      // The case just started: frames taken before now show the previous
+      // case or the app startup, never this case's own scene.
+      this.caseEpoch += 1;
+      this.pendingEpoch = -1;
+      return;
+    }
+    const testCase = this.lastTestCase;
+    if (this.reportedTestCases.has(testCase)) return;
+    this.reportedTestCases.add(testCase);
+    if (value === 0 || value === -3) return;
+    if (this.shotTestCases.has(testCase)) return;
+    this.shotTestCases.add(testCase);
+    // Serialize promotions so quick consecutive failures cannot interleave.
+    this.queue = this.queue.then(() =>
+      this.promote(testCase).catch(() => undefined),
+    );
   }
 
   /** Starts the rolling capture tracking the screen during the run. */
@@ -83,20 +100,28 @@ export class DeviceScreenCapture {
     this.loop = this.runRollingLoop(intervalMs);
   }
 
-  /** Settles the rolling capture; passing runs leave nothing behind. */
+  /** Settles rolling and promotions; keeps a leftover frame for a hung case. */
   async finish(): Promise<void> {
     this.stopped = true;
     this.interruptWait?.();
     await this.loop?.catch(() => undefined);
     this.loop = undefined;
-    await this.finalizer?.catch(() => undefined);
-    this.finalizer = undefined;
-    if (!this.failedName) {
-      await fs.rm(this.pendingLocal, { force: true }).catch(() => undefined);
-      await this.input
-        .run(`${this.input.hdc} shell rm ${this.pendingRemote}`)
-        .catch(() => undefined);
+    await this.queue.catch(() => undefined);
+    this.queue = Promise.resolve();
+    if (
+      this.hasPendingFrame &&
+      this.lastTestCase &&
+      !this.reportedTestCases.has(this.lastTestCase)
+    ) {
+      // The command ended before that case reported (hang or timeout);
+      // its pending frame is the best evidence of the stuck scene.
+      await this.promote(this.lastTestCase).catch(() => undefined);
+      return;
     }
+    await fs.rm(this.pendingLocal, { force: true }).catch(() => undefined);
+    await this.input
+      .run(`${this.input.hdc} shell rm ${this.pendingRemote}`)
+      .catch(() => undefined);
   }
 
   private async runRollingLoop(intervalMs: number): Promise<void> {
@@ -107,20 +132,22 @@ export class DeviceScreenCapture {
         this.pendingLocal,
         this.pendingRemote,
       );
-      this.hasPendingFrame = this.hasPendingFrame || saved;
+      if (saved) {
+        this.hasPendingFrame = true;
+        this.pendingEpoch = this.caseEpoch;
+      }
     }
   }
 
-  private async keepFailureShot(failedTestCase: string): Promise<void> {
-    await this.loop?.catch(() => undefined);
-    this.loop = undefined;
-    const stem = `${safeFileName(failedTestCase)}${
+  private async promote(testCase: string): Promise<void> {
+    const stem = `${safeFileName(testCase)}${
       this.input.attempt > 1 ? `-${this.input.attempt}` : ""
     }`;
     const finalLocal = path.join(this.input.localDir, `${stem}.jpeg`);
-    const finalRemote = `${remoteShotDir}/${stem}.jpeg`;
-    if (this.hasPendingFrame) {
-      // The pending frame was taken before the teardown closed the app.
+    if (this.hasPendingFrame && this.pendingEpoch === this.caseEpoch) {
+      // The pending frame was captured while this very case was executing.
+      this.hasPendingFrame = false;
+      this.pendingEpoch = -1;
       await fs.rename(this.pendingLocal, finalLocal).catch(() => undefined);
       this.input.onCapture?.(path.relative(this.input.outDir, finalLocal));
       await this.input
@@ -128,8 +155,11 @@ export class DeviceScreenCapture {
         .catch(() => undefined);
       return;
     }
-    // The case failed before any frame was taken; late shot, best effort.
-    const saved = await this.captureTo(finalLocal, finalRemote);
+    // No fresh frame for this case (startup or a prior case): shoot now.
+    const saved = await this.captureTo(
+      finalLocal,
+      `${remoteShotDir}/${stem}.jpeg`,
+    );
     if (saved) {
       this.input.onCapture?.(path.relative(this.input.outDir, finalLocal));
     }
